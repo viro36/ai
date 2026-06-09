@@ -1,0 +1,39 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <!-- Кнопки парсинга -->
+    <li style="list-style-type: none; display: inline-block;">
+        <form action="{% url 'admin:parse_vsuet' %}" method="POST" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-success" style="background: #28a745; color: white;">
+                Парсинг ВГУИТ
+            </button>
+        </form>
+    </li>
+    <li style="list-style-type: none; display: inline-block;">
+        <form action="{% url 'admin:parse_vsu' %}" method="POST" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-info" style="background: #17a2b8; color: white;">
+                Парсинг ВГУ
+            </button>
+        </form>
+    </li>
+    <li style="list-style-type: none; display: inline-block;">
+        <form action="{% url 'admin:parse_vstu' %}" method="POST" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-warning" style="background: #ffc107; color: #333;">
+                Парсинг ВГТУ
+            </button>
+        </form>
+    </li>
+    <li style="list-style-type: none; display: inline-block;">
+        <form action="{% url 'admin:parse_all' %}" method="POST" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-primary" style="background: #007bff; color: white;">
+                Парсинг ВСЕХ
+            </button>
+        </form>
+    </li>
+{% endblock %}
