@@ -12,7 +12,7 @@ services:
     expose:
       - "8000"
     env_file:
-      - .env
+      - .env.prod
     restart: "on-failure"
     depends_on:
       postgres-db:
@@ -79,7 +79,7 @@ services:
         - static_volume:/App/staticfiles
         - media_volume:/App/mediafiles
     env_file:
-        - .env
+        - .env.prod
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -103,7 +103,7 @@ services:
         - static_volume:/App/staticfiles
         - media_volume:/App/mediafiles
     env_file:
-        - .env
+        - .env.prod
     ports:
         - "5557:5555"
     healthcheck:
