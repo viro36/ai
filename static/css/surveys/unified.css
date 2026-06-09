@@ -1,0 +1,122 @@
+.unified-level-card {
+    background: linear-gradient(135deg, #CCCCFF 0%, #5C5C99 100%);
+    color: #292966;
+    border-radius: 20px;
+    padding: 30px;
+    margin-bottom: 30px;
+    animation: fadeIn 0.5s ease-in;
+}
+
+.unified-level-card.survey-riasec {
+    background: linear-gradient(135deg, #A3A3CC 0%, #292966 100%);
+    color: white;
+}
+
+.unified-career-code {
+    font-size: 3rem;
+    font-weight: bold;
+    letter-spacing: 10px;
+    background: rgba(92, 92, 153, 0.2);
+    display: inline-block;
+    padding: 10px 30px;
+    border-radius: 50px;
+    margin: 15px 0;
+    color: #292966;
+}
+
+.unified-chart-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.unified-chart-container canvas {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 400px;
+}
+
+.unified-block-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    border-left: 4px solid #5C5C99;
+}
+
+.unified-block-card:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.unified-block-score {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.unified-block-score small {
+    font-size: 0.9rem;
+    font-weight: normal;
+}
+
+/* Уровни с цветами из палитры */
+.level-A2, .level-high {
+    border-left-color: #CCCCFF;
+    background-color: #f0f0ff;
+}
+.level-B1, .level-medium {
+    border-left-color: #A3A3CC;
+    background-color: #f5f5ff;
+}
+.level-B2 {
+    border-left-color: #5C5C99;
+    background-color: #ebebf5;
+}
+.level-C1, .level-low {
+    border-left-color: #292966;
+    background-color: #e0e0f0;
+}
+
+/* Фоны для уровней */
+.bg-A2, .bg-high { background: linear-gradient(135deg, #CCCCFF, #A3A3CC) !important; color: #292966; }
+.bg-B1, .bg-medium { background: linear-gradient(135deg, #A3A3CC, #5C5C99) !important; color: white; }
+.bg-B2 { background: linear-gradient(135deg, #5C5C99, #292966) !important; color: white; }
+.bg-C1, .bg-low { background: #292966 !important; color: white; }
+
+/* Кнопки */
+.btn-survey-start {
+    background: linear-gradient(135deg, #5C5C99, #292966);
+    color: white;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-survey-start:hover {
+    background: linear-gradient(135deg, #4a4a7a, #1f1f4f);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+    color: white;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+@media (max-width: 768px) {
+    .unified-chart-container { padding: 10px; }
+    .unified-chart-container canvas { max-height: 300px; }
+    .unified-career-code { font-size: 2rem; letter-spacing: 5px; }
+    .unified-level-card { padding: 20px; }
+    .unified-block-score { font-size: 1.2rem; }
+}
+
+@media print {
+    .unified-level-card { background: #f0f0f0 !important; color: black; border: 1px solid #ddd; }
+    .unified-career-code { background: #ddd; color: black; }
+    .btn, .no-print { display: none; }
+}

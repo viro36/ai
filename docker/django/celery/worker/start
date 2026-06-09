@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -o errexit
+
+set -o nounset
+
+# watchmedo auto-restart -d ai/ -p "*.py" -- celery -A ai worker --loglevel=info
+
+# Просто запускаем worker от celeryuser
+exec celery -A ai worker --loglevel=info

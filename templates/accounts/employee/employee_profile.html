@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+{% block title %}Мой профиль - Работник{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/accounts/employee_profile.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="profile-container">
+        <div class="profile-header">
+            <i class="fa-solid fa-user-pen fa-3x mb-3"></i>
+            <h1 class="h3 mb-0">Мой профиль</h1>
+            <p class="mb-0 mt-2 opacity-75">
+                Редактирование личной информации
+            </p>
+        </div>
+
+        <div class="profile-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <!-- 1. Персональные данные -->
+                <h5 class="section-title"><i class="fa-solid fa-user me-2"></i>1. Персональные данные</h5>
+                <div class="row">
+                    <div class="col-md-4">{% bootstrap_field form.last_name %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.first_name %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.patronymic %}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">{% bootstrap_field form.birthday %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.gender %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.citizenship %}</div>
+                </div>
+
+                <!-- 2. Контактные данные -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-address-card me-2"></i>2. Контактные данные</h5>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.phone %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.email %}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.locality %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.municipality %}</div>
+                </div>
+
+                <!-- 3. СНИЛС -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-id-card me-2"></i>3. СНИЛС</h5>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.snils %}</div>
+                </div>
+
+                <!-- 4. Информация о трудоустройстве -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-briefcase me-2"></i>4. Информация о трудоустройстве</h5>
+                <div class="org-card">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <strong>Организация:</strong>
+                            <span id="organization-name">{{ profile.organization.short_name|default:"Не выбрана" }}</span>
+                            <input type="hidden" name="organization_id" id="organization-id" value="{{ profile.organization.id }}">
+                            <a href="#" class="change-org-btn ms-3" data-bs-toggle="modal" data-bs-target="#orgModal">
+                                <i class="fa-solid fa-pen"></i> Изменить
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>ИНН:</strong>
+                            <span id="organization-inn">{{ profile.organization.inn|default:"-" }}</span>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">{% bootstrap_field form.position %}</div>
+                        <div class="col-md-6">{% bootstrap_field form.position_level %}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">{% bootstrap_field form.employment_status %}</div>
+                        <div class="col-md-6">{% bootstrap_field form.work_experience_years %}</div>
+                    </div>
+                </div>
+
+                <!-- 5. Образование -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-graduation-cap me-2"></i>5. Образование</h5>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.education_level %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.graduation_year %}</div>
+                </div>
+                {% bootstrap_field form.education_institution %}
+                {% bootstrap_field form.specialty %}
+
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'home' %}" class="btn btn-secondary">
+                        <i class="fa-solid fa-arrow-left me-2"></i>На главную
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-save me-2"></i>Сохранить изменения
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно выбора организации -->
+<div class="modal fade" id="orgModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-building me-2"></i>Выбор организации</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Район (для фильтрации)</label>
+                    <select class="form-select" id="modal-district-select">
+                        <option value="">---------</option>
+                        {% for district in districts %}
+                            <option value="{{ district.id }}">{{ district.short_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Тип организации (для фильтрации)</label>
+                    <select class="form-select" id="modal-org-type-select">
+                        <option value="">---------</option>
+                        {% for org_type in organization_types %}
+                            <option value="{{ org_type.id }}">{{ org_type.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Организация</label>
+                    <select class="form-select" id="modal-organization-select">
+                        <option value="">---------</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="save-org-btn">Выбрать</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/accounts/employee_profile.js' %}"></script>
+{% endblock %}

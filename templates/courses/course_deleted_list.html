@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Удалённые курсы {{ organization.short_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fa-solid fa-trash-can me-2"></i>
+            Корзина курсов {{ organization.short_name }}
+        </h1>
+        <div>
+            <a href="{% url 'courses:organization_courses' organization.id %}" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-arrow-left me-1"></i> Назад к курсам
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-info mb-4">
+        <i class="fa-solid fa-info-circle me-2"></i>
+        Удалённые курсы: <strong>{{ organization.courses.filter.is_deleted.count }}</strong>
+    </div>
+
+    {% if courses %}
+        <div class="row">
+            {% for course in courses %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 shadow-sm border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <small>
+                                <i class="fa-regular fa-calendar me-1"></i>
+                                Удалён: {{ course.deleted_at|date:"d.m.Y H:i" }}
+                            </small>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                {{ course.title|truncatechars:80 }}
+                            </h5>
+                            <p class="card-text text-muted small">
+                                <i class="fa-solid fa-tag me-1"></i>
+                                {% if course.program_type %}
+                                    {{ course.program_type }}
+                                {% else %}
+                                    Курс
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <form method="post" action="{% url 'courses:course_restore' course.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Восстановить курс?')">
+                                    <i class="fa-solid fa-arrow-rotate-left me-1"></i> Восстановить
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Пагинация -->
+        {% if page_obj.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-success text-center">
+            <i class="fa-solid fa-check-circle me-2"></i>
+            Корзина пуста. Нет удалённых курсов.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

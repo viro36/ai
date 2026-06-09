@@ -1,0 +1,132 @@
+services:
+  ai:
+    build:
+      context: .
+      dockerfile: ./docker/django/Dockerfile.dev
+    command: /start
+    user: "appuser:appgroup"
+    volumes:
+      - .:/App
+      - static_volume:/App/staticfiles
+      - media_volume:/App/mediafiles
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    restart: "on-failure"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - ai
+
+  postgres-db:
+    image: kartoza/postgis:18.3-3.6.3
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASS=${POSTGRES_PASS}
+      - POSTGRES_DBNAME=${POSTGRES_DBNAME}
+    restart: "on-failure"
+    networks:
+      - ai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DBNAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  nginx:
+    restart: always
+    depends_on:
+      - ai
+    volumes:
+      - static_volume:/App/staticfiles
+      - media_volume:/App/mediafiles
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile.dev
+    ports:
+      - 8080:80
+    networks:
+      - ai
+
+  redis:
+    image: redis:8.6.3-alpine
+    networks:
+        - ai
+
+  celery_worker:
+    build:
+        context: .
+        dockerfile: ./docker/django/Dockerfile.dev
+    command: /start-celeryworker
+    user: "celeryuser:celerygroup"
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./ai
+          target: /App/ai
+    volumes:
+        - .:/App
+        - static_volume:/App/staticfiles
+        - media_volume:/App/mediafiles
+    env_file:
+        - .env
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ai:
+        condition: service_started
+    restart: "on-failure"
+    networks:
+        - ai
+
+  # flower in http://0.0.0.0:5557/
+  flower:
+    build:
+        context: .
+        dockerfile: ./docker/django/Dockerfile.dev
+    command: /start-flower
+    user: "appuser:appgroup"
+    volumes:
+        - .:/App:ro
+        - static_volume:/App/staticfiles
+        - media_volume:/App/mediafiles
+    env_file:
+        - .env
+    ports:
+        - "5557:5555"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ai:
+        condition: service_started
+    networks:
+        - ai
+
+
+networks:
+  ai:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: ai_postgres_data_fixed
+  static_volume:
+  media_volume:

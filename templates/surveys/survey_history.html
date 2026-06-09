@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}История опроса - {{ category.name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fa-solid fa-clock me-2"></i>
+                        История опроса: {{ category.name }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if sessions %}
+                        <div class="list-group">
+                            {% for session in sessions %}
+                                <a href="{% url 'surveys:survey_results_attempt' category.id session.attempt %}"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fa-solid fa-chart-simple me-2 text-primary"></i>
+                                        <strong>Попытка {{ session.attempt }}</strong>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">
+                                            <i class="fa-regular fa-calendar me-1"></i>
+                                            {{ session.completed_at|date:"d.m.Y H:i" }}
+                                        </small>
+                                        <i class="fa-solid fa-chevron-right ms-2"></i>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info text-center">
+                            <i class="fa-solid fa-info-circle me-2"></i>
+                            У вас пока нет пройденных попыток этого опроса.
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'surveys:survey_list' %}" class="btn btn-outline-secondary">
+                        <i class="fa-solid fa-arrow-left me-1"></i> К списку опросов
+                    </a>
+                    {% if category.is_active %}
+                        <a href="{% url 'surveys:survey_start' category.id %}" class="btn btn-primary float-end">
+                            <i class="fa-solid fa-plus me-1"></i> Новая попытка
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

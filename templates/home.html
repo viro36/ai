@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+{% block title %}Главная - Сайт рекомендаций курсов{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/home.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+    {% if not user.is_authenticated %}
+        <div class="hero-section text-center">
+            <div class="container">
+                <h1 class="hero-title">Найдите свой идеальный курс</h1>
+                <p class="hero-subtitle">
+                    Подбор курсов по искусственному интеллекту от ведущих вузов Воронежа
+                </p>
+                    <div class="auth-buttons">
+                        <a href="{% url 'login' %}" class="btn btn-regular">
+                            <i class="fa-solid fa-sign-in-alt me-2"></i>Войти по логину/паролю
+                        </a>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'accounts:employer_register' %}" class="text-muted">
+                            <i class="fa-solid fa-building me-1"></i>Регистрация для работодателей
+                        </a>
+                        <span class="text-muted mx-2">|</span>
+                        <a href="{% url 'accounts:employee_register' %}" class="text-muted">
+                            <i class="fa-solid fa-users me-1"></i>Регистрация для работников
+                        </a>
+                    </div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if user.is_authenticated %}
+        <div class="welcome-message">
+            <h2>
+                <i class="fa-solid fa-circle-user me-2"></i>
+                Добро пожаловать, {{ user.get_full_name|default:user.username }}!
+                <br>
+                {% if user.organization %}
+                    <small class="text-muted ms-2">({{ user.organization.short_name }})</small>
+                {% endif %}
+            </h2>
+
+            <!-- Отображение типа пользователя -->
+            <span class="user-type-badge
+                {% if user.user_type == 'employer' %}badge-employer
+                {% elif user.user_type == 'employee' %}badge-employee
+                {% elif user.user_type == 'admin' %}badge-admin
+                {% elif user.user_type == 'university' %}badge-university
+                {% else %}badge-regular{% endif %}">
+                <i class="
+                    {% if user.user_type == 'employer' %}fa-solid fa-building
+                    {% elif user.user_type == 'employee' %}fa-solid fa-users
+                    {% elif user.user_type == 'admin' %}fa-solid fa-crown
+                    {% elif user.user_type == 'university' %}fa-solid fa-landmark
+                    {% else %}fa-solid fa-user{% endif %} me-1"></i>
+                {% if user.user_type == 'employer' %}Работодатель
+                {% elif user.user_type == 'employee' %}Работник
+                {% elif user.user_type == 'admin' %}Администратор
+                {% elif user.user_type == 'university' %}ВУЗ
+                {% else %}Обычный пользователь{% endif %}
+            </span>
+
+            <div class="mt-4">
+                <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger">
+                        <i class="fa-solid fa-sign-out-alt me-2"></i>Выйти
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Карточки действий для авторизованных пользователей -->
+        <div class="row g-4 mt-2">
+            {% if user.user_type == 'admin' or user.is_superuser %}
+                <div class="col-md-4">
+                    <a href="{% url 'admin:index' %}" class="text-decoration-none">
+                        <div class="action-card action-card-admin">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-gear"></i>
+                            </div>
+                            <h3 class="action-title">Администрирование</h3>
+                            <p class="action-description">Управление пользователями, организациями и парсинг курсов</p>
+                        </div>
+                    </a>
+                </div>
+            {% endif %}
+
+            {% if user.user_type == 'employee' %}
+                <div class="col-md-4">
+                    <a href="{% url 'accounts:employee_profile' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employee">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-clipboard-list"></i>
+                            </div>
+                            <h3 class="action-title">Моя анкета</h3>
+                            <p class="action-description">Заполните или отредактируйте свои персональные данные</p>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'surveys:survey_list' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employee">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-chart-simple"></i>
+                            </div>
+                            <h3 class="action-title">Опросы</h3>
+                            <p class="action-description">Пройдите опросы для получения рекомендаций</p>
+                        </div>
+                    </a>
+                </div>
+            {% endif %}
+
+            <!-- Карточка для ВУЗов -->
+            {% if user.user_type == 'university' %}
+                <div class="col-md-4">
+                    <a href="{% url 'accounts:employer_profile' %}" class="text-decoration-none">
+                        <div class="action-card action-card-university">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-landmark"></i>
+                            </div>
+                            <h3 class="action-title">Профиль ВУЗа</h3>
+                            <p class="action-description">
+                                Заполните информацию о ВУЗе, лицензии и программах ДПО
+                            </p>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Карточка "Ваши курсы" только для ВУЗов -->
+                <div class="col-md-4">
+                    <a href="{% url 'courses:organization_courses' user.organization.id %}" class="text-decoration-none">
+                        <div class="action-card action-card-courses">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-graduation-cap"></i>
+                            </div>
+                            <h3 class="action-title">Ваши курсы</h3>
+                            <p class="action-description">
+                                Просмотр курсов вашего ВУЗа
+                            </p>
+                            {% if user.organization %}
+                                <span class="badge">{{ user.organization.active_courses_count }} курсов</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+            {% endif %}
+
+            <!-- Карточка для работодателей -->
+            {% if user.user_type == 'employer' %}
+                <div class="col-md-4">
+                    <a href="{% url 'accounts:employer_profile' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employer">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-building"></i>
+                            </div>
+                            <h3 class="action-title">Профиль организации</h3>
+                            <p class="action-description">
+                                Заполните информацию о компании и банковские реквизиты
+                            </p>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'accounts:employee_list' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employer">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-users"></i>
+                            </div>
+                            <h3 class="action-title">Список работников</h3>
+                            <p class="action-description">
+                                Просмотр сотрудников вашей организации
+                            </p>
+                            <span class="badge">{{ user.organization.employee_count }} человек</span>
+                        </div>
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
+    {% else %}
+        <div class="features-section">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <h3 class="feature-title">ИИ-курсы от ведущих вузов</h3>
+                        <p>Курсы по искусственному интеллекту от ВГУ, ВГТУ, ВГУИТ и других вузов Воронежской области</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-brain"></i>
+                        </div>
+                        <h3 class="feature-title">Умный подбор</h3>
+                        <p>Наша система подберет курсы специально для вас, учитывая ваши интересы и уровень подготовки</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                        <h3 class="feature-title">Актуальные программы</h3>
+                        <p>Курсы регулярно обновляются, чтобы соответствовать требованиям рынка и ии-технологиям</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

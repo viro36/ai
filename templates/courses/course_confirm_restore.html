@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Восстановление курса{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">
+                        <i class="fa-solid fa-arrow-rotate-left me-2"></i>
+                        Восстановление курса
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="lead">
+                        Вы действительно хотите восстановить курс:
+                        <strong>{{ course.title }}</strong>?
+                    </p>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'courses:course_deleted_list' organization.id %}" class="btn btn-secondary">
+                                <i class="fa-solid fa-times me-1"></i> Отмена
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fa-solid fa-arrow-rotate-left me-1"></i> Восстановить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

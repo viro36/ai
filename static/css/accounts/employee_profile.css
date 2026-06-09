@@ -1,0 +1,76 @@
+.profile-container {
+    max-width: 1000px;
+    margin: 2rem auto;
+}
+
+.profile-header {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    color: #292966;
+    padding: 2rem;
+    border-radius: 16px 16px 0 0;
+    text-align: center;
+}
+
+.profile-body {
+    background: white;
+    padding: 2rem;
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.section-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+    color: #2d3748;
+}
+
+.section-title i {
+    color: #CCCCFF;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    border: none;
+    color: #292966;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #b8b8ff 0%, #9393c2 100%);
+    color: #1f1f4f;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(204, 204, 255, 0.3);
+}
+
+.btn-outline-primary {
+    color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.btn-outline-primary:hover {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+    color: white;
+}
+
+/* Стили для полей формы */
+.form-group .form-control:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #CCCCFF;
+    box-shadow: 0 0 0 3px rgba(204, 204, 255, 0.2);
+}
+
+/* Стили для ссылок */
+.back-link a:hover {
+    color: #5C5C99;
+}
+
+/* Бейдж статуса */
+.status-badge {
+    background: #CCCCFF;
+    color: #292966;
+}

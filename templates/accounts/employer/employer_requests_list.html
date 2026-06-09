@@ -1,0 +1,138 @@
+{% extends 'admin/base_site.html' %}
+{% load static %}
+
+{% block title %}Заявки работодателей{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/accounts/employer_requests.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Заявки на регистрацию работодателей</h1>
+
+    <!-- Ожидающие заявки -->
+    <div class="card mt-4">
+        <div class="card-header bg-warning text-dark">
+            <h3 class="mb-0">На рассмотрении ({{ pending_requests|length }})</h3>
+        </div>
+        <div class="card-body">
+            {% if pending_requests %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Пользователь</th>
+                                <th>Email</th>
+                                <th>Организация (кратко)</th>
+                                <th>Полное наименование</th>
+                                <th>ИНН</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in pending_requests %}
+                                <tr>
+                                    <td>{{ req.created_at|date:"d.m.Y H:i" }}</td>
+                                    <td>{{ req.username }}</td>
+                                    <td>{{ req.email }}</td>
+                                    <td>{{ req.short_name }}</td>
+                                    <td>{{ req.full_name|truncatechars:50 }}</td>
+                                    <td>{{ req.inn }}</td>
+                                    <td>
+                                        <form method="post" action="{% url 'approve_employer_request' req.id %}" style="display: inline-block;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Одобрить заявку? Будет создан пользователь и организация.')">
+                                                <i class="fa-solid fa-check"></i> Одобрить
+                                            </button>
+                                        </form>
+                                        <form method="post" action="{% url 'reject_employer_request' req.id %}" style="display: inline-block;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Отклонить заявку?')">
+                                                <i class="fa-solid fa-times"></i> Отклонить
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted">Нет заявок на рассмотрении</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Одобренные заявки -->
+    {% if approved_requests %}
+    <div class="card mt-4">
+        <div class="card-header bg-success text-white">
+            <h3 class="mb-0">Одобренные заявки</h3>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Дата одобрения</th>
+                            <th>Пользователь</th>
+                            <th>Email</th>
+                            <th>Организация</th>
+                            <th>ИНН</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in approved_requests %}
+                            <tr>
+                                <td>{{ req.updated_at|date:"d.m.Y H:i" }}</td>
+                                <td>{{ req.username }}</td>
+                                <td>{{ req.email }}</td>
+                                <td>{{ req.short_name }}</td>
+                                <td>{{ req.inn }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Отклонённые заявки -->
+    {% if rejected_requests %}
+    <div class="card mt-4">
+        <div class="card-header bg-danger text-white">
+            <h3 class="mb-0">Отклонённые заявки</h3>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Дата отклонения</th>
+                            <th>Пользователь</th>
+                            <th>Email</th>
+                            <th>Организация</th>
+                            <th>ИНН</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in rejected_requests %}
+                            <tr>
+                                <td>{{ req.updated_at|date:"d.m.Y H:i" }}</td>
+                                <td>{{ req.username }}</td>
+                                <td>{{ req.email }}</td>
+                                <td>{{ req.short_name }}</td>
+                                <td>{{ req.inn }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

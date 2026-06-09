@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Курсы {{ organization.short_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fa-solid fa-graduation-cap me-2"></i>
+            Курсы {{ organization.short_name }}
+        </h1>
+        <div>
+            <a href="{% url 'courses:course_deleted_list' organization.id %}" class="btn btn-outline-warning me-2">
+                <i class="fa-solid fa-trash-can me-1"></i> Корзина
+            </a>
+            <a href="{% url 'courses:course_add' organization.id %}" class="btn btn-primary">
+                <i class="fa-solid fa-plus me-1"></i> Добавить курс
+            </a>
+            <a href="{% url 'accounts:employer_profile' %}" class="btn btn-outline-secondary ms-2">
+                <i class="fa-solid fa-arrow-left me-1"></i> Назад в профиль
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-info mb-4">
+        <i class="fa-solid fa-info-circle me-2"></i>
+        Всего курсов: <strong>{{ organization.active_courses_count }}</strong>
+    </div>
+
+    {% if courses %}
+        <div class="row">
+            {% for course in courses %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                {{ course.title }}
+                            </h5>
+                            <p class="card-text text-muted small">
+                                <i class="fa-solid fa-tag me-1"></i>
+                                {% if course.program_type %}
+                                    {{ course.program_type }}
+                                {% else %}
+                                    Курс
+                                {% endif %}
+                            </p>
+                            {% if course.description %}
+                                <p class="card-text">{{ course.description|truncatewords:30|striptags }}</p>
+                            {% endif %}
+
+                            {% if course.categories.all %}
+                                <div class="mt-2 mb-2">
+                                    {% for category in course.categories.all|slice:":3" %}
+                                        <span class="badge bg-secondary me-1">{{ category.name }}</span>
+                                    {% endfor %}
+                                    {% if course.categories.count > 3 %}
+                                        <span class="badge bg-secondary">+{{ course.categories.count|add:"-3" }}</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <small class="text-muted">
+                                        <i class="fa-regular fa-clock me-1"></i>
+                                        {% if course.duration_hours %}
+                                            {{ course.duration_hours }} ч.
+                                        {% elif course.duration_weeks %}
+                                            {{ course.duration_weeks }}
+                                        {% else %}
+                                            Не указано
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">
+                                        <i class="fa-regular fa-calendar me-1"></i>
+                                        Обновлён: {{ course.last_parsed|date:"d.m.Y" }}
+                                    </small>
+                                </div>
+                            </div>
+                            {% if course.teachers %}
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="fa-solid fa-chalkboard-user me-1"></i>
+                                        {{ course.teachers|truncatechars:50 }}
+                                    </small>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    {% if course.price %}
+                                        <span class="badge bg-success">
+                                            <i class="fa-solid fa-ruble-sign me-1"></i>
+                                            {{ course.price }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Бесплатно / Не указано</span>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <a href="{{ course.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                        Подробнее <i class="fa-solid fa-arrow-up-right-from-square ms-1"></i>
+                                    </a>
+                                    <a href="{% url 'courses:course_edit' course.id %}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fa-solid fa-pen"></i> Редактировать
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Пагинация -->
+        {% if page_obj.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-warning text-center">
+            <i class="fa-solid fa-exclamation-triangle me-2"></i>
+            У этой организации пока нет курсов.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

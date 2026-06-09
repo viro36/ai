@@ -1,0 +1,301 @@
+/* Hero Section */
+.hero-section {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 40%, #5C5C99 70%, #292966 100%);
+    color: white;
+    padding: 80px 0;
+    border-radius: 20px;
+    margin-bottom: 50px;
+}
+
+.hero-title {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.hero-subtitle {
+    font-size: 1.2rem;
+    opacity: 0.9;
+    margin-bottom: 30px;
+}
+
+/* Auth Buttons */
+.auth-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-esia {
+    background-color: #00AEEF;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    border-radius: 50px;
+    transition: all 0.3s ease;
+}
+
+.btn-esia:hover {
+    background-color: #0088c7;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.btn-regular {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    border-radius: 50px;
+    transition: all 0.3s ease;
+}
+
+.btn-regular:hover {
+    background-color: #5a6268;
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* Welcome Message */
+.welcome-message {
+    text-align: center;
+    padding: 40px;
+    background: #f8f8ff;
+    border-radius: 15px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    border: 1px solid rgba(92, 92, 153, 0.2);
+    border-top: 4px solid #5C5C99;
+}
+
+/* Features Section */
+.features-section {
+    padding: 40px 0;
+}
+
+.feature-card {
+    text-align: center;
+    padding: 35px 25px;
+    border-radius: 20px;
+    background: white;
+    transition: all 0.3s ease;
+    height: 100%;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #CCCCFF, #292966);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.feature-card:hover::before {
+    transform: scaleX(1);
+}
+
+.feature-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+}
+
+.feature-icon {
+    font-size: 3.5rem;
+    margin-bottom: 20px;
+    display: inline-block;
+}
+
+/* Разные цвета для иконок */
+.feature-card:nth-child(1) .feature-icon {
+    color: #CCCCFF;
+    text-shadow: 0 2px 10px rgba(204, 204, 255, 0.3);
+}
+
+.feature-card:nth-child(2) .feature-icon {
+    color: #A3A3CC;
+    text-shadow: 0 2px 10px rgba(163, 163, 204, 0.3);
+}
+
+.feature-card:nth-child(3) .feature-icon {
+    color: #5C5C99;
+    text-shadow: 0 2px 10px rgba(92, 92, 153, 0.3);
+}
+
+.feature-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 15px;
+    color: #2d3748;
+}
+
+.feature-card p {
+    color: #718096;
+    line-height: 1.6;
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+/* User Type Badges - новые цвета */
+.user-type-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    margin-top: 10px;
+}
+
+.badge-regular {
+    background: #6c757d;
+    color: white;
+}
+
+.badge-employer {
+    background: #5C5C99;
+    color: white;
+}
+
+.badge-employee {
+    background: #CCCCFF;
+    color: #292966;
+}
+
+.badge-admin {
+    background: #A3A3CC;
+    color: white;
+}
+
+.badge-university {
+    background: #292966;
+    color: white;
+}
+
+/* Action Cards (для авторизованных пользователей) */
+.action-card {
+    background: white;
+    border-radius: 20px;
+    padding: 30px 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    height: 100%;
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+}
+
+.action-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+}
+
+.action-icon {
+    font-size: 3rem;
+    margin-bottom: 20px;
+}
+
+.action-icon i {
+    transition: transform 0.3s ease;
+}
+
+.action-card:hover .action-icon i {
+    transform: scale(1.1);
+}
+
+.action-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #2d3748;
+}
+
+.action-description {
+    color: #718096;
+    line-height: 1.5;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+/* Цвета для разных типов карточек - соответствуют цветам бейджей */
+.action-card-employee .action-icon {
+    color: #CCCCFF;
+}
+
+.action-card-employer .action-icon {
+    color: #5C5C99;
+}
+
+.action-card-university .action-icon {
+    color: #292966;
+}
+
+.action-card-courses .action-icon {
+    color: #292966;
+}
+
+.action-card-admin .action-icon {
+    color: #A3A3CC;
+}
+
+/* стили для карточек при наведении */
+.action-card-employee:hover .action-icon {
+    color: #b8b8ff;
+}
+
+.action-card-employer:hover .action-icon {
+    color: #4a4a7a;
+}
+
+.action-card-university:hover .action-icon,
+.action-card-courses:hover .action-icon {
+    color: #1f1f4f;
+}
+
+.action-card-admin:hover .action-icon {
+    color: #9393c2;
+}
+
+/* Стили для бейджей в карточках */
+.action-card .badge {
+    display: block;
+    margin-top: 12px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 20px;
+}
+
+/* Бейдж в карточке курсов (ВУЗ) */
+.action-card-courses .badge {
+    background-color: #292966 !important;
+    color: white;
+}
+
+/* Бейдж в карточке работодателя (список работников) */
+.action-card-employer .badge {
+    background-color: #5C5C99 !important;
+    color: white;
+}
+
+/* Бейдж в карточке работника */
+.action-card-employee .badge {
+    background-color: #CCCCFF !important;
+    color: #292966;
+}
+
+/* Бейдж в карточке администратора */
+.action-card-admin .badge {
+    background-color: #A3A3CC !important;
+    color: white;
+}

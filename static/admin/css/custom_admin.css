@@ -1,0 +1,15 @@
+/* Стиль для кнопки обновления из DaData */
+.button.update-dadata {
+    background: #28a745 !important;
+    color: white !important;
+}
+
+.button.update-dadata:hover {
+    background: #218838 !important;
+}
+
+/* Иконка для кнопки */
+.button.update-dadata:before {
+    content: "↻";
+    margin-right: 5px;
+}

@@ -1,0 +1,114 @@
+{% load static %}
+{% load survey_extras %}
+
+<div class="unified-level-card survey-{{ survey_config.type }}">
+    <div class="text-center">
+        <h2 class="mb-3">{{ category.name }}</h2>
+
+        {% if survey_config.type == 'riasec' and survey_result.career_code %}
+            <div class="unified-career-code">{{ survey_result.career_code }}</div>
+        {% endif %}
+
+        <p class="small mt-3 opacity-75">
+            <i class="fa-regular fa-calendar me-1"></i>
+            Дата прохождения: {{ completed_at|date:"d.m.Y H:i" }}
+            {% if current_attempt %} Попытка {{ current_attempt }}{% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- Профиль (диаграмма) -->
+<div class="card mb-4 shadow">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fa-solid fa-chart-simple me-2"></i>Профиль: {{ category.name }}</h5>
+    </div>
+    <div class="card-body">
+        <div class="unified-chart-container" style="max-width: 800px; margin: 0 auto;">
+            <canvas id="unifiedProfileChart"
+                data-survey-type="{{ survey_config.type }}"
+                data-chart='{
+                    "labels": [{% for block in blocks_data %}"{{ block.name }}"{% if not forloop.last %},{% endif %}{% endfor %}],
+                    "scores": {{ chart_scores|safe }}
+                }'>
+            </canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ОПИСАНИЕ РЕЗУЛЬТАТОВ (HTML из админки) -->
+{% if category.result_description %}
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fa-solid fa-file-lines me-2"></i>Описание результатов</h5>
+        </div>
+        <div class="card-body">
+            {{ category.result_description|safe }}
+        </div>
+    </div>
+{% endif %}
+
+<!-- Детальный разбор по блокам -->
+<div class="card mb-4 shadow">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fa-solid fa-list me-2"></i>Детальный разбор</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for block in blocks_data_sorted %}
+                <div class="col-md-6 mb-3">
+                    <div class="unified-block-card level-{{ block.level }} p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div><strong>{{ block.id }}.</strong> {{ block.name }}</div>
+                            <div class="unified-block-score text-primary">{{ block.score }}<small>/{{ block.max }}</small></div>
+                        </div>
+                        <div class="mt-2">
+                            <span class="badge bg-{{ block.level_info.color }}">{{ block.level_info.name }}</span>
+                            {% if block.level_info.characteristic %}
+                                <p class="small text-muted mt-1 mb-0">{{ block.level_info.characteristic }}</p>
+                            {% endif %}
+                            {% if block.level_info.recommendations %}
+                                <div class="alert alert-{{ block.level_info.color }} mt-2 mb-0 small">
+                                    <i class="fa-solid fa-lightbulb me-1"></i>{{ block.level_info.recommendations }}
+                                </div>
+                            {% endif %}
+                            {% if block.high_description and block.level == 'high' %}
+                                <p class="small text-success mt-1 mb-0"><i class="fa-solid fa-arrow-up me-1"></i>{{ block.high_description }}</p>
+                            {% endif %}
+                            {% if block.low_description and block.level == 'low' %}
+                                <p class="small text-secondary mt-1 mb-0"><i class="fa-solid fa-arrow-down me-1"></i>{{ block.low_description }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- ВАЖНЫЕ ЗАМЕЧАНИЯ -->
+{% if important_notes %}
+<div class="card mb-4 shadow">
+    <div class="card-header bg-warning text-white">
+        <h5 class="mb-0"><i class="fa-solid fa-circle-exclamation me-2"></i>Важные замечания</h5>
+    </div>
+    <div class="card-body">
+        {{ important_notes|safe|linebreaks }}
+    </div>
+</div>
+{% endif %}
+
+<!-- Рекомендации по использованию -->
+{% if usage_recommendations %}
+<div class="card mb-4 shadow">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0"><i class="fa-solid fa-lightbulb me-2"></i>{{ usage_recommendations.title|default:"Рекомендации по использованию результатов" }}</h5>
+    </div>
+    <div class="card-body">
+        {{ usage_recommendations.recommendations|safe|linebreaks }}
+        {% if usage_recommendations.description %}
+            <div class="alert alert-info mt-3">{{ usage_recommendations.description }}</div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}

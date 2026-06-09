@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+{% block title %}{% if is_add %}Добавление курса{% else %}Редактирование курса - {{ course.title|truncatechars:50 }}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-group select[multiple] {
+        height: 150px;
+    }
+    .help-text {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    .alert-custom {
+        background-color: #e7f3ff;
+        border-left: 4px solid #DDA0DD;
+    }
+    #u-name {
+        background-color: #DDA0DD;
+        color: #2d3748;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fa-solid fa-{% if is_add %}plus{% else %}pen-to-square{% endif %} me-2"></i>
+            {% if is_add %}Добавление курса{% else %}Редактирование курса{% endif %}
+        </h1>
+        <div>
+            {% if not is_add %}
+                <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                    <i class="fa-solid fa-trash-can me-1"></i> Удалить курс
+                </button>
+            {% endif %}
+            <a href="{% url 'courses:organization_courses' organization.id %}" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-arrow-left me-1"></i> Назад к курсам
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header text-white" id="u-name">
+            <h5 class="mb-0">{{ organization.short_name }}</h5>
+        </div>
+        <div class="card-body">
+
+            <!-- Пояснение о разнице между полями -->
+            <div class="alert alert-custom mb-4">
+                <h6 class="mb-2"><i class="fa-solid fa-info-circle me-2"></i>Как заполнять поля?</h6>
+                <ul class="mb-0 small">
+                    <li><strong>Тип программы</strong> — укажите тип образовательной программы (например: «Профессиональная переподготовка», «Повышение квалификации», «Краткосрочный курс»).</li>
+                    <li><strong>Направление подготовки</strong> — официальное название специальности/направления по ФГОС (например: «09.03.01 Информатика и вычислительная техника»).</li>
+                    <li><strong>Категории / Теги</strong> — ключевые слова для поиска и фильтрации (например: «Python», «Веб-разработка», «Искусственный интеллект»). Их может быть несколько.</li>
+                    <li><strong>Режим обучения</strong> — как организован образовательный процесс (например: «Очная», «Очно-заочная», «Дистанционная», «Очная с применением ДОТ»).</li>
+                    <li><strong>Форма обучения</strong> — в каком формате проходят занятия (например: «Лекции», «Практические занятия», «Онлайн-трансляции»).</li>
+                </ul>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% bootstrap_field form.title %}
+                {% bootstrap_field form.url %}
+                {% bootstrap_field form.description %}
+                {% bootstrap_field form.program_type %}
+
+                <!-- Поля для категорий с пояснением -->
+                <div class="alert alert-light border mt-3 mb-3">
+                    <div class="row">
+                        <div class="col-md-12">
+                            {% bootstrap_field form.categories %}
+                        </div>
+                        <div class="col-md-12 mt-2">
+                            {% bootstrap_field form.new_category %}
+                        </div>
+                    </div>
+                </div>
+
+                {% bootstrap_field form.field_of_study %}
+
+                <div class="row">
+                    <div class="col-md-4">{% bootstrap_field form.duration_hours %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.duration_weeks %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.price %}</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.study_mode %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.format %}</div>
+                </div>
+
+                {% bootstrap_field form.teachers %}
+                {% bootstrap_field form.target_audience %}
+                {% bootstrap_field form.topics %}
+                {% bootstrap_field form.start_dates %}
+                {% bootstrap_field form.document_type %}
+
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'courses:organization_courses' organization.id %}" class="btn btn-secondary">
+                        <i class="fa-solid fa-times me-1"></i> Отмена
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-save me-1"></i> {% if is_add %}Добавить курс{% else %}Сохранить изменения{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно подтверждения удаления -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="fa-solid fa-trash-can me-2"></i>Подтверждение удаления
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="lead">Вы действительно хотите удалить этот курс?</p>
+                <p><strong>{{ course.title }}</strong></p>
+                <div class="alert alert-info">
+                    <i class="fa-solid fa-info-circle me-2"></i>
+                    Вы всегда сможете восстановить его в <strong>Корзине курсов</strong>.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-times me-1"></i> Отмена
+                </button>
+                {% if course and course.id %}
+                    <form method="post" action="{% url 'courses:course_delete' course.id %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fa-solid fa-trash me-1"></i> Да, удалить
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

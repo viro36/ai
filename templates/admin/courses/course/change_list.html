@@ -1,0 +1,38 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools %}
+    <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+        <!-- Кнопки парсинга -->
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+            <div style="font-weight: bold; align-self: center;">Парсинг:</div>
+            <form action="{% url 'admin:parse_vsuet' %}" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                    Парсинг ВГУИТ
+                </button>
+            </form>
+
+            <form action="{% url 'admin:parse_vsu' %}" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                    Парсинг ВГУ
+                </button>
+            </form>
+
+            <form action="{% url 'admin:parse_vstu' %}" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background: #ffc107; color: #333; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                    Парсинг ВГТУ
+                </button>
+            </form>
+
+            <form action="{% url 'admin:parse_all' %}" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    Парсинг ВСЕХ
+                </button>
+            </form>
+        </div>
+    </div>
+    {{ block.super }}
+{% endblock %}

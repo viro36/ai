@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load survey_extras %}
+
+{% block title %}{{ category.name }} - Результаты{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/surveys/survey_common.css' %}">
+<link rel="stylesheet" href="{% static 'css/surveys/unified.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+
+            <!-- Информация о попытке -->
+            <div class="alert alert-info mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fa-solid fa-chart-simple me-2"></i>
+                        <strong>Попытка {{ current_attempt }} из {{ total_attempts }}</strong>
+                    </div>
+                    {% if total_attempts > 1 %}
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                            Другие попытки
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            {% for i in total_attempts|get_range %}
+                                {% if i != current_attempt %}
+                                    <li><a class="dropdown-item" href="{% url 'surveys:survey_results_attempt' category.id i %}">
+                                        Попытка {{ i }}
+                                    </a></li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if is_unified and survey_config %}
+                <!-- Универсальные результаты -->
+                {% include 'surveys/components/unified_results.html' %}
+
+            {% else %}
+                <!-- Стандартные результаты для других опросов -->
+                {% include 'surveys/components/default_results.html' %}
+            {% endif %}
+
+            <!-- Детальные ответы по блокам -->
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fa-solid fa-table-list me-2"></i>Детальные ответы по разделам</h5>
+                </div>
+                <div class="card-body">
+                    {% for block_data in block_responses %}
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <div class="d-flex justify-content-between">
+                                    <strong>{{ block_data.block.title }}</strong>
+                                    <span class="badge bg-secondary">Средний балл: {{ block_data.avg_score|floatformat:1 }}</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                {% for response in block_data.responses %}
+                                    <div class="mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}">
+                                        <div class="d-flex justify-content-between">
+                                            <div><small class="text-muted">{{ forloop.counter }}.</small> {{ response.question.text }}</div>
+                                            <span class="badge {% if response.score >= 4 %}bg-success{% elif response.score <= 2 %}bg-danger{% else %}bg-warning{% endif %}">{{ response.score }}</span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <hr>
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'surveys:survey_list' %}" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i> К списку опросов</a>
+                <button onclick="window.print();" class="btn btn-outline-primary"><i class="fa-solid fa-print me-1"></i> Распечатать</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js" integrity="sha512-Y51n9mtKTVBh3Jbx5pZSJNDDMyY+yGe77DGtBPzRlgsf/YLCh13kSZ3JmfHGzYFCmOndraf0sQgfM654b7dJ3w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="{% static 'js/surveys/survey_common.js' %}"></script>
+{% if is_unified %}
+    <script src="{% static 'js/surveys/unified.js' %}"></script>
+{% endif %}
+{% endblock %}

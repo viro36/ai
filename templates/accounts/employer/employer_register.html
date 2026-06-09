@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+{% block title %}Регистрация работодателя{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/accounts/register-common.css' %}">
+<style>
+    .btn-submit {
+        background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    }
+    .btn-submit:hover {
+        background: linear-gradient(135deg, #4a4a7a 0%, #1f1f4f 100%);
+        box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+    }
+    .form-group label i {
+        color: #5C5C99;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="register-container">
+        <div class="register-header">
+            <i class="fa-solid fa-building fa-3x mb-3"></i>
+            <h1 class="h3 mb-0">Регистрация работодателя</h1>
+            <p class="mb-0 mt-2 opacity-75">
+                Заполните форму для регистрации в системе
+            </p>
+        </div>
+
+        <div class="register-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="alert-danger">
+                        {% for error in form.non_field_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.username.id_for_label }}">
+                                <i class="fa-solid fa-user"></i> {{ form.username.label }}
+                            </label>
+                            {{ form.username }}
+                            {% if form.username.errors %}
+                                <div class="text-danger">{{ form.username.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.email.id_for_label }}">
+                                <i class="fa-solid fa-envelope"></i> {{ form.email.label }}
+                            </label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                <div class="text-danger">{{ form.email.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.password.id_for_label }}">
+                                <i class="fa-solid fa-lock"></i> {{ form.password.label }}
+                            </label>
+                            {{ form.password }}
+                            {% if form.password.errors %}
+                                <div class="text-danger">{{ form.password.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.password_confirm.id_for_label }}">
+                                <i class="fa-solid fa-check-circle"></i> {{ form.password_confirm.label }}
+                            </label>
+                            {{ form.password_confirm }}
+                            {% if form.password_confirm.errors %}
+                                <div class="text-danger">{{ form.password_confirm.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.short_name.id_for_label }}">
+                        <i class="fa-solid fa-tag"></i> {{ form.short_name.label }}
+                    </label>
+                    {{ form.short_name }}
+                    {% if form.short_name.errors %}
+                        <div class="text-danger">{{ form.short_name.errors }}</div>
+                    {% endif %}
+                    <div class="help-text">Например: ООО "Ромашка"</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.full_name.id_for_label }}">
+                        <i class="fa-solid fa-building"></i> {{ form.full_name.label }}
+                    </label>
+                    {{ form.full_name }}
+                    {% if form.full_name.errors %}
+                        <div class="text-danger">{{ form.full_name.errors }}</div>
+                    {% endif %}
+                    <div class="help-text">Полное юридическое наименование организации</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.inn.id_for_label }}">
+                        <i class="fa-solid fa-hashtag"></i> {{ form.inn.label }}
+                    </label>
+                    {{ form.inn }}
+                    {% if form.inn.errors %}
+                        <div class="text-danger">{{ form.inn.errors }}</div>
+                    {% endif %}
+                    <div class="help-text">10 или 12 цифр</div>
+                </div>
+
+                <button type="submit" class="btn btn-submit">
+                    <i class="fa-solid fa-paper-plane me-2"></i>Отправить на согласование
+                </button>
+            </form>
+
+            <div class="back-link">
+                <a href="{% url 'login' %}">
+                    <i class="fa-solid fa-arrow-left me-1"></i>Вернуться ко входу
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

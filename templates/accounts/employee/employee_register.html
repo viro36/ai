@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+{% block title %}Регистрация работника{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/accounts/register-common.css' %}">
+<style>
+    .btn-submit {
+        background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+        color: #292966;
+    }
+    .btn-submit:hover {
+        background: linear-gradient(135deg, #b8b8ff 0%, #9393c2 100%);
+        box-shadow: 0 4px 12px rgba(204, 204, 255, 0.3);
+        color: #292966;
+    }
+    .form-group label i {
+        color: #CCCCFF;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="register-container">
+        <div class="register-header">
+            <i class="fa-solid fa-users fa-3x mb-3"></i>
+            <h1 class="h3 mb-0">Регистрация работника</h1>
+            <p class="mb-0 mt-2 opacity-75">
+                Заполните форму для регистрации в системе
+            </p>
+        </div>
+
+        <div class="register-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Личные данные -->
+                <h5><i class="fa-solid fa-user"></i> Личные данные</h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{{ form.last_name.label }} *</label>
+                            {{ form.last_name }}
+                            {% if form.last_name.errors %}
+                                <div class="text-danger">{{ form.last_name.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{{ form.first_name.label }} *</label>
+                            {{ form.first_name }}
+                            {% if form.first_name.errors %}
+                                <div class="text-danger">{{ form.first_name.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{{ form.patronymic.label }}</label>
+                            {{ form.patronymic }}
+                            {% if form.patronymic.errors %}
+                                <div class="text-danger">{{ form.patronymic.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>{{ form.snils.label }} *</label>
+                    {{ form.snils }}
+                    <div class="help-text">Формат: 000-000-000 00</div>
+                    {% if form.snils.errors %}
+                        <div class="text-danger">{{ form.snils.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Учётные данные -->
+                <h5 class="mt-4"><i class="fa-solid fa-key"></i> Учётные данные</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{{ form.username.label }} *</label>
+                            {{ form.username }}
+                            {% if form.username.errors %}
+                                <div class="text-danger">{{ form.username.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{{ form.email.label }} *</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                <div class="text-danger">{{ form.email.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{{ form.password.label }} *</label>
+                            {{ form.password }}
+                            {% if form.password.errors %}
+                                <div class="text-danger">{{ form.password.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{{ form.password_confirm.label }} *</label>
+                            {{ form.password_confirm }}
+                            {% if form.password_confirm.errors %}
+                                <div class="text-danger">{{ form.password_confirm.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Организация -->
+                <h5 class="mt-4"><i class="fa-solid fa-building"></i> Организация</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{{ form.district.label }}</label>
+                            {{ form.district }}
+                            <div class="help-text">Необязательно (для фильтрации организаций)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>{{ form.organization_type.label }}</label>
+                            {{ form.organization_type }}
+                            <div class="help-text">Необязательно (для фильтрации организаций)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>{{ form.organization.label }} *</label>
+                    {{ form.organization }}
+                    {% if form.organization.errors %}
+                        <div class="text-danger">{{ form.organization.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Должность -->
+                <h5 class="mt-4"><i class="fa-solid fa-briefcase"></i> Должность</h5>
+                <div class="form-group">
+                    <label>{{ form.position.label }} *</label>
+                    {{ form.position }}
+                    {% if form.position.errors %}
+                        <div class="text-danger">{{ form.position.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label>{{ form.position_level.label }} *</label>
+                    {{ form.position_level }}
+                    <div class="help-text">
+                        <strong>Руководители:</strong> высшего звена, среднего звена, низового звена<br>
+                        <strong>Специалисты:</strong> инженер, экономист, бухгалтер, юрист и др.<br>
+                        <strong>Служащие:</strong> делопроизводитель, секретарь, учётчик<br>
+                        <strong>Рабочие:</strong> оператор станка, сварщик, грузчик
+                    </div>
+                    {% if form.position_level.errors %}
+                        <div class="text-danger">{{ form.position_level.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <button type="submit" class="btn btn-submit">
+                    <i class="fa-solid fa-user-plus me-2"></i>Зарегистрироваться
+                </button>
+            </form>
+
+            <div class="back-link">
+                <a href="{% url 'login' %}">
+                    <i class="fa-solid fa-arrow-left me-1"></i>Уже есть аккаунт? Войти
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/accounts/employee_registration.js' %}"></script>
+{% endblock %}

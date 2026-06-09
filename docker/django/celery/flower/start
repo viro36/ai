@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -o errexit
+
+set -o nounset
+
+# flower starts to work when celery worker is ready
+worker_ready(){
+    celery -A ai inspect ping
+}
+
+until worker_ready; do
+    >&2 echo 'Celery workers not available :-('
+    sleep 1
+
+done
+>&2 echo 'Celery workers are available and ready!...:-)'
+
+celery flower --app=ai --broker="${CELERY_BROKER}"

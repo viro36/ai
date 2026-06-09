@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ category.name }} - Вопрос {{ question_number }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/surveys/survey_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card question-card shadow">
+                <div class="card-header">
+                    <h4 class="mb-0">{{ category.name }}</h4>
+                    {% if survey_block %}
+                        <small class="opacity-75">
+                            <i class="fa-regular fa-folder-open me-1"></i>{{ survey_block.title }}
+                        </small>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <!-- Прогресс -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="text-muted">
+                                <i class="fa-regular fa-circle-question me-1"></i>
+                                Вопрос {{ question_number }} из {{ total_questions }}
+                            </small>
+                            <small class="text-muted">
+                                <i class="fa-regular fa-chart-progress me-1"></i>
+                                {{ progress }}% завершено
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar" role="progressbar"
+                                 style="width: {{ progress }}%"
+                                 aria-valuenow="{{ progress }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Номер вопроса в блоке -->
+                    {% if total_in_block > 1 %}
+                        <div class="text-muted small mb-3">
+                            <i class="fa-solid fa-layer-group me-1"></i>
+                            Вопрос {{ question_in_block }} из {{ total_in_block }}
+                            в разделе "{{ survey_block.title }}"
+                        </div>
+                    {% endif %}
+
+                    <!-- Вопрос -->
+                    <div class="mb-4 p-3 bg-light-custom rounded">
+                        <h5 class="mb-0">{{ question.text }}</h5>
+                    </div>
+
+                    <!-- ИНСТРУКЦИЯ -->
+                    {% if category.instruction_text %}
+                        <div class="small text-muted mb-3 p-2 bg-white rounded">
+                            <i class="fa-solid fa-info-circle me-1"></i>
+                            {{ category.instruction_text }}
+                        </div>
+                    {% endif %}
+
+                    <!-- Форма ответа -->
+                    <form method="post" id="surveyForm">
+                        {% csrf_token %}
+                        <div class="scale-options mb-4">
+                            <label class="form-label fw-bold">Выберите вариант ответа:</label>
+                            {% for scale in scale_labels %}
+                                <div class="scale-option form-check mb-2 p-3 rounded {% if selected_score == scale.scale_value %}selected{% endif %}"
+                                     onclick="this.querySelector('input').click();">
+                                    <input class="form-check-input" type="radio"
+                                           name="score" value="{{ scale.scale_value }}"
+                                           id="scale_{{ scale.scale_value }}"
+                                           {% if selected_score == scale.scale_value %}checked{% endif %}
+                                           required>
+                                    <label class="form-check-label w-100" for="scale_{{ scale.scale_value }}">
+                                        <span class="fw-bold fs-5 me-3">{{ scale.scale_value }}</span>
+                                        <span>{{ scale.label }}</span>
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            {% if prev_question %}
+                                <a href="{% url 'surveys:survey_question' category.id prev_block.id prev_question.id %}"
+                                   class="btn btn-outline-secondary">
+                                    <i class="fa-solid fa-arrow-left me-1"></i> Назад
+                                </a>
+                            {% else %}
+                                <div></div>
+                            {% endif %}
+
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                {% if is_last %}
+                                    <i class="fa-solid fa-check-circle me-1"></i>Завершить
+                                {% else %}
+                                    Далее <i class="fa-solid fa-arrow-right ms-1"></i>
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-3">
+                <i class="fa-solid fa-info-circle me-2"></i>
+                <strong>Шкала оценок:</strong> 1 — наименьшее соответствие, 5 — наибольшее соответствие
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/surveys/survey_common.js' %}"></script>
+{% endblock %}

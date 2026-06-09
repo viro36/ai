@@ -1,0 +1,46 @@
+{% load static %}
+{% load survey_extras %}
+
+<!-- Стандартные результаты для обычных опросов -->
+<div class="card mb-4 shadow">
+    <div class="card-body text-center">
+        <div class="display-1 fw-bold text-primary">{{ average_score }}</div>
+        <p class="text-muted">Средний балл по опросу</p>
+        <p class="text-muted small">
+            <i class="fa-regular fa-calendar me-1"></i>
+            {{ completed_at|date:"d.m.Y H:i" }}
+        </p>
+        <p class="text-muted small">
+            <i class="fa-regular fa-file-lines me-1"></i>
+            Всего отвечено на {{ total_responses }} вопросов
+        </p>
+    </div>
+</div>
+
+<div class="card mb-4 shadow">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">
+            <i class="fa-solid fa-chart-pie me-2"></i>
+            Распределение ответов
+        </h5>
+    </div>
+    <div class="card-body">
+        {% for score, count in distribution.items %}
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span>
+                        <span class="fw-bold fs-5 me-2">{{ score }}</span>
+                        <span class="text-muted">— {{ scale_labels|get_item:score }}</span>
+                    </span>
+                    <span class="badge bg-secondary">{{ count }} ответов</span>
+                </div>
+                <div class="progress" style="height: 10px;">
+                    <div class="progress-bar distribution-progress {% if score >= 4 %}bg-success{% elif score <= 2 %}bg-danger{% else %}bg-warning{% endif %}"
+                         role="progressbar"
+                         style="width: {% widthratio count total_responses 100 %}%">
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>

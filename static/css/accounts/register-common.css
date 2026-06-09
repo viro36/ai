@@ -1,0 +1,142 @@
+/* Общие стили для всех форм регистрации */
+.register-container {
+    max-width: 800px;
+    margin: 2rem auto;
+}
+
+.register-header {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 40%, #5C5C99 70%, #292966 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 16px 16px 0 0;
+    text-align: center;
+}
+
+.register-header i {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.register-body {
+    background: white;
+    padding: 2rem;
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #2d3748;
+    display: block;
+}
+
+.form-group label i {
+    width: 20px;
+    color: #5C5C99;
+}
+
+.form-group .form-control,
+.form-group select,
+.form-group textarea {
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.form-group .form-control:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #5C5C99;
+    box-shadow: 0 0 0 3px rgba(92, 92, 153, 0.1);
+    outline: none;
+}
+
+.help-text {
+    font-size: 0.75rem;
+    color: #718096;
+    margin-top: 0.25rem;
+}
+
+.text-danger {
+    color: #dc3545;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+.alert-danger {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.btn-submit {
+    width: 100%;
+    padding: 0.85rem;
+    font-weight: 600;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    transition: all 0.2s;
+    color: white;
+}
+
+.btn-submit:hover {
+    transform: translateY(-1px);
+}
+
+.back-link {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.back-link a {
+    color: #718096;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.back-link a:hover {
+    color: #5C5C99;
+    text-decoration: underline;
+}
+
+.register-body h5 {
+    color: #2d3748;
+    font-weight: 600;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1.25rem;
+}
+
+.register-body h5 i {
+    margin-right: 8px;
+    color: #5C5C99;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .register-container {
+        max-width: 100%;
+        margin: 1rem;
+    }
+
+    .register-header {
+        padding: 1.5rem;
+    }
+
+    .register-body {
+        padding: 1.5rem;
+    }
+}

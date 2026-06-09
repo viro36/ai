@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools %}
+    <div style="margin-bottom: 15px;">
+        <a href="import-excel/" class="button" style="background: #28a745; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;">
+            Импорт опроса из Excel
+        </a>
+    </div>
+    {{ block.super }}
+{% endblock %}

@@ -1,0 +1,65 @@
+FROM python:3.14.5-bookworm
+
+ENV APP_HOME=/App
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Системные зависимости
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    gdal-bin \
+    libgdal-dev \
+    libjpeg62-turbo-dev \
+    zlib1g-dev \
+    libpng-dev \
+    curl \
+    netcat-openbsd \
+    nano \
+    gettext \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создание групп и пользователей
+RUN addgroup --system appgroup && \
+    adduser --system --ingroup appgroup appuser && \
+    addgroup --system celerygroup && \
+    adduser --system --ingroup celerygroup celeryuser && \
+    usermod -a -G appgroup celeryuser
+
+RUN mkdir -p /home/appuser /home/celeryuser && \
+    usermod -d /home/appuser appuser && \
+    usermod -d /home/celeryuser celeryuser && \
+    chown appuser:appgroup /home/appuser && \
+    chown celeryuser:celerygroup /home/celeryuser
+
+WORKDIR $APP_HOME
+
+# Подготовка структуры папок
+RUN mkdir -p $APP_HOME/staticfiles $APP_HOME/mediafiles && \
+    chown -R appuser:appgroup $APP_HOME
+
+# Установка Python зависимостей
+COPY ./requirements.txt /App/requirements.txt
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt --no-warn-script-location
+
+# Копирование кода проекта
+COPY . /App
+
+# Фиксация прав
+RUN chown -R appuser:appgroup /App && \
+    chmod -R 775 /App/mediafiles && \
+    chown -R celeryuser:appgroup /App/mediafiles
+
+# Копирование и настройка скриптов запуска
+COPY ./docker/start /start
+COPY ./docker/django/celery/worker/start /start-celeryworker
+COPY ./docker/django/celery/flower/start /start-flower
+
+RUN sed -i 's/\r$//g' /start && \
+    sed -i 's/\r$//g' /start-celeryworker && \
+    sed -i 's/\r$//g' /start-flower && \
+    chmod +x /start /start-celeryworker /start-flower
+
+LABEL description="Development image for the ai django"

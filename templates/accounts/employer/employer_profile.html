@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+
+{% block title %}
+    {% if is_university %}Профиль ВУЗа{% else %}Профиль работодателя{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+    {% if is_university %}
+        <link rel="stylesheet" href="{% static 'css/accounts/university_profile.css' %}">
+    {% else %}
+        <link rel="stylesheet" href="{% static 'css/accounts/employer_profile.css' %}">
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="profile-container">
+        <div class="profile-header">
+            {% if is_university %}
+                <i class="fa-solid fa-landmark fa-3x mb-3"></i>
+                <h1 class="h3 mb-0">Профиль ВУЗа</h1>
+                <p class="mb-0 mt-2 opacity-75">
+                    Заполните информацию о вашем учебном заведении
+                </p>
+            {% else %}
+                <i class="fa-solid fa-building fa-3x mb-3"></i>
+                <h1 class="h3 mb-0">Профиль работодателя</h1>
+                <p class="mb-0 mt-2 opacity-75">
+                    Заполните информацию о вашей организации
+                </p>
+            {% endif %}
+        </div>
+
+        <div class="profile-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <!-- 1. Контактная информация -->
+                <h5 class="section-title"><i class="fa-solid fa-address-card me-2"></i>1. Контактная информация</h5>
+                <div class="row">
+                    <div class="col-12">{% bootstrap_field form.actual_address %}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">{% bootstrap_field form.phone %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.email %}</div>
+                    <div class="col-md-4">{% bootstrap_field form.website %}</div>
+                </div>
+
+                <!-- Контактное лицо -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-user-tie me-2"></i>Контактное лицо</h5>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.contact_person_full_name %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.contact_person_position %}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.contact_person_phone %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.contact_person_email %}</div>
+                </div>
+
+                <!-- 2. Банковские реквизиты -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-credit-card me-2"></i>2. Банковские реквизиты</h5>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.checking_account %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.bank_name %}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.bik %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.correspondent_account %}</div>
+                </div>
+
+                <!-- 3. Основные показатели деятельности -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-chart-line me-2"></i>3. Основные показатели деятельности</h5>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.employee_count %}</div>
+                    <div class="col-md-6">{% bootstrap_field form.annual_revenue %}</div>
+                </div>
+
+                <!-- 4. Email для входа -->
+                <h5 class="section-title mt-4"><i class="fa-solid fa-envelope me-2"></i>4. Email для входа</h5>
+                <div class="row">
+                    <div class="col-md-6">{% bootstrap_field form.registration_email %}</div>
+                </div>
+                <small class="help-text mb-3">Этот email используется для входа в систему</small>
+
+                <!-- 5. Для ВУЗов (дополнительные поля) -->
+                {% if is_university %}
+                <h5 class="section-title mt-4"><i class="fa-solid fa-gavel me-2"></i>5. Лицензирование и аккредитация</h5>
+                <div class="row">
+                    <div class="col-12">{% bootstrap_field form.license_link %}</div>
+                </div>
+                <div class="row">
+                    <div class="col-12">{% bootstrap_field form.dpo_programs_link %}</div>
+                </div>
+                <small class="help-text mb-3">Ссылка на действующую лицензию должна вести на официальный реестр Рособрнадзора</small>
+                <small class="help-text mb-3">Ссылка на перечень реализуемых программ ДПО (на собственный портал ДПО)</small>
+                {% endif %}
+
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'home' %}" class="btn btn-secondary">
+                        <i class="fa-solid fa-arrow-left me-2"></i>На главную
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-save me-2"></i>Сохранить изменения
+                    </button>
+                </div>
+            </form>
+
+            <!-- ========== ВСЯ ИНФОРМАЦИЯ ИЗ DADATA ========== -->
+            <div class="dadata-info mt-5">
+                <h5 class="section-title"><i class="fa-solid fa-database me-2"></i>Данные из Федеральной налоговой службы (ФНС)</h5>
+                <div class="alert alert-secondary">
+
+                    <!-- Основные реквизиты -->
+                    <h6 class="fw-bold mb-3">Основные реквизиты</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>ИНН:</strong> {{ organization.inn|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>КПП:</strong> {{ organization.kpp|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>ОГРН:</strong> {{ organization.ogrn|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>ОГРН дата:</strong> {{ organization.ogrn_date|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Тип организации:</strong> {{ organization.org_type|default:"-" }}
+                        </div>
+                    </div>
+
+                    <!-- Наименования -->
+                    <h6 class="fw-bold mb-3 mt-4">Наименования</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <strong>Полное наименование:</strong><br>
+                            {{ organization.full_name|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <strong>Краткое наименование:</strong><br>
+                            {{ organization.short_name|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Полное наименование без ОПФ:</strong><br>
+                            {{ organization.full_name_without_opf|default:"-" }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Краткое наименование без ОПФ:</strong><br>
+                            {{ organization.short_name_without_opf|default:"-" }}
+                        </div>
+                    </div>
+
+                    <!-- ФИО для ИП (если есть) -->
+                    {% if organization.fio_surname or organization.fio_name or organization.fio_patronymic %}
+                    <h6 class="fw-bold mb-3 mt-4">ФИО индивидуального предпринимателя</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Фамилия:</strong> {{ organization.fio_surname|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Имя:</strong> {{ organization.fio_name|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Отчество:</strong> {{ organization.fio_patronymic|default:"-" }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- ОПФ -->
+                    <h6 class="fw-bold mb-3 mt-4">Организационно-правовая форма (ОПФ)</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Код ОПФ:</strong> {{ organization.opf_code|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Полное ОПФ:</strong> {{ organization.opf_full|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Краткое ОПФ:</strong> {{ organization.opf_short|default:"-" }}
+                        </div>
+                    </div>
+
+                    <!-- Адрес -->
+                    <h6 class="fw-bold mb-3 mt-4">Адрес</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <strong>Адрес (строка):</strong><br>
+                            {{ organization.address_raw|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Индекс:</strong> {{ organization.postal_code|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Регион:</strong> {{ organization.region|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Город:</strong> {{ organization.city|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Улица:</strong> {{ organization.street|default:"-" }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Дом:</strong> {{ organization.house|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Адрес из ЕГРЮЛ:</strong><br>
+                            {{ organization.address_source|default:"-" }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Код проверки адреса:</strong> {{ organization.address_qc|default:"-" }}
+                        </div>
+                    </div>
+
+                    <!-- Координаты -->
+                    {% if organization.coordinates %}
+                    <h6 class="fw-bold mb-3 mt-4">Координаты</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <strong>Координаты:</strong> {{ organization.coordinates }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Статус и состояние -->
+                    <h6 class="fw-bold mb-3 mt-4">Статус и состояние</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Статус:</strong> {{ organization.get_status_display|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Дата актуальности:</strong> {{ organization.actuality_date|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Дата регистрации:</strong> {{ organization.registration_date|default:"-" }}
+                        </div>
+                    </div>
+                    {% if organization.status == 'LIQUIDATED' or organization.liquidation_date %}
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Дата ликвидации:</strong> {{ organization.liquidation_date|default:"-" }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Коды статистики -->
+                    <h6 class="fw-bold mb-3 mt-4">Коды статистики</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <strong>ОКПО:</strong> {{ organization.okpo|default:"-" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>ОКАТО:</strong> {{ organization.okato|default:"-" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>ОКТМО:</strong> {{ organization.oktmo|default:"-" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>ОКОГУ:</strong> {{ organization.okogu|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <strong>ОКФС:</strong> {{ organization.okfs|default:"-" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>ОКВЭД:</strong> {{ organization.okved|default:"-" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Версия ОКВЭД:</strong> {{ organization.okved_type|default:"-" }}
+                        </div>
+                    </div>
+
+                    <!-- Руководство -->
+                    <h6 class="fw-bold mb-3 mt-4">Руководство</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Руководитель:</strong> {{ organization.manager_name|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Должность:</strong> {{ organization.manager_post|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Дата вступления:</strong> {{ organization.manager_start_date|default:"-" }}
+                        </div>
+                    </div>
+
+                    <!-- Филиалы -->
+                    <h6 class="fw-bold mb-3 mt-4">Филиалы</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Количество филиалов:</strong> {{ organization.branch_count|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Тип подразделения:</strong> {{ organization.get_branch_type_display|default:"-" }}
+                        </div>
+                    </div>
+
+                </div>
+                <small class="text-muted">Данные автоматически загружаются из Федеральной налоговой службы и обновляются еженедельно.</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

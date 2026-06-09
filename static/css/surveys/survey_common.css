@@ -1,0 +1,207 @@
+/* static/css/surveys/survey_common.css */
+
+/* Общие стили для опросов */
+
+/* Карточки опросов на главной */
+.survey-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+}
+
+.survey-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.survey-card .card-footer {
+    background-color: transparent;
+    border-top: none;
+}
+
+/* Стили для вопросов */
+.question-card {
+    animation: fadeInUp 0.4s ease;
+    border: none;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.card-header {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    color: white;
+    padding: 1.5rem;
+}
+
+.card-header h4 {
+    margin-bottom: 0;
+}
+
+.card-header small {
+    opacity: 0.8;
+}
+
+.scale-option {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 10px;
+}
+
+.scale-option:hover {
+    background-color: #f8f9fa;
+    border-color: #A3A3CC;
+}
+
+.scale-option.selected {
+    background-color: #f0f0ff;
+    border-color: #5C5C99;
+    border-left: 4px solid #5C5C99;
+}
+
+.scale-option .form-check-input:checked {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.scale-option .form-check-label {
+    font-weight: normal;
+}
+
+.scale-option.selected .form-check-label {
+    font-weight: 500;
+    color: #292966;
+}
+
+/* Прогресс-бар */
+.progress {
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #CCCCFF, #5C5C99);
+    transition: width 0.3s ease;
+}
+
+/* Анимации */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Результаты */
+.result-card {
+    transition: transform 0.2s;
+    border-radius: 16px;
+    border: none;
+}
+
+.result-card:hover {
+    transform: translateY(-3px);
+}
+
+.distribution-progress {
+    transition: width 0.5s ease;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .scale-option {
+        margin-bottom: 10px;
+    }
+
+    .result-card .d-flex {
+        flex-direction: column;
+    }
+
+    .result-card .text-end {
+        margin-top: 8px;
+        text-align: left !important;
+    }
+}
+
+/* Утилиты */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.bg-opacity-10 {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.transition-all {
+    transition: all 0.3s ease;
+}
+
+/* Кнопки */
+.btn-primary {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    border: none;
+    transition: all 0.3s ease;
+    padding: 10px 24px;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #4a4a7a 0%, #1f1f4f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-outline-secondary {
+    color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+    color: white;
+}
+
+/* Alert info */
+.alert-info {
+    background-color: #f0f0ff;
+    border: 1px solid rgba(92, 92, 153, 0.2);
+    border-left: 4px solid #5C5C99;
+    color: #292966;
+    border-radius: 12px;
+}
+
+.alert-info i {
+    color: #5C5C99;
+}
+
+.alert-info a {
+    color: #5C5C99;
+    text-decoration: underline;
+}
+
+.alert-info a:hover {
+    color: #292966;
+}
+
+/* Светлый фон */
+.bg-light-custom {
+    background-color: #f8f8ff;
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+/* Форма */
+.form-label {
+    color: #2d3748;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}

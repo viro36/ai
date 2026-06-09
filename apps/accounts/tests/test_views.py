@@ -1,0 +1,470 @@
+import pytest
+from django.urls import reverse
+from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
+from apps.organizations.models import Organization
+from apps.accounts.models import (
+    EmployerRegistrationRequest,
+    EmployerProfile,
+    EmployeeProfile,
+)
+
+User = get_user_model()
+
+
+@pytest.mark.django_db
+class TestEmployerRegisterView:
+    """Тесты для регистрации работодателя"""
+
+    def test_employer_register_get(self, client):
+        url = reverse("accounts:employer_register")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "accounts/employer/employer_register.html" in [
+            t.name for t in response.templates
+        ]
+
+    def test_employer_register_post_valid(self, client):
+        url = reverse("accounts:employer_register")
+        data = {
+            "username": "test_employer",
+            "email": "employer@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "short_name": "ООО Тест",
+            "full_name": "Общество с ограниченной ответственностью Тест",
+            "inn": "123456789012",
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+        assert response.url == reverse("login")
+        assert EmployerRegistrationRequest.objects.filter(
+            username="test_employer"
+        ).exists()
+
+
+@pytest.mark.django_db
+class TestEmployeeRegisterView:
+    """Тесты для регистрации работника"""
+
+    def test_employee_register_get(self, client, test_organization):
+        url = reverse("accounts:employee_register")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_employee_register_post_valid(self, client, test_organization):
+        url = reverse("accounts:employee_register")
+        data = {
+            "username": "test_employee",
+            "email": "employee@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "patronymic": "Иванович",
+            "snils": "123-456-789 01",
+            "phone": "+7 999 123-45-67",
+            "organization": test_organization.id,
+            "position": "Инженер",
+            "position_level": "specialist",
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+        assert response.url == reverse("home")
+        assert User.objects.filter(username="test_employee").exists()
+
+
+@pytest.mark.django_db
+class TestEmployerRequestsListView:
+    """Тесты для списка заявок (админ)"""
+
+    def test_employer_requests_list_requires_staff(self, client, regular_user):
+        """Доступ только для staff"""
+        client.login(username=regular_user.username, password="regular123")
+        url = reverse("accounts:employer_requests_list")
+        response = client.get(url)
+        assert response.status_code == 302  # Редирект на login
+
+    def test_employer_requests_list_staff_access(self, admin_client):
+        """Staff имеет доступ"""
+        url = reverse("accounts:employer_requests_list")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+
+@pytest.mark.django_db
+class TestApproveEmployerRequest:
+    """Тесты для одобрения заявки"""
+
+    def test_approve_employer_request(self, admin_client):
+        """Одобрение заявки"""
+        request_obj = EmployerRegistrationRequest.objects.create(
+            username="pending_employer",
+            email="pending@test.com",
+            password=make_password("testpass"),
+            short_name="ООО Тест",
+            full_name="Общество с ограниченной ответственностью Тест",
+            inn="123456789012",
+            status="pending",
+        )
+
+        url = reverse("accounts:approve_employer_request", args=[request_obj.id])
+        response = admin_client.post(url)
+
+        # Перенаправление на список заявок
+        assert response.status_code == 302
+        assert response.url == reverse("accounts:employer_requests_list")
+
+        request_obj.refresh_from_db()
+        assert request_obj.status == "approved"
+        assert User.objects.filter(username="pending_employer").exists()
+        assert Organization.objects.filter(inn="123456789012").exists()
+
+    def test_approve_employer_request_already_exists(
+        self, admin_client, test_organization
+    ):
+        """Одобрение заявки с уже существующей организацией"""
+        request_obj = EmployerRegistrationRequest.objects.create(
+            username="pending_employer2",
+            email="pending2@test.com",
+            password=make_password("testpass"),
+            short_name="ООО Тест2",
+            full_name="Общество с ограниченной ответственностью Тест2",
+            inn=test_organization.inn,
+            status="pending",
+        )
+
+        url = reverse("accounts:approve_employer_request", args=[request_obj.id])
+        response = admin_client.post(url)
+        assert response.status_code == 302
+
+        request_obj.refresh_from_db()
+        assert request_obj.status == "rejected"
+
+
+@pytest.mark.django_db
+class TestEmployerProfileView:
+    """Тесты для профиля работодателя/ВУЗа"""
+
+    def test_employer_profile_requires_login(self, client):
+        url = reverse("accounts:employer_profile")
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_employer_profile_requires_correct_user_type(
+        self, client, test_employee_user
+    ):
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employer_profile")
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_employer_profile_get(self, client, test_employer_user):
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employer_profile")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_employer_profile_post(self, client, test_employer_user):
+        client.login(username=test_employer_user.username, password="testpass123")
+        EmployerProfile.objects.create(user=test_employer_user)
+
+        url = reverse("accounts:employer_profile")
+        data = {
+            "registration_email": "newemail@test.com",
+            "phone": "+7 999 888-77-66",
+            "website": "https://new-site.com",
+            "employee_count": 150,
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+
+@pytest.mark.django_db
+class TestEmployeeProfileView:
+    """Тесты для профиля работника"""
+
+    def test_employee_profile_requires_login(self, client):
+        url = reverse("accounts:employee_profile")
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_employee_profile_requires_employee_type(self, client, test_employer_user):
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_profile")
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_employee_profile_get(self, client, test_employee_user, test_organization):
+        EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employee_profile")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_employee_profile_post(self, client, test_employee_user, test_organization):
+        EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employee_profile")
+        data = {
+            "last_name": "Петров",
+            "first_name": "Петр",
+            "patronymic": "Петрович",
+            "birthday": "1990-01-01",
+            "snils": "123-456-789 01",
+            "email": "newemail@test.com",
+            "position": "Старший инженер",
+            "position_level": "specialist",
+            "phone": "+7 999 888-77-66",
+            "organization_id": test_organization.id,
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+
+@pytest.mark.django_db
+class TestGetOrganizationsAjax:
+    """Тесты для AJAX получения организаций"""
+
+    def test_get_organizations_ajax_no_filters(self, client, test_organization):
+        url = reverse("accounts:get_organizations_ajax")
+        response = client.get(url)
+        assert response.status_code == 200
+        data = response.json()
+        assert "organizations" in data
+
+    def test_get_organizations_ajax_with_district_filter(
+        self, client, test_organization, test_district
+    ):
+        url = reverse("accounts:get_organizations_ajax")
+        response = client.get(url, {"district_id": test_district.id})
+        assert response.status_code == 200
+
+    def test_get_organizations_ajax_with_type_filter(
+        self, client, test_organization, test_organization_type
+    ):
+        url = reverse("accounts:get_organizations_ajax")
+        response = client.get(url, {"org_type_id": test_organization_type.id})
+        assert response.status_code == 200
+
+
+@pytest.mark.django_db
+class TestEmployeeListView:
+    """Тесты для списка работников организации"""
+
+    def test_employee_list_requires_login(self, client):
+        """Тест требования авторизации"""
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+        assert response.status_code in [302, 403]
+        if response.status_code == 302:
+            assert "/login/" in response.url
+        elif response.status_code == 403:
+            assert "Доступ запрещён" in response.content.decode()
+
+    def test_employee_list_requires_employer_type(self, client, test_employee_user):
+        """Тест - только работодатель имеет доступ"""
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+        assert response.status_code == 403
+
+    def test_employee_list_returns_200_for_employer(self, client, test_employer_user):
+        """Тест успешного доступа для работодателя"""
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_employee_list_displays_employees(
+        self, client, test_employer_user, test_organization
+    ):
+        """Тест отображения сотрудников организации"""
+        # Создаём сотрудников
+        employee1 = User.objects.create_user(
+            username="employee1",
+            email="emp1@test.com",
+            password="pass123",
+            first_name="Иван",
+            last_name="Петров",
+            patronymic="Иванович",
+            user_type="employee",
+            organization=test_organization,
+        )
+        EmployeeProfile.objects.create(
+            user=employee1,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+
+        employee2 = User.objects.create_user(
+            username="employee2",
+            email="emp2@test.com",
+            password="pass123",
+            first_name="Мария",
+            last_name="Сидорова",
+            patronymic="Петровна",
+            user_type="employee",
+            organization=test_organization,
+        )
+        EmployeeProfile.objects.create(
+            user=employee2,
+            snils="987-654-321 01",
+            organization=test_organization,
+            position="Бухгалтер",
+            position_level="specialist",
+        )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Петров" in content
+        assert "Сидорова" in content
+
+    def test_employee_list_search(self, client, test_employer_user, test_organization):
+        """Тест поиска сотрудников"""
+        employee = User.objects.create_user(
+            username="search_employee",
+            email="search@test.com",
+            password="pass123",
+            first_name="Поисковый",
+            last_name="Тестов",
+            user_type="employee",
+            organization=test_organization,
+        )
+        EmployeeProfile.objects.create(
+            user=employee,
+            snils="111-222-333 01",
+            organization=test_organization,
+            position="Тестировщик",
+            position_level="specialist",
+        )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url, {"search": "Тестов"})
+
+        assert response.status_code == 200
+        assert "Тестов" in response.content.decode()
+
+    def test_employee_list_pagination(
+        self, client, test_employer_user, test_organization
+    ):
+        """Тест пагинации списка сотрудников"""
+        # Создаём 25 сотрудников
+        for i in range(25):
+            emp = User.objects.create_user(
+                username=f"employee_{i}",
+                email=f"emp{i}@test.com",
+                password="pass123",
+                last_name=f"Фамилия{i}",
+                first_name=f"Имя{i}",
+                user_type="employee",
+                organization=test_organization,
+            )
+            EmployeeProfile.objects.create(
+                user=emp,
+                snils=f"{i:03d}-456-789 01",
+                organization=test_organization,
+                position=f"Должность{i}",
+                position_level="specialist",
+            )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url, {"page": 2})
+
+        assert response.status_code == 200
+        assert "page_obj" in response.context
+
+    def test_employee_list_empty(self, client, test_employer_user):
+        """Тест когда нет сотрудников"""
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        # Проверяем, что отображается сообщение о пустом списке
+        content = response.content.decode()
+        assert "Нет сотрудников" in content or "0" in content
+
+
+@pytest.mark.django_db
+class TestOrganizationEmployeeCountProperty:
+    """Тесты для свойства employee_count в модели Organization"""
+
+    def test_employee_count_property(self, test_organization):
+        """Тест подсчёта количества сотрудников"""
+        # Создаём сотрудников
+        for i in range(5):
+            emp = User.objects.create_user(
+                username=f"count_emp_{i}",
+                email=f"count{i}@test.com",
+                password="pass123",
+                user_type="employee",
+                organization=test_organization,
+            )
+            EmployeeProfile.objects.create(
+                user=emp,
+                snils=f"{i:03d}-456-789 01",
+                organization=test_organization,
+                position="Сотрудник",
+                position_level="specialist",
+            )
+
+        assert test_organization.employee_count == 5
+
+    def test_employee_count_only_counts_active_employees(self, test_organization):
+        """Тест - считаются только активные сотрудники"""
+        emp = User.objects.create_user(
+            username="inactive_emp",
+            email="inactive@test.com",
+            password="pass123",
+            user_type="employee",
+            is_active=False,
+            organization=test_organization,
+        )
+        EmployeeProfile.objects.create(
+            user=emp,
+            snils="999-999-999 99",
+            organization=test_organization,
+            position="Неактивный",
+            position_level="specialist",
+        )
+
+        # Неактивный сотрудник не должен учитываться
+        assert test_organization.employee_count == 0
+
+    def test_employee_count_ignores_non_employee_users(
+        self, test_organization, test_employer_user
+    ):
+        """Тест - не считаются пользователи других типов"""
+        # Работодатель не должен учитываться
+        assert test_organization.employee_count == 0
+
+
+@pytest.mark.django_db
+class TestOrganizationActiveCoursesCountProperty:
+    """Тесты для свойства active_courses_count в модели Organization"""
+
+    def test_active_courses_count_property(self, test_organization, test_course):
+        """Тест подсчёта активных курсов"""
+        # test_course уже активный (is_deleted=False)
+        assert test_organization.active_courses_count == 1
