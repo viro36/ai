@@ -1,0 +1,23 @@
+#!/bin/bash
+set -e
+
+# Создаем директории если их нет
+mkdir -p /App/staticfiles /App/mediafiles /tmp/gunicorn
+chmod 755 /tmp/gunicorn
+
+# Собираем статику
+python manage.py collectstatic --noinput
+
+# Применяем миграции
+python manage.py migrate --noinput
+
+
+exec gunicorn ai.wsgi:application \
+    --bind 0.0.0.0:8000 \
+    --workers 4 \
+    --worker-class sync \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile - \
+    --pid /tmp/gunicorn.pid \
+    --worker-tmp-dir /dev/shm
