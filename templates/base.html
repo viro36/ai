@@ -12,7 +12,7 @@
     <!-- CSRF Token -->
     <meta name="csrf-token" content="{{ csrf_token }}">
 
-    <title>{% block title %}Сайт рекомендаций курсов{% endblock %}</title>
+    <title>{% block title %}СкиллКомпас{% endblock %}</title>
 
     <!-- Bootstrap CSS (через django-bootstrap5) -->
     {% bootstrap_css %}
@@ -39,7 +39,7 @@
         <div class="container">
             <a class="navbar-brand" href="{% url 'home' %}">
                 <i class="fa-solid fa-graduation-cap me-2"></i>
-                Сайт рекомендаций курсов
+                СкиллКомпас
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
