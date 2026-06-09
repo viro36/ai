@@ -27,7 +27,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     env_file:
-      - .env.prod  # ← только это
+      - .env.prod
     restart: "on-failure"
     networks:
       - ai
