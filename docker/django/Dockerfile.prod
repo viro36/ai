@@ -59,7 +59,7 @@ COPY ./docker/django/celery/worker/start /start-celeryworker
 COPY ./docker/django/celery/flower/start /start-flower
 
 RUN sed -i 's/\r$//g' /start && \
-    ed -i 's/\r$//g' /start-prod && \
+    sed -i 's/\r$//g' /start-prod && \
     sed -i 's/\r$//g' /start-celeryworker && \
     sed -i 's/\r$//g' /start-flower && \
     chmod +x /start /start-prod /start-celeryworker /start-flower
