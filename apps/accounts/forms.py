@@ -344,6 +344,7 @@ class EmployeeProfileForm(forms.ModelForm):
         label="Дата рождения",
         required=False,
         widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        input_formats=["%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y"],
     )
     snils = forms.CharField(
         max_length=14,

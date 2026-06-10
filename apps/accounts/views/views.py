@@ -318,7 +318,7 @@ def employee_profile(request):
             "last_name": user.last_name,
             "first_name": user.first_name,
             "patronymic": user.patronymic,
-            "birthday": user.birthday,
+            "birthday": user.birthday.strftime("%Y-%m-%d") if user.birthday else None,
             "snils": user.snils,
             "email": user.email,
             "position": profile.position,
