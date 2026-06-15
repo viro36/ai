@@ -214,3 +214,16 @@ class CourseRestoreView(LoginRequiredMixin, OrganizationAccessMixin, UpdateView)
             "courses:organization_courses",
             kwargs={"org_id": self.object.organization.id},
         )
+
+
+class CourseDetailView(LoginRequiredMixin, DetailView):
+    """Детальная страница курса"""
+
+    model = Course
+    template_name = "courses/course_detail.html"
+    context_object_name = "course"
+    pk_url_kwarg = "course_id"
+
+    def get_queryset(self):
+        """Показываем только активные курсы"""
+        return Course.objects.filter(is_deleted=False)

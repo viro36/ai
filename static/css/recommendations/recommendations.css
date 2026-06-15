@@ -1,0 +1,108 @@
+.recommendation-card {
+    border: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.recommendation-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.recommendation-card .card-title {
+    color: #292966;
+}
+
+.recommendation-card .card-title i {
+    color: #CCCCFF;
+}
+
+.recommendation-card .badge {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    color: #292966;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.btn-outline-primary {
+    color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.btn-outline-primary:hover {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+    color: white;
+}
+
+/* Прогресс-бар для релевантности */
+.relevance-progress {
+    height: 8px;
+    border-radius: 4px;
+    background-color: #f0f0ff;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.relevance-progress-bar {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #CCCCFF, #5C5C99);
+    width: 0%;
+    transition: width 0.5s ease;
+}
+
+/* Alert стили */
+.alert-info {
+    background-color: #f0f0ff;
+    border: none;
+    border-left: 4px solid #5C5C99;
+    color: #292966;
+    border-radius: 12px;
+}
+
+.alert-info i {
+    color: #5C5C99;
+}
+
+.alert-warning {
+    background-color: #fafaff;
+    border: none;
+    border-left: 4px solid #A3A3CC;
+    color: #292966;
+    border-radius: 12px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #4a4a7a 0%, #1f1f4f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+}
+
+/* Прогресс-бар загрузки */
+.progress {
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #CCCCFF, #5C5C99);
+}
+
+/* Чекбоксы в списке требований */
+.fa-check-circle {
+    color: #5C5C99;
+}
+
+.fa-circle-xmark {
+    color: #A3A3CC;
+}

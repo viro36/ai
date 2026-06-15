@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ course.title }} - СкиллКомпас{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="mb-4">
+        <a href="{% url 'recommendations:my_recommendations' %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i> Назад к рекомендациям
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-3">
+            <h1 class="h3 mb-0">{{ course.title }}</h1>
+            <p class="text-muted mt-2 mb-0">
+                <i class="fa-solid fa-building me-1"></i> {{ course.organization.short_name }}
+            </p>
+        </div>
+        <div class="card-body">
+            <!-- Основная информация -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5><i class="fa-solid fa-tag me-2"></i>Тип программы</h5>
+                    <p>{{ course.program_type|default:"Не указан" }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h5><i class="fa-solid fa-clock me-2"></i>Объём</h5>
+                    <p>
+                        {% if course.duration_hours %}{{ course.duration_hours }} часов{% endif %}
+                        {% if course.duration_weeks %} ({{ course.duration_weeks }}){% endif %}
+                        {% if not course.duration_hours and not course.duration_weeks %}Не указано{% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5><i class="fa-solid fa-chalkboard-user me-2"></i>Форма обучения</h5>
+                    <p>{{ course.format|default:"Не указана" }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h5><i class="fa-solid fa-graduation-cap me-2"></i>Режим обучения</h5>
+                    <p>{{ course.study_mode|default:"Не указан" }}</p>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5><i class="fa-solid fa-ruble-sign me-2"></i>Стоимость</h5>
+                    <p>{{ course.price|default:"Бесплатно / Не указано" }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h5><i class="fa-solid fa-calendar me-2"></i>Даты начала</h5>
+                    <p>{{ course.start_dates|default:"Не указаны" }}</p>
+                </div>
+            </div>
+
+            <!-- Категории -->
+            {% if course.categories.all %}
+            <div class="mb-4">
+                <h5><i class="fa-solid fa-folder-open me-2"></i>Категории</h5>
+                {% for category in course.categories.all %}
+                    <span class="badge bg-secondary me-1">{{ category.name }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Описание -->
+            {% if course.description %}
+            <div class="mb-4">
+                <h5><i class="fa-solid fa-align-left me-2"></i>Описание</h5>
+                <p>{{ course.description|linebreaks }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Преподаватели -->
+            {% if course.teachers %}
+            <div class="mb-4">
+                <h5><i class="fa-solid fa-chalkboard-user me-2"></i>Преподаватели</h5>
+                <p>{{ course.teachers|linebreaks }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Целевая аудитория -->
+            {% if course.target_audience %}
+            <div class="mb-4">
+                <h5><i class="fa-solid fa-users me-2"></i>Целевая аудитория</h5>
+                <p>{{ course.target_audience|linebreaks }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Содержание программы -->
+            {% if course.topics %}
+            <div class="mb-4">
+                <h5><i class="fa-solid fa-list-check me-2"></i>Содержание программы</h5>
+                <p>{{ course.topics|linebreaks }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Выдаваемый документ -->
+            {% if course.document_type %}
+            <div class="mb-4">
+                <h5><i class="fa-solid fa-certificate me-2"></i>Документ об окончании</h5>
+                <p>{{ course.document_type }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Ссылка на курс -->
+            <div class="alert alert-info mt-3">
+                <i class="fa-solid fa-link me-2"></i>
+                <a href="{{ course.url }}" target="_blank" class="text-decoration-none">
+                    Перейти на страницу курса на сайте вуза <i class="fa-solid fa-arrow-up-right-from-square ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

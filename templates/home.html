@@ -2,7 +2,7 @@
 {% load static %}
 {% load django_bootstrap5 %}
 
-{% block title %}Главная - Сайт рекомендаций курсов{% endblock %}
+{% block title %}Главная - СкиллКомпас{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/home.css' %}">
@@ -114,6 +114,33 @@
                             </div>
                             <h3 class="action-title">Опросы</h3>
                             <p class="action-description">Пройдите опросы для получения рекомендаций</p>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'recommendations:my_recommendations' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employee">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-lightbulb"></i>
+                            </div>
+                            <h3 class="action-title">Мои рекомендации</h3>
+                            <p class="action-description">
+                                Персональные рекомендации курсов на основе ваших ответов
+                                {% if user.course_recommendations.exists %}
+                                    <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966;">
+                                        {{ user.course_recommendations.count }} рекомендаций
+                                    </span>
+                                {% else %}
+                                    <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966;">
+                                        {% if ready_for_recommendations %}
+                                            Готово
+                                        {% else %}
+                                            Заполните данные
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
+                            </p>
                         </div>
                     </a>
                 </div>

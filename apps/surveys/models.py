@@ -72,9 +72,6 @@ class SurveyBlock(models.Model):
         return f"{self.category.name} - {self.title}"
 
 
-# apps/surveys/models.py - обновляем ScaleLabel
-
-
 class ScaleLabel(models.Model):
     """Формулировки для каждого значения шкалы"""
 

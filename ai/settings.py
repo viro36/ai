@@ -70,6 +70,7 @@ PROGRAM_APPS = [
     "apps.courses",
     "apps.accounts",
     "apps.surveys",
+    "apps.recommendations",
 ]
 
 INSTALLED_APPS = BASIC_APPS + THIRD_PARTY_APPS + PROGRAM_APPS
@@ -111,6 +112,9 @@ WSGI_APPLICATION = "ai.wsgi.application"
 
 CELERY_BROKER_URL = env("CELERY_BROKER", default="redis://redis:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://redis:6379/1")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Europe/Moscow"
 # CELERY_BEAT_SCHEDULE = {
 #     "parse_vsuet_courses": {
@@ -127,6 +131,9 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# DeepSeek API
+DEEPSEEK_API_KEY = env("DEEPSEEK_API_KEY", default="")
 
 
 # Database
@@ -213,8 +220,8 @@ DADATA_API_KEY = env("DADATA_API_KEY")
 
 JAZZMIN_SETTINGS = {
     # Название сайта
-    "site_title": "Сайт рекомендаций курсов",
-    "site_header": "Сайт рекомендаций курсов",
+    "site_title": "СкиллКомпас",
+    "site_header": "СкиллКомпас",
     "site_brand": "Образование",
     # Логотип (если есть)
     "site_logo": None,

@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Мои рекомендации{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/recommendations/recommendations.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-lightbulb me-2" style="color: #CCCCFF;"></i>
+            Персональные рекомендации
+        </h1>
+        {% if has_recommendations or ready_for_recommendations %}
+        <form method="post" action="{% url 'recommendations:regenerate_recommendations' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary"
+                    {% if task_status.status == 'pending' %}disabled{% endif %}>
+                <i class="fa-solid fa-rotate-right me-2"></i>
+                {% if has_recommendations %}Обновить рекомендации{% else %}Подобрать рекомендации{% endif %}
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if task_status.status == 'pending' %}
+    <div class="alert alert-info text-center" id="pendingAlert">
+        <i class="fa-solid fa-spinner fa-spin fa-2x mb-3 d-block" style="color: #5C5C99;"></i>
+        <h4>Генерация рекомендаций</h4>
+        <p>Искусственный интеллект анализирует ваши результаты и подбирает подходящие курсы...</p>
+        <p class="small text-muted">Это может занять до 30 секунд</p>
+        <div class="progress" style="height: 10px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if has_recommendations %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="fa-solid fa-info-circle me-2"></i>
+        Если вы прошли новые опросы или изменили анкету, нажмите кнопку <strong>"Обновить рекомендации"</strong> для получения актуальных рекомендаций.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row">
+        {% for rec in recommendations %}
+        <div class="col-md-6 mb-4">
+            <div class="card recommendation-card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="card-title">
+                            <i class="fa-solid fa-graduation-cap me-2"></i>
+                            {{ rec.course.title }}
+                        </h5>
+                        <span class="badge">
+                            {{ rec.relevance_score|floatformat:0 }}% <small>релевантности</small>
+                        </span>
+                    </div>
+                    <p class="card-text text-muted small mb-2">
+                        <i class="fa-solid fa-building me-1"></i>{{ rec.course.organization.short_name }}
+                    </p>
+
+                    <div class="relevance-progress">
+                        <div class="relevance-progress-bar" style="width: {{ rec.relevance_score|floatformat:0 }}%;"></div>
+                    </div>
+
+                    <p class="card-text mt-3">{{ rec.reason }}</p>
+                    <div class="mt-3">
+                        <a href="{% url 'courses:course_detail' rec.course.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fa-solid fa-eye me-1"></i>Подробнее о курсе
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% elif not ready_for_recommendations %}
+    <div class="alert alert-warning text-center">
+        <i class="fa-solid fa-info-circle fa-2x mb-3 d-block"></i>
+        <h4>Необходимо заполнить данные</h4>
+        <p>Для получения персонализированных рекомендаций необходимо:</p>
+        <div class="text-start d-inline-block">
+            <ul class="list-unstyled">
+                <li>
+                    <i class="fa-solid {% if all_surveys_completed %}fa-check-circle{% else %}fa-circle-xmark{% endif %} me-2"></i>
+                    Пройти все опросы
+                </li>
+                <li class="mt-2">
+                    <i class="fa-solid {% if profile_completed %}fa-check-circle{% else %}fa-circle-xmark{% endif %} me-2"></i>
+                    Заполнить анкету
+                </li>
+            </ul>
+        </div>
+        <div class="mt-3">
+            {% if not all_surveys_completed %}
+                <a href="{% url 'surveys:survey_list' %}" class="btn btn-primary mt-2">
+                    <i class="fa-solid fa-clipboard-list me-2"></i>Перейти к опросам
+                </a>
+            {% elif not profile_completed %}
+                <a href="{% url 'accounts:employee_profile' %}" class="btn btn-primary mt-2">
+                    <i class="fa-solid fa-user-edit me-2"></i>Заполнить анкету
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    {% elif task_status.status != 'pending' and not has_recommendations %}
+    <div class="alert alert-info text-center">
+        <i class="fa-solid fa-lightbulb fa-2x mb-3 d-block"></i>
+        <h4>Готово к генерации</h4>
+        <p>Все данные заполнены! Нажмите кнопку, чтобы получить персональные рекомендации.</p>
+        <form method="post" action="{% url 'recommendations:regenerate_recommendations' %}" class="mt-3">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fa-solid fa-magic me-2"></i>Получить рекомендации
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function checkStatus() {
+        fetch('{% url "recommendations:check_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed') {
+                    location.reload();
+                }
+            });
+    }
+
+    {% if task_status.status == 'pending' %}
+    setInterval(checkStatus, 3000);
+    {% endif %}
+</script>
+{% endblock %}

@@ -40,4 +40,10 @@ urlpatterns = [
         views.CourseRestoreView.as_view(),
         name="course_restore",
     ),
+    # Детальный просмотр курса
+    path(
+        "course/<int:course_id>/",
+        views.CourseDetailView.as_view(),
+        name="course_detail",
+    ),
 ]
