@@ -5,23 +5,57 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.contrib import messages
 from django.http import HttpResponseRedirect
+from django.db.models import Count
 from import_export import resources
 from import_export.admin import ExportMixin
 from import_export.formats import base_formats
 from .models import Course, Category
-from .parsers.parser_manager import ParserManager
+from .tasks import (
+    parse_vgltu_courses,
+    parse_vspu_courses,
+    parse_vsuet_courses,
+    parse_vsu_courses,
+    parse_vstu_courses,
+    parse_vepi_courses,
+    parse_vgas_courses,
+    parse_vivt_courses,
+    parse_all_courses,
+)
 
 
 class CourseResource(resources.ModelResource):
     """Ресурс для экспорта/импорта курсов"""
 
+    # Словарь перевода полей на русский
+    FIELD_HEADERS = {
+        "title": "Название курса",
+        "organization__short_name": "Организация",
+        "organization__inn": "ИНН организации",
+        "categories": "Категории",
+        "program_type": "Тип программы",
+        "duration_hours": "Объём (часы)",
+        "duration_weeks": "Продолжительность (недели)",
+        "study_mode": "Режим обучения",
+        "format": "Форма обучения",
+        "teachers": "Преподаватели",
+        "target_audience": "Целевая аудитория",
+        "topics": "Содержание программы",
+        "start_dates": "Даты начала обучения",
+        "price": "Стоимость",
+        "field_of_study": "Направление",
+        "url": "Ссылка на курс",
+        "last_parsed": "Дата добавления",
+        "is_deleted": "Удалён",
+        "deleted_at": "Дата удаления",
+    }
+
     class Meta:
         model = Course
         fields = (
-            "id",
             "title",
             "organization__short_name",
             "organization__inn",
+            "categories",
             "program_type",
             "duration_hours",
             "duration_weeks",
@@ -40,44 +74,84 @@ class CourseResource(resources.ModelResource):
         )
         export_order = fields
 
+    def get_export_headers(self, selected_fields=None):
+        """Возвращает русские заголовки для экспорта"""
+        if selected_fields:
+            return [self.FIELD_HEADERS.get(field, field) for field in selected_fields]
+        return [
+            self.FIELD_HEADERS.get(field, field) for field in self._meta.export_order
+        ]
+
     def dehydrate_organization__short_name(self, course):
-        """Название организации"""
         return course.organization.short_name if course.organization else ""
 
     def dehydrate_organization__inn(self, course):
-        """ИНН организации"""
         return course.organization.inn if course.organization else ""
 
     def dehydrate_categories(self, course):
-        """Категории (теги) курса"""
-        return ", ".join([cat.name for cat in course.categories.all()])
+        """Категории (теги) курса для экспорта"""
+        return "; ".join([cat.name for cat in course.categories.all()])
 
     def dehydrate_is_deleted(self, course):
-        """Статус удаления"""
         return "Да" if course.is_deleted else "Нет"
 
 
 class ParseActionsMixin:
     """Mixin с действиями для парсинга"""
 
-    def parse_vsuet(self, request):
-        ParserManager.run_parser("vsuet", request)
-        messages.success(request, "Парсинг ВГУИТ успешно завершён!")
+    PARSER_TASKS = {
+        "vsuet": {"name": "ВГУИТ", "task": parse_vsuet_courses},
+        "vsu": {"name": "ВГУ", "task": parse_vsu_courses},
+        "vstu": {"name": "ВГТУ", "task": parse_vstu_courses},
+        "vgltu": {"name": "ВГЛТУ", "task": parse_vgltu_courses},
+        "vspu": {"name": "ВГПУ", "task": parse_vspu_courses},
+        "vepi": {"name": "ВЭПИ", "task": parse_vepi_courses},
+        "vgas": {"name": "ВГАС", "task": parse_vgas_courses},
+        "vivt": {"name": "ВИВТ", "task": parse_vivt_courses},
+    }
+
+    def _run_parser(self, request, parser_key):
+        parser_info = self.PARSER_TASKS.get(parser_key)
+        if not parser_info:
+            messages.error(request, f"Парсер {parser_key} не найден")
+            return redirect(request.META.get("HTTP_REFERER", "/admin/"))
+
+        task = parser_info["task"].delay()
+        messages.success(
+            request,
+            f"Парсинг {parser_info['name']} запущен в фоне! (ID задачи: {task.id})",
+        )
         return redirect(request.META.get("HTTP_REFERER", "/admin/"))
 
-    def parse_vsu(self, request):
-        ParserManager.run_parser("vsu", request)
-        messages.success(request, "Парсинг ВГУ успешно завершён!")
-        return redirect(request.META.get("HTTP_REFERER", "/admin/"))
+    def get_urls(self):
+        urls = super().get_urls() if hasattr(super(), "get_urls") else []
+        custom_urls = []
 
-    def parse_vstu(self, request):
-        ParserManager.run_parser("vstu", request)
-        messages.success(request, "Парсинг ВГТУ успешно завершён!")
-        return redirect(request.META.get("HTTP_REFERER", "/admin/"))
+        for parser_key in self.PARSER_TASKS:
+
+            def make_view(key):
+                def view(request):
+                    return self._run_parser(request, key)
+
+                return view
+
+            custom_urls.append(
+                path(
+                    f"parse-{parser_key}/",
+                    make_view(parser_key),
+                    name=f"parse_{parser_key}",
+                )
+            )
+
+        custom_urls.append(path("parse-all/", self.parse_all, name="parse_all"))
+
+        return custom_urls + urls
 
     def parse_all(self, request):
-        ParserManager.run_all_parsers(request)
-        messages.success(request, "Парсинг всех источников успешно завершён!")
+        task = parse_all_courses.delay()
+        messages.success(
+            request, f"Парсинг всех источников запущен в фоне! (ID задачи: {task.id})"
+        )
         return redirect(request.META.get("HTTP_REFERER", "/admin/"))
 
 
@@ -104,7 +178,6 @@ class SoftDeleteFilter(admin.SimpleListFilter):
         if value == "all":
             return queryset
 
-        # По умолчанию показываем все курсы
         return queryset
 
 
@@ -114,6 +187,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     list_display = (
         "title",
         "organization",
+        "categories_display",
         "program_type",
         "duration_hours",
         "format",
@@ -124,27 +198,43 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         "organization",
         "program_type",
         "format",
+        "categories",
         SoftDeleteFilter,
     )
     search_fields = ("title", "description", "organization__short_name")
     readonly_fields = ("last_parsed", "deleted_at")
     filter_horizontal = ("categories",)
 
-    # Настройка экспорта
     formats = [base_formats.CSV, base_formats.XLSX, base_formats.JSON]
 
-    change_list_template = "admin/courses/course/change_list.html"
-
-    # Действия с выбранными объектами
     actions = ["soft_delete_action", "restore_action", "hard_delete_action"]
 
-    def get_queryset(self, request):
-        """Показываем все курсы, фильтрация через SoftDeleteFilter"""
-        return super().get_queryset(request)
+    @admin.display(description="Категории")
+    def categories_display(self, obj):
+        """Отображение категорий в виде цветных бейджей"""
+        categories = obj.categories.all()
+        if not categories:
+            return mark_safe('<span style="color: #6c757d;">—</span>')
+
+        badges = []
+        for cat in categories[:5]:  # Показываем первые 5 категорий
+            badges.append(
+                f'<span style="display: inline-block; background: #e9ecef; '
+                f"padding: 2px 8px; border-radius: 12px; font-size: 11px; "
+                f'margin: 1px 2px; color: #495057;">{cat.name}</span>'
+            )
+
+        if categories.count() > 5:
+            badges.append(
+                f'<span style="display: inline-block; background: #dee2e6; '
+                f"padding: 2px 8px; border-radius: 12px; font-size: 11px; "
+                f'margin: 1px 2px; color: #495057;">+{categories.count() - 5}</span>'
+            )
+
+        return mark_safe(" ".join(badges))
 
     @admin.display(description="Статус")
     def status_display(self, obj):
-        """Отображение статуса удаления в виде цветного бейджа"""
         if obj.is_deleted:
             return mark_safe(
                 '<span style="color: #dc3545; font-weight: bold;">Корзина</span>'
@@ -153,8 +243,11 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
             '<span style="color: #28a745; font-weight: bold;">Активен</span>'
         )
 
+    def get_queryset(self, request):
+        """Оптимизация запроса - подгружаем категории для уменьшения количества запросов"""
+        return super().get_queryset(request).prefetch_related("categories")
+
     def soft_delete_action(self, request, queryset):
-        """Массовое мягкое удаление выбранных курсов"""
         count = queryset.filter(is_deleted=False).count()
         queryset.filter(is_deleted=False).update(
             is_deleted=True, deleted_at=timezone.now()
@@ -166,7 +259,6 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     soft_delete_action.short_description = "Переместить в корзину"
 
     def restore_action(self, request, queryset):
-        """Массовое восстановление выбранных курсов"""
         count = queryset.filter(is_deleted=True).count()
         queryset.filter(is_deleted=True).update(is_deleted=False, deleted_at=None)
         self.message_user(
@@ -176,7 +268,6 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     restore_action.short_description = "Восстановить из корзины"
 
     def hard_delete_action(self, request, queryset):
-        """Полное удаление выбранных курсов из БД"""
         count = queryset.count()
         for course in queryset:
             course.categories.clear()
@@ -190,9 +281,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     hard_delete_action.short_description = "Полностью удалить навсегда"
 
     def get_actions(self, request):
-        """Убираем стандартное действие удаления"""
         actions = super().get_actions(request)
-        # Удаляем стандартное действие 'delete_selected'
         if "delete_selected" in actions:
             del actions["delete_selected"]
         return actions
@@ -200,10 +289,6 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path("parse-vsuet/", self.parse_vsuet, name="parse_vsuet"),
-            path("parse-vsu/", self.parse_vsu, name="parse_vsu"),
-            path("parse-vstu/", self.parse_vstu, name="parse_vstu"),
-            path("parse-all/", self.parse_all, name="parse_all"),
             path(
                 "restore/<int:course_id>/",
                 self.restore_single_course,
@@ -223,7 +308,6 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         return custom_urls + urls
 
     def restore_single_course(self, request, course_id):
-        """Восстановление одного курса"""
         course = get_object_or_404(Course, id=course_id, is_deleted=True)
         course.is_deleted = False
         course.deleted_at = None
@@ -234,7 +318,6 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/admin/"))
 
     def soft_delete_single_course(self, request, course_id):
-        """Мягкое удаление одного курса"""
         course = get_object_or_404(Course, id=course_id, is_deleted=False)
         course.is_deleted = True
         course.deleted_at = timezone.now()
@@ -245,7 +328,6 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/admin/"))
 
     def hard_delete_single_course(self, request, course_id):
-        """Полное удаление одного курса"""
         course = get_object_or_404(Course, id=course_id)
         title = course.title
         course.categories.clear()
@@ -257,9 +339,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         )
         return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/admin/"))
 
-    # Переопределяем стандартные методы админки
     def delete_model(self, request, obj):
-        """Мягкое удаление вместо обычного"""
         obj.is_deleted = True
         obj.deleted_at = timezone.now()
         obj.save()
@@ -268,18 +348,18 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         )
 
     def delete_queryset(self, request, queryset):
-        """Массовое мягкое удаление"""
         self.soft_delete_action(request, queryset)
-
-    def get_list_display(self, request):
-        """Динамически меняем отображение для удалённых курсов"""
-        list_display = list(super().get_list_display(request))
-        # Можно добавить кнопки действий в список
-        return list_display
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug")
+    list_display = ("name", "slug", "courses_count")
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(courses_count=Count("course"))
+
+    @admin.display(description="Количество курсов")
+    def courses_count(self, obj):
+        return obj.courses_count

@@ -2,8 +2,6 @@ import logging
 import time
 from bs4 import BeautifulSoup
 from .base_parser import BaseParser
-from django.db import transaction
-from apps.courses.models import Course
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +17,7 @@ class VsuetParser(BaseParser):
         self.BASE_URL = "https://vsuet.ru"
 
     def get_courses_list(self):
-        """Сбор ссылок на ИИ-курсы со страницы списка"""
+        """Сбор ссылок на ВСЕ курсы со страницы списка"""
         courses_data = []
         page_url = "/science/urnt/ido/courses"
         page_num = 1
@@ -45,16 +43,13 @@ class VsuetParser(BaseParser):
                 cat_elem = card.select_one(".flip-box__desc")
                 category_text = cat_elem.get_text(strip=True) if cat_elem else ""
 
-                if not self._is_ai_related(f"{title} {category_text}"):
-                    continue
-
                 btn = card.select_one(".button._bordered")
                 if btn and btn.get("href"):
                     url = self.BASE_URL + btn.get("href")
                     courses_data.append(
                         {"url": url, "title": title, "category_text": category_text}
                     )
-                    logger.info(f"ИИ-курс: {title}")
+                    logger.info(f"Найден курс: {title}")
 
             # Пагинация
             next_link = None
@@ -142,26 +137,34 @@ class VsuetParser(BaseParser):
         topics_items = soup.select("#courseProg .list-chat li")
         topics = "\n".join([item.get_text(strip=True) for item in topics_items])
 
-        with transaction.atomic():
-            course, created = Course.objects.update_or_create(
-                url=course_url,
-                defaults={
-                    "title": title,
-                    "program_type": program_type,
-                    "description": description,
-                    "duration_hours": duration_hours,
-                    "duration_weeks": duration_weeks,
-                    "format": format_text,
-                    "study_mode": study_mode,
-                    "teachers": teachers,
-                    "target_audience": audience,
-                    "topics": topics,
-                    "price": price,
-                    "start_dates": start_dates,
-                    "organization": self.organization,
-                    "field_of_study": course_info.get("category_text", ""),
-                },
-            )
-            self._assign_categories(course, course_info.get("category_text", ""))
+        category_text = course_info.get("category_text", "")
+
+        logger.info(f"  Название: {title}")
+        logger.info(f"  Тип программы: {program_type}")
+        logger.info(f"  Длительность (часы): {duration_hours}")
+        logger.info(f"  Форма: {format_text}")
+        logger.info(f"  Стоимость: {price}")
+
+        defaults = {
+            "title": title,
+            "program_type": program_type,
+            "description": description,
+            "duration_hours": duration_hours,
+            "duration_weeks": duration_weeks,
+            "format": format_text,
+            "study_mode": study_mode,
+            "teachers": teachers,
+            "target_audience": audience,
+            "topics": topics,
+            "price": price,
+            "start_dates": start_dates,
+            "field_of_study": category_text,
+            "organization": self.organization,
+        }
+
+        course, created = self._update_course(course_url, defaults)
+
+        if category_text:
+            self._assign_categories(course, category_text)
 
         return course, created

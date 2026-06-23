@@ -45,6 +45,20 @@ def another_category():
 
 
 @pytest.fixture
+def third_category():
+    """Фикстура третьей категории"""
+    return Category.objects.create(name="Информационные технологии")
+
+
+@pytest.fixture
+def category_with_long_name():
+    """Фикстура категории с длинным названием"""
+    return Category.objects.create(
+        name="Сквозные виды профессиональной деятельности в промышленности"
+    )
+
+
+@pytest.fixture
 def course(organization, category):
     """Фикстура курса"""
     course = Course.objects.create(
@@ -67,6 +81,46 @@ def course(organization, category):
         is_deleted=False,
     )
     course.categories.add(category)
+    return course
+
+
+@pytest.fixture
+def course_with_multiple_categories(
+    organization, category, another_category, third_category
+):
+    """Фикстура курса с несколькими категориями"""
+    course = Course.objects.create(
+        title="Курс с несколькими категориями",
+        description="Тестовый курс с множеством категорий",
+        organization=organization,
+        url="https://example.com/course/multiple",
+        is_deleted=False,
+    )
+    course.categories.add(category, another_category, third_category)
+    return course
+
+
+@pytest.fixture
+def course_with_many_categories(organization):
+    """Фикстура курса с большим количеством категорий (>5)"""
+    course = Course.objects.create(
+        title="Курс с многими категориями",
+        organization=organization,
+        url="https://example.com/course/many",
+        is_deleted=False,
+    )
+    names = [
+        "Категория 1",
+        "Категория 2",
+        "Категория 3",
+        "Категория 4",
+        "Категория 5",
+        "Категория 6",
+        "Категория 7",
+    ]
+    for name in names:
+        cat, _ = Category.objects.get_or_create(name=name)
+        course.categories.add(cat)
     return course
 
 

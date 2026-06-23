@@ -23,7 +23,7 @@ class Course(models.Model):
 
     # Категории / направления
     categories = models.ManyToManyField(
-        "Category", blank=True, verbose_name="Направления / теги"
+        "Category", blank=True, verbose_name="Категории"
     )
 
     # Атрибуты курса
@@ -57,7 +57,7 @@ class Course(models.Model):
     )
 
     # Ссылка на страницу курса на сайте вуза
-    url = models.URLField(verbose_name="Ссылка на курс", unique=True)
+    url = models.URLField(verbose_name="Ссылка на курс", unique=True, max_length=500)
 
     # Дата парсинга (для обновлений)
     last_parsed = models.DateTimeField(auto_now=True, verbose_name="Дата добавления")
@@ -78,8 +78,10 @@ class Course(models.Model):
 
 
 class Category(models.Model):
-    name = models.CharField(max_length=200, unique=True, verbose_name="Название")
-    slug = models.SlugField(unique=True, blank=True, verbose_name="Слаг")
+    name = models.CharField(max_length=250, unique=True, verbose_name="Название")
+    slug = models.SlugField(
+        max_length=250, unique=True, blank=True, verbose_name="Слаг"
+    )
 
     def save(self, *args, **kwargs):
         if not self.slug:

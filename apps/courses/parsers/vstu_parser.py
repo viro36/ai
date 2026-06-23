@@ -2,8 +2,6 @@ import logging
 import re
 from bs4 import BeautifulSoup
 from .base_parser import BaseParser
-from django.db import transaction
-from apps.courses.models import Course
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +16,8 @@ class VstuParser(BaseParser):
         )
         self.BASE_URL = "https://dpo.cchgeu.ru"
 
-        self.AI_KEYWORDS = [
-            "искусственный интеллект",
-            "нейросети",
-            "машинное обучение",
-            "ai",
-            "робототехника",
-            "беспилотный",
-            "беспилотная",
-            "программируемых систем",
-        ]
-
     def get_courses_list(self):
-        """Сбор ссылок на ИИ-курсы со страницы списка"""
+        """Сбор ссылок на ВСЕ курсы со страницы списка"""
         courses_data = []
 
         sections = [
@@ -77,9 +64,6 @@ class VstuParser(BaseParser):
                         else ""
                     )
 
-                    if not self._is_ai_related(f"{title} {direction}"):
-                        continue
-
                     full_url = self.BASE_URL + link if link.startswith("/") else link
 
                     courses_data.append(
@@ -89,7 +73,7 @@ class VstuParser(BaseParser):
                             "category_text": direction,
                         }
                     )
-                    logger.info(f"ИИ-курс найден: {title}")
+                    logger.info(f"Найден курс: {title}")
 
                 next_link = soup.select_one(".bx-pag-next a")
                 if next_link and "href" in next_link.attrs:
@@ -100,7 +84,7 @@ class VstuParser(BaseParser):
         return courses_data
 
     def parse_course_detail(self, course_info):
-        """Парсинг детальной страницы курса с помощью регулярных выражений"""
+        """Парсинг детальной страницы курса"""
         course_url = course_info.get("url")
 
         if not course_url:
@@ -123,89 +107,99 @@ class VstuParser(BaseParser):
         if h1_title:
             title = h1_title.get_text(strip=True)
 
-        # Получаем весь текст страницы
-        page_text = soup.get_text()
+        # Получаем div с деталями
+        detail_div = soup.select_one(".program-detail")
+        detail_text = detail_div.get_text(separator="\n") if detail_div else ""
 
-        # Извлекаем данные через регулярные выражения
-        # Продолжительность (часы)
+        # Извлекаем данные из detail_text
+        def extract_value(pattern, text, default=""):
+            match = re.search(pattern, text, re.DOTALL)
+            if match:
+                return match.group(1).strip()
+            return default
+
+        # Форма обучения
+        format_text = extract_value(r"Форма обучения:\s*([^\n]+?)(?:\n|$)", detail_text)
+
+        # Продолжительность
         duration_hours = None
-        duration_match = re.search(r"Продолжительность:\s*(\d+)\s*часа", page_text)
+        duration_match = re.search(r"Продолжительность:\s*(\d+)\s*часа", detail_text)
         if duration_match:
             duration_hours = int(duration_match.group(1))
 
-        # Форма обучения
-        format_text = ""
-        format_match = re.search(r"Форма обучения:\s*([^\n]+?)(?:\n|$)", page_text)
-        if format_match:
-            format_text = format_match.group(1).strip()
-
         # Стоимость
-        price = ""
-        price_match = re.search(r"Стоимость:\s*(\d+)\s*руб", page_text)
-        if price_match:
-            price = f"{price_match.group(1)} руб."
+        price = extract_value(r"Стоимость:\s*([^\n]+?)(?:\n|$)", detail_text)
 
-        # Выдаваемый документ
+        # Выдаваемый документ (может быть с переносами и разделителями)
         document_type = ""
-        doc_match = re.search(r"Выдаваемый документ:\s*([^\n]+)", page_text)
+        doc_match = re.search(
+            r"Выдаваемый документ:\s*([^\n]+?)(?:\n|$)", detail_text, re.DOTALL
+        )
         if doc_match:
             document_type = doc_match.group(1).strip()
 
-        # Описание (после "Описание:" до следующего заголовка)
+        # Если не нашли через регулярку, пробуем найти в HTML
+        if not document_type:
+            doc_elem = soup.find(string=re.compile(r"Выдаваемый документ:"))
+            if doc_elem:
+                parent = doc_elem.parent
+                # Ищем следующий элемент после "Выдаваемый документ:"
+                next_elem = parent.find_next_sibling()
+                if next_elem:
+                    document_type = next_elem.get_text(strip=True)
+                else:
+                    # Или текст внутри родителя
+                    full_text = parent.get_text(strip=True)
+                    match = re.search(r"Выдаваемый документ:\s*(.+)", full_text)
+                    if match:
+                        document_type = match.group(1).strip()
+
+        # Описание
         description = ""
         desc_match = re.search(
             r"Описание:\s*\n?\s*(.*?)(?=\n\s*\n\s*Ключевые особенности|\n\s*\n\s*Категория слушателей|\n\s*\n\s*Требования|\Z)",
-            page_text,
+            detail_text,
             re.DOTALL,
         )
         if desc_match:
             description = desc_match.group(1).strip()
-            # Очищаем от лишних пробелов
             description = re.sub(r"\n+", "\n", description)
             description = description[:5000]
-
-        # Темы
-        topics = ""
-        topics_match = re.search(
-            r"Темы:\s*\n?\s*(.*?)(?=\n\s*\n\s*Итоговая|\Z)", page_text, re.DOTALL
-        )
-        if topics_match:
-            topics = topics_match.group(1).strip()
-            topics = re.sub(r"\n+", "\n", topics)
-            topics = topics[:10000]
 
         # Преподаватели
         teachers = ""
         teacher_match = re.search(
             r"([А-Я][а-я]+\s+[А-Я][а-я]+(?:\s+[А-Я][а-я]+)?)\s*\n\s*(?:Доцент|Профессор)",
-            page_text,
+            detail_text,
         )
         if teacher_match:
             teachers = teacher_match.group(1).strip()
 
-        print(f"  Название: {title}")
-        print(f"  Длительность (часы): {duration_hours}")
-        print(f"  Форма: {format_text}")
-        print(f"  Стоимость: {price}")
-        print(f"  Документ: {document_type}")
-        print(f"  Преподаватели: {teachers}")
+        # Если не нашли через регулярку, ищем в HTML
+        if not teachers:
+            teacher_elem = soup.select_one(".name-teach b")
+            if teacher_elem:
+                teachers = teacher_elem.get_text(strip=True)
 
-        with transaction.atomic():
-            course, created = Course.objects.update_or_create(
-                url=course_url,
-                defaults={
-                    "title": title,
-                    "description": description[:5000],
-                    "duration_hours": duration_hours,
-                    "format": format_text[:100],
-                    "price": price[:100],
-                    "teachers": teachers[:500],
-                    "topics": topics[:10000],
-                    "organization": self.organization,
-                    "field_of_study": course_info.get("category_text", ""),
-                },
-            )
-            if course_info.get("category_text"):
-                self._assign_categories(course, course_info.get("category_text", ""))
+        category_text = course_info.get("category_text", "")
 
-        return course, created
+        logger.info(f"  Название: {title}")
+        logger.info(f"  Длительность (часы): {duration_hours}")
+        logger.info(f"  Форма: {format_text}")
+        logger.info(f"  Стоимость: {price}")
+        logger.info(f"  Документ: {document_type}")
+        logger.info(f"  Преподаватели: {teachers}")
+
+        # Собираем только непустые данные
+        defaults = {
+            "title": title,
+            "description": description,
+            "duration_hours": duration_hours,
+            "format": format_text,
+            "price": price,
+            "teachers": teachers,
+            "document_type": document_type,
+            "field_of_study": category_text,
+        }
+
+        return self._update_course(course_url, defaults)

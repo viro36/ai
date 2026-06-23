@@ -4,11 +4,12 @@
 {% block extrahead %}
     {{ block.super }}
     <style>
-        .object-tools li {
-            list-style-type: none !important;
+        .parse-toolbar {
+            margin: 5px 0 10px 0;
         }
-        .object-tools li::before {
-            content: none !important;
+        .parse-toolbar .btn {
+            font-size: 0.8rem;
+            padding: 4px 12px;
         }
     </style>
 {% endblock %}
@@ -17,30 +18,52 @@
     {{ block.super }}
 
     {% if cl.opts.model_name == 'course' %}
-        <!-- Кнопки парсинга только для курсов -->
-        <li>
-            <form action="{% url 'admin:parse_vsuet' %}" method="POST" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-success">Парсинг ВГУИТ</button>
-            </form>
-        </li>
-        <li>
-            <form action="{% url 'admin:parse_vsu' %}" method="POST" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-info">Парсинг ВГУ</button>
-            </form>
-        </li>
-        <li>
-            <form action="{% url 'admin:parse_vstu' %}" method="POST" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-warning">Парсинг ВГТУ</button>
-            </form>
-        </li>
-        <li>
-            <form action="{% url 'admin:parse_all' %}" method="POST" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-primary">Парсинг ВСЕХ</button>
-            </form>
+        <li style="list-style: none; display: block; width: 100%;">
+            <div class="btn-toolbar parse-toolbar" role="toolbar" aria-label="Парсинг курсов">
+                <!-- Группа 1: ВУЗы -->
+                <div class="btn-group me-2" role="group" aria-label="Парсинг отдельных вузов">
+                    <form action="{% url 'admin:parse_vsu' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВГУ</button>
+                    </form>
+                    <form action="{% url 'admin:parse_vstu' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВГТУ</button>
+                    </form>
+                    <form action="{% url 'admin:parse_vsuet' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВГУИТ</button>
+                    </form>
+                    <form action="{% url 'admin:parse_vgltu' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВГЛТУ</button>
+                    </form>
+                    <form action="{% url 'admin:parse_vspu' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВГПУ</button>
+                    </form>
+                    <form action="{% url 'admin:parse_vepi' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВЭПИ</button>
+                    </form>
+                    <form action="{% url 'admin:parse_vgas' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВГАС</button>
+                    </form>
+                    <form action="{% url 'admin:parse_vivt' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">ВИВТ</button>
+                    </form>
+                </div>
+
+                <!-- Группа 2: Все источники -->
+                <div class="btn-group" role="group" aria-label="Парсинг всех источников">
+                    <form action="{% url 'admin:parse_all' %}" method="POST" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary">ВСЕ ИСТОЧНИКИ</button>
+                    </form>
+                </div>
+            </div>
         </li>
     {% endif %}
 {% endblock %}

@@ -43,6 +43,15 @@ class TestCategoryModel:
         cat2 = Category.objects.create(name="Тест2")  # slug сгенерируется как "test2"
         assert cat2.slug == "test2"
 
+    def test_category_long_name(self, category_with_long_name):
+        """Тест категории с длинным названием"""
+        assert (
+            category_with_long_name.name
+            == "Сквозные виды профессиональной деятельности в промышленности"
+        )
+        assert len(category_with_long_name.name) > 50
+        assert category_with_long_name.slug is not None
+
     def test_category_verbose_names(self):
         """Тест правильности verbose_name"""
         category = Category.objects.create(name="Тест")
@@ -114,6 +123,14 @@ class TestCourseModel:
         course.categories.add(another_category)
         assert course.categories.count() == 2
         assert another_category in course.categories.all()
+
+    def test_course_multiple_categories(self, course_with_multiple_categories):
+        """Тест курса с несколькими категориями"""
+        assert course_with_multiple_categories.categories.count() == 3
+        names = [cat.name for cat in course_with_multiple_categories.categories.all()]
+        assert "Искусственный интеллект" in names
+        assert "Машинное обучение" in names
+        assert "Информационные технологии" in names
 
     def test_course_url_unique_constraint(self, course, organization):
         """Тест уникальности URL курса"""

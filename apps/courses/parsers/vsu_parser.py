@@ -2,8 +2,6 @@ import logging
 import re
 from bs4 import BeautifulSoup
 from .base_parser import BaseParser
-from django.db import transaction
-from apps.courses.models import Course
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +17,7 @@ class VsuParser(BaseParser):
         self.BASE_URL = "https://pdi.vsu.ru"
 
     def get_courses_list(self):
-        """Сбор ссылок на ИИ-курсы со страницы списка"""
+        """Сбор ссылок на ВСЕ курсы со страницы списка"""
         courses_data = []
         url = f"{self.BASE_URL}/services.php"
 
@@ -38,22 +36,15 @@ class VsuParser(BaseParser):
 
         for row in rows:
             cells = row.find_all("td")
-            if len(cells) < 14:  # минимум 14 колонок
+            if len(cells) < 14:
                 continue
 
-            # Название курса (колонка 0)
             title = cells[0].get_text(strip=True)
             if not title:
                 continue
 
-            # Направление (колонка 4)
             direction = cells[4].get_text(strip=True) if len(cells) > 4 else ""
 
-            # Проверяем, относится ли курс к ИИ
-            if not self._is_ai_related(f"{title} {direction}"):
-                continue
-
-            # Ссылка на детальную страницу (колонка 13 — последняя, с текстом "Смотреть")
             link_cell = cells[13] if len(cells) > 13 else None
             if not link_cell:
                 continue
@@ -66,7 +57,6 @@ class VsuParser(BaseParser):
             if not link or link == "#":
                 continue
 
-            # Формируем полный URL
             if link.startswith("/"):
                 full_url = self.BASE_URL + link
             elif link.startswith("http"):
@@ -97,15 +87,15 @@ class VsuParser(BaseParser):
                     ),
                     "teachers": (
                         cells[12].get_text(strip=True) if len(cells) > 12 else ""
-                    ),  # Руководитель программы
+                    ),
                     "document_type": (
                         cells[10].get_text(strip=True) if len(cells) > 10 else ""
                     ),
                 }
             )
-            logger.info(f"ИИ-курс найден: {title} -> {full_url}")
+            logger.info(f"Найден курс: {title} -> {full_url}")
 
-        logger.info(f"Всего найдено ИИ-курсов: {len(courses_data)}")
+        logger.info(f"Всего найдено курсов: {len(courses_data)}")
         return courses_data
 
     def parse_course_detail(self, course_info):
@@ -116,11 +106,9 @@ class VsuParser(BaseParser):
             logger.error("Пустой URL курса")
             return None, False
 
-        # Используем данные из списка, так как детальная страница в edu.vsu.ru
         title = course_info.get("title", "")
         program_type = course_info.get("program_type", "")
 
-        # Парсим длительность в часах
         duration_hours = None
         duration_text = course_info.get("duration_hours_text", "")
         if duration_text:
@@ -138,33 +126,30 @@ class VsuParser(BaseParser):
         teachers = course_info.get("teachers", "")
         document_type = course_info.get("document_type", "")
 
-        print(f"  Название: {title}")
-        print(f"  Тип программы: {program_type}")
-        print(f"  Длительность (часы): {duration_hours}")
-        print(f"  Форма: {format_text}")
-        print(f"  Стоимость: {price}")
-        print(f"  Категория: {category_text}")
-        print(f"  Целевая аудитория: {target_audience}")
-        print(f"  Преподаватели: {teachers}")
-        print(f"  Документ: {document_type}")
+        logger.info(f"  Название: {title}")
+        logger.info(f"  Тип программы: {program_type}")
+        logger.info(f"  Длительность (часы): {duration_hours}")
+        logger.info(f"  Форма: {format_text}")
+        logger.info(f"  Стоимость: {price}")
 
-        with transaction.atomic():
-            course, created = Course.objects.update_or_create(
-                url=course_url,
-                defaults={
-                    "title": title,
-                    "program_type": program_type,
-                    "duration_hours": duration_hours,
-                    "format": format_text,
-                    "price": price,
-                    "organization": self.organization,
-                    "field_of_study": category_text,
-                    "target_audience": target_audience,
-                    "teachers": teachers,
-                    "document_type": document_type,
-                },
-            )
-            if category_text:
-                self._assign_categories(course, category_text)
+        # Собираем defaults (organization передаётся отдельно)
+        defaults = {
+            "title": title,
+            "program_type": program_type,
+            "duration_hours": duration_hours,
+            "format": format_text,
+            "price": price,
+            "field_of_study": category_text,
+            "target_audience": target_audience,
+            "teachers": teachers,
+            "document_type": document_type,
+        }
+
+        # Обновляем курс через метод, который гарантирует установку организации
+        course, created = self._update_course(course_url, defaults)
+
+        # Привязываем категории
+        if category_text:
+            self._assign_categories(course, category_text)
 
         return course, created

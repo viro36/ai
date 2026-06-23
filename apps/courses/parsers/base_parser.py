@@ -18,18 +18,6 @@ class BaseParser:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept-Language": "ru-RU,ru;q=0.9",
     }
-    AI_KEYWORDS = [
-        "ии",
-        "ии-грамотность",
-        "искусственный интеллект",
-        "нейросети",
-        "машинное обучение",
-        "ai",
-        "нейронные сети",
-        "глубокое обучение",
-        "data science",
-        "анализ данных",
-    ]
 
     def __init__(self, inn, full_name, short_name, address_raw=""):
         # Настройка сессии с повторными попытками
@@ -54,27 +42,19 @@ class BaseParser:
                 address_raw=address_raw,
             )
 
-    def _is_ai_related(self, text):
-        """Проверка, относится ли текст к ИИ"""
-        text = text.lower()
-        for keyword in self.AI_KEYWORDS:
-            if " " in keyword:
-                if keyword in text:
-                    return True
-            else:
-                if re.search(rf"\b{re.escape(keyword)}\b", text):
-                    return True
-        return False
-
     def _assign_categories(self, course, category_text):
         """Привязка категорий к курсу"""
         if not category_text or not category_text.strip():
             return
 
+        # Разделяем по запятым
         cat_names = [c.strip() for c in category_text.split(",") if c.strip()]
         for name in cat_names:
             if not name or not any(c.isalpha() for c in name):
                 continue
+
+            # Делаем заглавной только первую букву всей категории
+            name = name.capitalize()
 
             try:
                 cat = Category.objects.filter(name=name).first()
@@ -96,6 +76,30 @@ class BaseParser:
                 course.categories.add(cat)
             except Exception as e:
                 print(f"Ошибка с категорией '{name}': {e}")
+
+    def _update_course(self, course_url, defaults):
+        """Обновляет курс, сохраняя существующие данные, если новые пустые"""
+        from apps.courses.models import Course
+
+        # Проверяем, существует ли курс
+        try:
+            course = Course.objects.get(url=course_url)
+            created = False
+        except Course.DoesNotExist:
+            course = Course(url=course_url)
+            created = True
+
+        # Обновляем поля, только если они не пустые
+        for field, value in defaults.items():
+            if value is not None and value != "" and value != []:
+                setattr(course, field, value)
+
+        # ОБЯЗАТЕЛЬНО устанавливаем организацию
+        course.organization = self.organization
+
+        course.save()
+
+        return course, created
 
     def get_courses_list(self):
         """Получить список курсов (должен быть переопределён в дочернем классе)"""
@@ -128,4 +132,4 @@ class BaseParser:
         logger.info(
             f"Парсинг завершён: создано {count_created}, обновлено {count_updated}"
         )
-        return count_created, count_updated
+        return {"created": count_created, "updated": count_updated}

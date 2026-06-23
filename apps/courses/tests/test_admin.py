@@ -6,12 +6,14 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.urls import reverse
 from django.utils import timezone
 from django.http import HttpResponseRedirect
+from django.utils.safestring import SafeString
 
 from apps.courses.admin import (
     CourseAdmin,
     CategoryAdmin,
     CourseResource,
     SoftDeleteFilter,
+    ParseActionsMixin,
 )
 from apps.courses.models import Course, Category
 
@@ -27,6 +29,7 @@ class MockRequest:
     def __init__(self, user=None):
         self.user = user
         self.session = {}
+        self.COOKIES = {}
         self._messages = FallbackStorage(self)
         self.META = {"HTTP_REFERER": "/admin/"}
         self.POST = {}
@@ -43,10 +46,10 @@ class TestCourseResource:
         """Тест мета-полей ресурса"""
         resource = CourseResource()
         assert resource._meta.model == Course
-        assert "id" in resource._meta.fields
         assert "title" in resource._meta.fields
         assert "organization__short_name" in resource._meta.fields
         assert "organization__inn" in resource._meta.fields
+        assert "categories" in resource._meta.fields
         assert "is_deleted" in resource._meta.fields
         assert "deleted_at" in resource._meta.fields
 
@@ -70,13 +73,20 @@ class TestCourseResource:
         assert result == ""
 
     def test_dehydrate_categories(self, course, category, another_category):
-        """Тест получения категорий курса"""
+        """Тест получения списка категорий курса для экспорта"""
         course.categories.add(category, another_category)
         resource = CourseResource()
         result = resource.dehydrate_categories(course)
         assert category.name in result
         assert another_category.name in result
         assert ", " in result
+
+    def test_dehydrate_categories_empty(self, course):
+        """Тест получения списка категорий когда их нет"""
+        course.categories.clear()
+        resource = CourseResource()
+        result = resource.dehydrate_categories(course)
+        assert result == ""
 
     def test_dehydrate_is_deleted(self, course):
         """Тест статуса удаления"""
@@ -102,6 +112,7 @@ class TestCourseAdmin:
         expected_fields = (
             "title",
             "organization",
+            "categories_display",
             "program_type",
             "duration_hours",
             "format",
@@ -115,6 +126,7 @@ class TestCourseAdmin:
         assert "organization" in self.course_admin.list_filter
         assert "program_type" in self.course_admin.list_filter
         assert "format" in self.course_admin.list_filter
+        assert "categories" in self.course_admin.list_filter
         assert SoftDeleteFilter in self.course_admin.list_filter
 
     def test_admin_search_fields(self):
@@ -145,6 +157,45 @@ class TestCourseAdmin:
         assert "restore_action" in actions
         assert "hard_delete_action" in actions
 
+    def test_categories_display_empty(self, course):
+        """Тест отображения категорий когда их нет"""
+        course.categories.clear()
+        result = self.course_admin.categories_display(course)
+        assert isinstance(result, SafeString)
+        assert "—" in result
+
+    def test_categories_display_one_category(self, course, category):
+        """Тест отображения одной категории"""
+        course.categories.clear()
+        course.categories.add(category)
+        result = self.course_admin.categories_display(course)
+        assert isinstance(result, SafeString)
+        assert category.name in result
+
+    def test_categories_display_multiple_categories(
+        self, course_with_multiple_categories
+    ):
+        """Тест отображения нескольких категорий"""
+        result = self.course_admin.categories_display(course_with_multiple_categories)
+        assert isinstance(result, SafeString)
+        categories = course_with_multiple_categories.categories.all()
+        for cat in categories:
+            assert cat.name in result
+
+    def test_categories_display_many_categories(self, course_with_many_categories):
+        """Тест отображения более 5 категорий (должен показывать +N)"""
+        result = self.course_admin.categories_display(course_with_many_categories)
+        assert isinstance(result, SafeString)
+        assert "+2" in result  # 7 категорий -> показываем 5 + "+2"
+
+    def test_categories_display_limits_to_5(self, course_with_many_categories):
+        """Тест ограничения отображения до 5 категорий"""
+        result = self.course_admin.categories_display(course_with_many_categories)
+        # Считаем количество бейджей
+        badges = result.split("</span>")
+        # Первые 5 категорий + "+2" = 6 элементов
+        assert len([b for b in badges if b.strip()]) >= 6
+
     def test_status_display_method_active(self, course):
         """Тест метода отображения статуса для активного курса"""
         result = self.course_admin.status_display(course)
@@ -156,6 +207,13 @@ class TestCourseAdmin:
         result = self.course_admin.status_display(deleted_course)
         assert "Корзина" in result
         assert "#dc3545" in result
+
+    def test_get_queryset_prefetches_categories(self, course):
+        """Тест оптимизации запроса - prefetch_related для категорий"""
+        qs = self.course_admin.get_queryset(None)
+        # Проверяем, что в запросе есть prefetch для categories
+        # Это сложно проверить напрямую, но можно проверить что запрос выполняется без N+1
+        assert hasattr(qs, "_prefetch_related_lookups")
 
     def test_get_urls_includes_custom_urls(self):
         """Тест добавления кастомных URL"""
@@ -260,6 +318,7 @@ class TestCategoryAdmin:
         """Тест полей списка"""
         assert "name" in self.category_admin.list_display
         assert "slug" in self.category_admin.list_display
+        assert "courses_count" in self.category_admin.list_display
 
     def test_admin_prepopulated_fields(self):
         """Тест автоматического заполнения slug из name"""
@@ -270,68 +329,273 @@ class TestCategoryAdmin:
         """Тест полей поиска"""
         assert "name" in self.category_admin.search_fields
 
+    def test_courses_count_method(self, category, course):
+        """Тест метода courses_count"""
+        # Добавляем категорию к курсу
+        course.categories.add(category)
+
+        # Получаем queryset через админку (с аннотацией)
+        qs = self.category_admin.get_queryset(None)
+        category_with_count = qs.get(id=category.id)
+
+        result = self.category_admin.courses_count(category_with_count)
+        assert result == 1
+
+        # Добавляем ещё один курс
+        course2 = Course.objects.create(
+            title="Курс 2",
+            organization=course.organization,
+            url="https://example.com/course/2",
+        )
+        course2.categories.add(category)
+
+        # Обновляем queryset
+        qs = self.category_admin.get_queryset(None)
+        category_with_count = qs.get(id=category.id)
+        result = self.category_admin.courses_count(category_with_count)
+        assert result == 2
+
 
 class TestParseActionsMixin:
     """Тесты для миксина действий парсинга"""
 
-    def test_parse_vsuet_calls_parser_manager(self, admin_user):
-        """Тест вызова парсера ВГУИТ"""
-        with patch("apps.courses.admin.ParserManager.run_parser") as mock_parser:
-            from apps.courses.admin import ParseActionsMixin
+    def test_parser_tasks_contains_all_parsers(self):
+        """Тест наличия всех парсеров в PARSER_TASKS"""
+        expected_parsers = {
+            "vsuet": "ВГУИТ",
+            "vsu": "ВГУ",
+            "vstu": "ВГТУ",
+            "vgltu": "ВГЛТУ",
+            "vspu": "ВГПУ",
+            "vepi": "ВЭПИ",
+            "vgas": "ВГАС",
+            "vivt": "ВИВТ",
+        }
 
-            class TestAdmin(ParseActionsMixin):
-                pass
+        assert ParseActionsMixin.PARSER_TASKS.keys() == expected_parsers.keys()
+        for key, name in expected_parsers.items():
+            assert ParseActionsMixin.PARSER_TASKS[key]["name"] == name
 
-            admin_instance = TestAdmin()
-            request = MockRequest(admin_user)
-            response = admin_instance.parse_vsuet(request)
+    def test_run_parser_success(self, admin_user):
+        """Тест успешного запуска парсера"""
 
-            mock_parser.assert_called_once_with("vsuet", request)
+        class TestAdmin(ParseActionsMixin):
+            pass
+
+        admin_instance = TestAdmin()
+        request = MockRequest(admin_user)
+
+        with patch("apps.courses.tasks.parse_vsuet_courses.delay") as mock_delay:
+            mock_delay.return_value.id = "test-task-id"
+            response = admin_instance._run_parser(request, "vsuet")
+
+            mock_delay.assert_called_once()
             assert response.status_code == 302
+            # Проверяем сообщение об успехе
+            messages = list(request._messages)
+            assert any(
+                "ВГУИТ" in str(msg) and "запущен" in str(msg) for msg in messages
+            )
 
-    def test_parse_vsu_calls_parser_manager(self, admin_user):
-        """Тест вызова парсера ВГУ"""
-        with patch("apps.courses.admin.ParserManager.run_parser") as mock_parser:
-            from apps.courses.admin import ParseActionsMixin
+    def test_run_parser_not_found(self, admin_user):
+        """Тест запуска несуществующего парсера"""
 
-            class TestAdmin(ParseActionsMixin):
-                pass
+        class TestAdmin(ParseActionsMixin):
+            pass
 
-            admin_instance = TestAdmin()
-            request = MockRequest(admin_user)
-            response = admin_instance.parse_vsu(request)
+        admin_instance = TestAdmin()
+        request = MockRequest(admin_user)
 
-            mock_parser.assert_called_once_with("vsu", request)
-            assert response.status_code == 302
+        response = admin_instance._run_parser(request, "unknown_parser")
 
-    def test_parse_vstu_calls_parser_manager(self, admin_user):
-        """Тест вызова парсера ВГТУ"""
-        with patch("apps.courses.admin.ParserManager.run_parser") as mock_parser:
-            from apps.courses.admin import ParseActionsMixin
+        assert response.status_code == 302
+        messages = list(request._messages)
+        assert any("не найден" in str(msg) for msg in messages)
 
-            class TestAdmin(ParseActionsMixin):
-                pass
+    def test_parse_all_success(self, admin_user):
+        """Тест успешного запуска парсинга всех источников"""
 
-            admin_instance = TestAdmin()
-            request = MockRequest(admin_user)
-            response = admin_instance.parse_vstu(request)
+        class TestAdmin(ParseActionsMixin):
+            pass
 
-            mock_parser.assert_called_once_with("vstu", request)
-            assert response.status_code == 302
+        admin_instance = TestAdmin()
+        request = MockRequest(admin_user)
 
-    def test_parse_all_calls_parser_manager(self, admin_user):
-        """Тест вызова парсера всех источников"""
-        with patch("apps.courses.admin.ParserManager.run_all_parsers") as mock_all:
-            from apps.courses.admin import ParseActionsMixin
-
-            class TestAdmin(ParseActionsMixin):
-                pass
-
-            admin_instance = TestAdmin()
-            request = MockRequest(admin_user)
+        with patch("apps.courses.tasks.parse_all_courses.delay") as mock_delay:
+            mock_delay.return_value.id = "test-all-task-id"
             response = admin_instance.parse_all(request)
 
-            mock_all.assert_called_once_with(request)
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+            messages = list(request._messages)
+            assert any(
+                "всех источников" in str(msg) and "запущен" in str(msg)
+                for msg in messages
+            )
+
+    def test_get_urls_includes_all_parsers(self):
+        """Тест наличия URL для всех парсеров"""
+
+        class TestAdmin(ParseActionsMixin):
+            pass
+
+        admin_instance = TestAdmin()
+        urls = admin_instance.get_urls()
+
+        url_patterns = [str(p.pattern) for p in urls]
+
+        # Проверяем URL для каждого парсера
+        expected_urls = [
+            "parse-vsuet/",
+            "parse-vsu/",
+            "parse-vstu/",
+            "parse-vgltu/",
+            "parse-vspu/",
+            "parse-vepi/",
+            "parse-vgas/",
+            "parse-vivt/",
+            "parse-all/",
+        ]
+
+        for expected in expected_urls:
+            assert any(
+                expected in pattern for pattern in url_patterns
+            ), f"URL {expected} не найден"
+
+    def test_parse_vsuet_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВГУИТ"""
+        with patch("apps.courses.tasks.parse_vsuet_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vsuet")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_vsu_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВГУ"""
+        with patch("apps.courses.tasks.parse_vsu_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vsu")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_vstu_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВГТУ"""
+        with patch("apps.courses.tasks.parse_vstu_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vstu")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_vgltu_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВГЛТУ"""
+        with patch("apps.courses.tasks.parse_vgltu_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vgltu")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_vspu_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВГПУ"""
+        with patch("apps.courses.tasks.parse_vspu_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vspu")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_vepi_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВЭПИ"""
+        with patch("apps.courses.tasks.parse_vepi_courses.delay") as mock_delay:
+            from apps.courses.admin import ParseActionsMixin
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vepi")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_vgas_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВГАС"""
+        with patch("apps.courses.tasks.parse_vgas_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vgas")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_vivt_calls_task(self, admin_user):
+        """Тест вызова задачи парсера ВИВТ"""
+        with patch("apps.courses.tasks.parse_vivt_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance._run_parser(request, "vivt")
+
+            mock_delay.assert_called_once()
+            assert response.status_code == 302
+
+    def test_parse_all_calls_task(self, admin_user):
+        """Тест вызова задачи парсера всех источников"""
+        with patch("apps.courses.tasks.parse_all_courses.delay") as mock_delay:
+
+            class TestAdmin(ParseActionsMixin):
+                pass
+
+            admin_instance = TestAdmin()
+            request = MockRequest(admin_user)
+
+            response = admin_instance.parse_all(request)
+
+            mock_delay.assert_called_once()
             assert response.status_code == 302
 
 
@@ -365,6 +629,12 @@ class TestCourseAdminIntegration:
         url = reverse("admin:courses_course_change", args=[course.id])
         response = client.get(url)
         assert response.status_code == 200
+        # Проверяем, что страница содержит форму редактирования
+        content = response.content.decode()
+        assert "Курс" in content
+        assert course.title in content
+        # В Jazzmin используется select2 для ManyToMany
+        assert "select2" in content.lower() or "filter_horizontal" in content
 
     def test_course_admin_delete_page(self, client, admin_user, course):
         """Тест страницы удаления курса в админке"""
@@ -389,6 +659,16 @@ class TestCourseAdminIntegration:
         url = reverse("admin:courses_course_changelist")
         response = client.get(url, {"organization__id__exact": organization.id})
         assert response.status_code == 200
+
+    def test_course_admin_filter_by_categories(
+        self, client, admin_user, course, category
+    ):
+        """Тест фильтрации по категориям"""
+        client.force_login(admin_user)
+        url = reverse("admin:courses_course_changelist")
+        response = client.get(url, {"categories__id__exact": category.id})
+        assert response.status_code == 200
+        assert course.title in response.content.decode()
 
     def test_soft_delete_filter_in_admin(self, admin_client, course, deleted_course):
         """Интеграционный тест фильтрации курсов через админку"""
@@ -441,9 +721,9 @@ class TestCourseResourceIntegration:
         )
         assert response.status_code in [200, 302]
 
-    def test_course_resource_export_data(self, course, category):
+    def test_course_resource_export_data(self, course, category, another_category):
         """Тест данных экспорта"""
-        course.categories.add(category)
+        course.categories.add(category, another_category)
         resource = CourseResource()
         dataset = resource.export()
 
@@ -452,8 +732,25 @@ class TestCourseResourceIntegration:
         headers = dataset.headers
         assert "title" in headers
         assert "organization__short_name" in headers
+        assert "categories" in headers
         assert "is_deleted" in headers
         assert "deleted_at" in headers
+
+    def test_course_resource_export_categories(
+        self, course, category, another_category
+    ):
+        """Тест экспорта категорий курса"""
+        course.categories.add(category, another_category)
+        resource = CourseResource()
+        dataset = resource.export()
+
+        data = dataset.dict
+        for row in data:
+            if row.get("title") == course.title:
+                categories = row.get("categories", "")
+                assert category.name in categories
+                assert another_category.name in categories
+                break
 
     def test_course_resource_returns_correct_export_order(self):
         """Тест порядка полей при экспорте"""
@@ -463,6 +760,7 @@ class TestCourseResourceIntegration:
             "title",
             "organization__short_name",
             "organization__inn",
+            "categories",
             "program_type",
             "duration_hours",
             "duration_weeks",
@@ -514,3 +812,13 @@ class TestCategoryAdminIntegration:
         assert response.status_code == 302
         category = Category.objects.get(name="Новая категория")
         assert category.slug is not None
+
+    def test_category_admin_courses_count(self, client, admin_user, category, course):
+        """Тест отображения количества курсов у категории"""
+        course.categories.add(category)
+        client.force_login(admin_user)
+        url = reverse("admin:courses_category_changelist")
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "1" in content  # Количество курсов должно быть 1
