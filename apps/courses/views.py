@@ -1,5 +1,7 @@
-from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import (
     DetailView,
     ListView,
@@ -8,9 +10,8 @@ from django.views.generic import (
     DeleteView,
 )
 from django.urls import reverse_lazy
-from django.contrib import messages
 from django.utils import timezone
-from .models import Course
+from .models import Course, Category
 from .forms import CourseForm
 from apps.organizations.models import Organization
 
@@ -64,11 +65,40 @@ class OrganizationCoursesListView(
         return self._organization
 
     def get_queryset(self):
-        return self.get_organization().courses.filter(is_deleted=False).order_by("-id")
+        queryset = (
+            self.get_organization().courses.filter(is_deleted=False).order_by("-id")
+        )
+
+        # Поиск по названию (текстовый ввод)
+        search_query = self.request.GET.get("search", "").strip()
+        if search_query:
+            queryset = queryset.filter(title__icontains=search_query)
+
+        # Фильтр по категории (выпадающий список)
+        category_filter = self.request.GET.get("category", "")
+        if category_filter:
+            queryset = queryset.filter(categories__name=category_filter)
+            queryset = queryset.distinct()
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["organization"] = self.get_organization()
+        context["search_query"] = self.request.GET.get("search", "")
+        context["selected_category"] = self.request.GET.get("category", "")
+
+        categories = (
+            Category.objects.filter(
+                course__organization=self.get_organization(), course__is_deleted=False
+            )
+            .values_list("name", flat=True)
+            .distinct()
+            .order_by("name")
+        )
+
+        context["categories"] = list(categories)
+
         return context
 
 
