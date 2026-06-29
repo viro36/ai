@@ -47,6 +47,10 @@ class CourseRecommendation(models.Model):
     def __str__(self):
         return f"{self.user} -> {self.course.title}"
 
+    def get_relevance_percent(self):
+        """Возвращает релевантность в процентах (0-100)"""
+        return round(self.relevance_score * 100)
+
 
 class RecommendationTask(models.Model):
     """Статус задачи генерации рекомендаций"""

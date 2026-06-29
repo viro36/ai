@@ -100,6 +100,9 @@ pytest-surveys:
 pytest-courses:
 	docker-compose exec ai python -m pytest -v apps/courses/tests/
 
+pytest-recommendations:
+	docker-compose exec ai python -m pytest -v apps/recommendations/tests/
+
 pytest-all:
 	docker-compose exec ai python -m pytest apps/ -v --cov=apps --cov-report=term-missing
 

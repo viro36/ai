@@ -1,13 +1,18 @@
 import json
+import logging
+import re
 import requests
+import time
+from datetime import date
+
 from django.conf import settings
-from django.db.models import Q
 from django.contrib.auth import get_user_model
 
 from apps.courses.models import Course
 from apps.surveys.models import SurveyInterpretation
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class DeepSeekRecommendationService:
@@ -59,7 +64,6 @@ class DeepSeekRecommendationService:
                 "color": interpretation.color,
             }
         except SurveyInterpretation.DoesNotExist:
-            # Пробуем common
             try:
                 interpretation = SurveyInterpretation.objects.get(
                     survey_type=survey_type,
@@ -77,6 +81,34 @@ class DeepSeekRecommendationService:
             except SurveyInterpretation.DoesNotExist:
                 return None
 
+    def _get_category_interpretation(self, session):
+        """Получает интерпретацию из категории опроса (описание + результат)"""
+        if not session or not hasattr(session, "category"):
+            return None
+
+        category = session.category
+        if not category:
+            return None
+
+        full_description = ""
+
+        # Добавляем описание (description)
+        if category.description:
+            full_description += f"Описание опроса: {category.description}\n\n"
+
+        # Добавляем описание результатов (result_description) без HTML
+        clean_result = category.get_result_description_clean()
+        if clean_result:
+            full_description += f"Описание результатов: {clean_result}"
+
+        if full_description:
+            return {
+                "description": full_description,
+                "recommendations": "",
+            }
+
+        return None
+
     def get_user_profile(self):
         """Собирает полный профиль пользователя из ВСЕХ опросов (берёт последние попытки)"""
         profile = {
@@ -89,6 +121,7 @@ class DeepSeekRecommendationService:
             },
             "survey_results": {},
             "survey_interpretations": {},
+            "has_surveys": False,
         }
 
         # ========== Информация из профиля работника ==========
@@ -112,9 +145,7 @@ class DeepSeekRecommendationService:
         riasec_session = self.get_latest_completed_session("Холланд")
         if riasec_session and hasattr(riasec_session, "riasac_result"):
             r = riasec_session.riasac_result
-
-            # Получаем интерпретацию карьерного кода
-            interpretation = self.get_survey_interpretation("riasec", r.career_code)
+            profile["has_surveys"] = True
 
             profile["survey_results"]["riasec"] = {
                 "career_code": r.career_code,
@@ -128,19 +159,15 @@ class DeepSeekRecommendationService:
                 },
             }
 
-            # Сохраняем интерпретацию отдельно
+            interpretation = self._get_category_interpretation(riasec_session)
             if interpretation:
-                profile["survey_interpretations"]["riasec"] = {
-                    "title": interpretation.get("title", ""),
-                    "description": interpretation.get("description", ""),
-                    "recommendations": interpretation.get("recommendations", ""),
-                    "suitable_fields": interpretation.get("fields", ""),
-                }
+                profile["survey_interpretations"]["riasec"] = interpretation
 
         # ========== Результаты DigComp ==========
         digcomp_session = self.get_latest_completed_session("DigComp")
         if digcomp_session and hasattr(digcomp_session, "digcomp_result"):
             d = digcomp_session.digcomp_result
+            profile["has_surveys"] = True
 
             profile["survey_results"]["digcomp"] = {
                 "scores": {
@@ -152,18 +179,15 @@ class DeepSeekRecommendationService:
                 }
             }
 
-            # Получаем общую интерпретацию для DigComp
-            interpretation = self.get_survey_interpretation("digcomp", "common")
+            interpretation = self._get_category_interpretation(digcomp_session)
             if interpretation:
-                profile["survey_interpretations"]["digcomp"] = {
-                    "description": interpretation.get("description", ""),
-                    "recommendations": interpretation.get("recommendations", ""),
-                }
+                profile["survey_interpretations"]["digcomp"] = interpretation
 
         # ========== Результаты Big5 ==========
         big5_session = self.get_latest_completed_session("Большая пятёрка")
         if big5_session and hasattr(big5_session, "big5_result"):
             b = big5_session.big5_result
+            profile["has_surveys"] = True
 
             profile["survey_results"]["big5"] = {
                 "scores": {
@@ -175,18 +199,15 @@ class DeepSeekRecommendationService:
                 }
             }
 
-            # Получаем общую интерпретацию для Big5
-            interpretation = self.get_survey_interpretation("big5", "common")
+            interpretation = self._get_category_interpretation(big5_session)
             if interpretation:
-                profile["survey_interpretations"]["big5"] = {
-                    "description": interpretation.get("description", ""),
-                    "recommendations": interpretation.get("recommendations", ""),
-                }
+                profile["survey_interpretations"]["big5"] = interpretation
 
         # ========== Результаты Гарднера ==========
-        gardner_session = self.get_latest_completed_session("Множественный интеллект")
+        gardner_session = self.get_latest_completed_session("Гарднер")
         if gardner_session and hasattr(gardner_session, "gardner_result"):
             g = gardner_session.gardner_result
+            profile["has_surveys"] = True
 
             profile["survey_results"]["gardner"] = {
                 "scores": {
@@ -201,62 +222,24 @@ class DeepSeekRecommendationService:
                 }
             }
 
-            # Получаем общую интерпретацию для Гарднера
-            interpretation = self.get_survey_interpretation("gardner", "common")
+            interpretation = self._get_category_interpretation(gardner_session)
             if interpretation:
-                profile["survey_interpretations"]["gardner"] = {
-                    "description": interpretation.get("description", ""),
-                    "recommendations": interpretation.get("recommendations", ""),
-                }
+                profile["survey_interpretations"]["gardner"] = interpretation
 
         return profile
 
-    def get_courses_for_ai(self, limit=50):
-        """Получает курсы для отправки в AI (с предварительной фильтрацией)"""
-        # Предварительная фильтрация: активные курсы
-        queryset = Course.objects.filter(is_deleted=False)
-
-        # Фильтр по категориям на основе профиля
-        user_profile = self.get_user_profile()
-
-        # Если есть RIASEC код, фильтруем курсы по категориям
-        riasec_code = (
-            user_profile.get("survey_results", {})
-            .get("riasec", {})
-            .get("career_code", "")
-        )
-        if riasec_code:
-            # Сопоставление RIASEC кодов с категориями курсов
-            riasec_keywords = {
-                "R": ["инженерия", "техника", "строительство", "механика"],
-                "I": ["наука", "исследование", "анализ", "данные", "лаборатория"],
-                "A": ["дизайн", "творчество", "искусство", "мультимедиа"],
-                "S": ["обучение", "консультирование", "педагогика", "социальный"],
-                "E": ["бизнес", "управление", "менеджмент", "предпринимательство"],
-                "C": ["бухгалтерия", "администрирование", "документация", "офис"],
-            }
-
-            # Собираем ключевые слова для поиска
-            keywords = []
-            for letter in riasec_code[:3]:  # Берём первые 3 буквы кода
-                keywords.extend(riasec_keywords.get(letter, []))
-
-            if keywords:
-                # Строим Q объект для поиска по категориям и описанию
-                q_filter = Q()
-                for kw in keywords:
-                    q_filter |= Q(categories__name__icontains=kw)
-                    q_filter |= Q(title__icontains=kw)
-                    q_filter |= Q(description__icontains=kw)
-                queryset = queryset.filter(q_filter)
-
-        # Ограничиваем количество курсов для AI (не более 50)
-        return queryset.distinct()[:limit]
+    def get_courses_for_ai(self):
+        """Получает ВСЕ активные курсы для отправки в AI"""
+        return Course.objects.filter(is_deleted=False).distinct()
 
     def prepare_prompt(self):
         """Подготавливает промпт для DeepSeek"""
         user_profile = self.get_user_profile()
         courses = self.get_courses_for_ai()
+
+        # Получаем сегодняшнюю дату
+        today = date.today()
+        today_str = today.strftime("%d.%m.%Y")
 
         courses_list = []
         for course in courses:
@@ -278,6 +261,7 @@ class DeepSeekRecommendationService:
                     ),
                     "document_type": course.document_type,
                     "price": course.price,
+                    "start_dates": course.start_dates or "Не указана",
                 }
             )
 
@@ -291,78 +275,101 @@ class DeepSeekRecommendationService:
             "gardner", {}
         )
 
+        has_surveys = user_profile.get("has_surveys", False)
+
+        surveys_section = ""
+        if has_surveys:
+            surveys_section = f"""
+## РЕЗУЛЬТАТЫ ТЕСТОВ
+
+### RIASEC / Холланд (профессиональные склонности)
+Карьерный код: {user_profile['survey_results'].get('riasec', {}).get('career_code', 'Не определен')}
+Баллы: {json.dumps(user_profile['survey_results'].get('riasec', {}).get('scores', {}), ensure_ascii=False)}
+
+**Интерпретация:**
+{riasec_interp.get('description', 'Нет описания')}
+
+### Цифровая грамотность (DigCompEdu)
+Баллы: {json.dumps(user_profile['survey_results'].get('digcomp', {}).get('scores', {}), ensure_ascii=False)}
+
+**Интерпретация:**
+{digcomp_interp.get('description', 'Нет описания')}
+
+### Большая пятёрка (личностные черты)
+Баллы: {json.dumps(user_profile['survey_results'].get('big5', {}).get('scores', {}), ensure_ascii=False)}
+
+**Интерпретация:**
+{big5_interp.get('description', 'Нет описания')}
+
+### Множественный интеллект (Гарднер)
+Баллы: {json.dumps(user_profile['survey_results'].get('gardner', {}).get('scores', {}), ensure_ascii=False)}
+
+**Интерпретация:**
+{gardner_interp.get('description', 'Нет описания')}
+"""
+        else:
+            surveys_section = """
+## РЕЗУЛЬТАТЫ ТЕСТОВ
+Пользователь ещё не проходил опросы. Используй только информацию из профиля для подбора курсов.
+"""
+
         prompt = f"""
-            Ты - эксперт по подбору образовательных курсов в сфере IT и искусственного интеллекта.
+Ты - эксперт по подбору образовательных курсов.
 
-            ## ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
+## ТЕКУЩАЯ ДАТА
+Сегодня: {today_str}
 
-            Тип: {user_profile['user_info']['user_type']}
-            Должность: {user_profile['user_info']['position'] or 'Не указана'}
-            Организация: {user_profile['user_info']['organization_name'] or 'Не указана'}
-            Сфера деятельности: {user_profile['user_info']['organization_industry'] or 'Не указана'}
+## ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
 
-            ## РЕЗУЛЬТАТЫ ТЕСТОВ
+Тип: {user_profile['user_info']['user_type']}
+Должность: {user_profile['user_info']['position'] or 'Не указана'}
+Уровень должности: {user_profile['user_info']['position_level'] or 'Не указан'}
+Организация: {user_profile['user_info']['organization_name'] or 'Не указана'}
+Сфера деятельности: {user_profile['user_info']['organization_industry'] or 'Не указана'}
 
-            ### RIASEC / Холланд (профессиональные склонности)
-            Карьерный код: {user_profile['survey_results'].get('riasec', {}).get('career_code', 'Не определен')}
-            Баллы: {json.dumps(user_profile['survey_results'].get('riasec', {}).get('scores', {}), ensure_ascii=False)}
+{surveys_section}
 
-            **Интерпретация:**
-            - Описание: {riasec_interp.get('description', '')}
-            - Рекомендации: {riasec_interp.get('recommendations', '')}
-            - Подходящие сферы: {riasec_interp.get('suitable_fields', '')}
+## ДОСТУПНЫЕ КУРСЫ
+{json.dumps(courses_list, ensure_ascii=False, indent=2)}
 
-            ### Цифровая грамотность (DigCompEdu)
-            Баллы: {json.dumps(user_profile['survey_results'].get('digcomp', {}).get('scores', {}), ensure_ascii=False)}
+## ЗАДАНИЕ
+На основе профиля пользователя (обязательно) и результатов тестов (если есть), выбери ВСЕ подходящие курсы с оценкой 50% и выше.
 
-            **Интерпретация:**
-            - Описание: {digcomp_interp.get('description', '')}
-            - Рекомендации: {digcomp_interp.get('recommendations', '')}
+**ВАЖНОЕ ПРАВИЛО ПО ДАТАМ:**
+- У каждого курса может быть указана дата начала (поле start_dates)
+- Если дата начала указана, проверь: не начался ли уже курс
+- Сравни дату начала с сегодняшней датой ({today_str})
+- Если дата начала уже прошла - НЕ РЕКОМЕНДУЙ такой курс (исключи его из рекомендаций)
+- Если дата начала в будущем или сегодня - курс можно рекомендовать
+- Если дата начала не указана ("Не указана") - просто игнорируй это поле, рекомендация возможна
 
-            ### Большая пятёрка (личностные черты)
-            Баллы: {json.dumps(user_profile['survey_results'].get('big5', {}).get('scores', {}), ensure_ascii=False)}
+**ПРАВИЛА ОЦЕНКИ:**
+- 95-100: Идеальное совпадение
+- 80-94: Отличное совпадение
+- 65-79: Хорошее совпадение
+- 50-64: Удовлетворительное
 
-            **Интерпретация:**
-            - Описание: {big5_interp.get('description', '')}
-            - Рекомендации: {big5_interp.get('recommendations', '')}
+**ВАЖНО:**
+- Учитывай должность, уровень, организацию пользователя
+- Если есть результаты тестов, используй их для более точного подбора
+- Если тестов нет, подбирай курсы на основе профиля (должность, уровень, сфера)
+- **ОБЯЗАТЕЛЬНО** проверяй даты начала курсов и исключай те, которые уже начались
 
-            ### Множественный интеллект (Гарднер)
-            Баллы: {json.dumps(user_profile['survey_results'].get('gardner', {}).get('scores', {}), ensure_ascii=False)}
+**НЕ ОГРАНИЧИВАЙ количество рекомендаций** — выдай ВСЕ подходящие курсы с оценкой 50% и выше.
+НО КАЖДУЮ ПРИЧИНУ ДЕЛАЙ КРАТКОЙ (1-2 предложения), не более 50 слов.
 
-            **Интерпретация:**
-            - Описание: {gardner_interp.get('description', '')}
-            - Рекомендации: {gardner_interp.get('recommendations', '')}
+Для каждого курса укажи:
+1. ID курса
+2. Причину рекомендации (2-3 предложения, используя профиль и интерпретации результатов)
+3. Оценку релевантности (целое число от 50 до 100)
 
-            ## ДОСТУПНЫЕ КУРСЫ
-            {json.dumps(courses_list, ensure_ascii=False, indent=2)}
+Верни ответ строго в формате JSON без дополнительных пояснений:
+{{"recommendations": [{{"course_id": 123, "reason": "Текст причины...", "relevance_score": 85}}]}}
 
-            ## ЗАДАНИЕ
-            На основе профиля пользователя, выбери ВСЕ подходящие курсы с оценкой 50% и выше.
+ЕСЛИ НЕТ ПОДХОДЯЩИХ КУРСОВ, верни {{"recommendations": []}} (пустой массив).
+"""
 
-            **ПРАВИЛА ОЦЕНКИ:**
-            - 95-100: Идеальное совпадение
-            - 80-94: Отличное совпадение
-            - 65-79: Хорошее совпадение
-            - 50-64: Удовлетворительное
-
-            ВКЛЮЧАЙ В ОТВЕТ ВСЕ КУРСЫ С ОЦЕНКОЙ 50% И ВЫШЕ!
-
-            Для каждого курса укажи:
-            1. ID курса
-            2. Причину рекомендации (2-3 предложения, используя интерпретации результатов)
-            3. Оценку релевантности (целое число от 50 до 100)
-
-            Верни ответ строго в формате JSON:
-            {{
-            "recommendations": [
-                {{
-                "course_id": 123,
-                "reason": "Текст причины...",
-                "relevance_score": 85
-                }}
-            ]
-            }}
-        """
+        # logger.info(f"Промпт: {prompt}")
 
         return prompt
 
@@ -383,49 +390,139 @@ class DeepSeekRecommendationService:
             "messages": [
                 {
                     "role": "system",
-                    "content": "Ты эксперт по подбору образовательных курсов. Отвечай только в формате JSON.",
+                    "content": "Ты эксперт по подбору образовательных курсов. Отвечай ТОЛЬКО в формате JSON, без дополнительного текста, пояснений или форматирования. Не используй markdown, не добавляй комментарии. Ответ должен начинаться с { и заканчиваться }.",
                 },
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.3,
-            "max_tokens": 4000,
+            "max_tokens": 64000,
         }
 
         try:
             response = requests.post(
-                self.API_URL, headers=headers, json=data, timeout=60
+                self.API_URL, headers=headers, json=data, timeout=120
             )
             response.raise_for_status()
 
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
-            # Парсим JSON ответ
-            recommendations_data = json.loads(content)
-            recommendations = recommendations_data.get("recommendations", [])
+            logger.info(f"DeepSeek ответ (первые 500 символов): {content[:500]}...")
+            logger.info(f"Длина ответа: {len(content)} символов")
+            logger.info(f"Последние 200 символов ответа: {content[-200:]}...")
 
-            # Преобразуем оценки в проценты
+            # Пытаемся извлечь JSON
+            recommendations_data = self._extract_json_from_response(content)
+
+            if not recommendations_data or not recommendations_data.get(
+                "recommendations"
+            ):
+                logger.warning("Не удалось извлечь рекомендации из ответа AI")
+                return []
+
+            recommendations = recommendations_data.get("recommendations", [])
+            logger.info(f"Успешно извлечено {len(recommendations)} рекомендаций")
+
+            # AI возвращает оценку 0-100, оставляем как есть
             for rec in recommendations:
                 score = rec.get("relevance_score", 0)
-
                 if isinstance(score, (int, float)):
-                    # Если оценка от 0 до 1 (старый формат)
-                    if score <= 1:
+                    if 0 <= score <= 1:
                         rec["relevance_score"] = round(score * 100)
-                    # Если оценка уже от 0 до 100, округляем
                     else:
                         rec["relevance_score"] = round(score)
                 else:
                     rec["relevance_score"] = 0
 
-                # Гарантируем, что оценка не выходит за пределы 0-100
                 rec["relevance_score"] = max(0, min(100, rec["relevance_score"]))
 
             return recommendations
 
         except requests.exceptions.RequestException as e:
-            print(f"DeepSeek API error: {e}")
+            logger.error(f"DeepSeek API error: {e}")
             raise
         except json.JSONDecodeError as e:
-            print(f"JSON parse error: {e}")
+            logger.error(f"JSON parse error: {e}")
+            logger.error(f"Content: {content[:1000]}...")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
             raise
+
+    def _extract_json_from_response(self, content):
+        """
+        Извлекает JSON из ответа AI.
+        Пытается найти JSON даже если есть лишний текст.
+        """
+        if not content:
+            logger.warning("Пустой ответ от AI")
+            return {"recommendations": []}
+
+        # 1. Пробуем распарсить как есть
+        try:
+            data = json.loads(content)
+            if "recommendations" in data:
+                return data
+        except json.JSONDecodeError as e:
+            logger.debug(f"Прямой парсинг не удался: {e}")
+
+        # 2. Ищем JSON с помощью регулярного выражения (более точное)
+        # Ищем что-то похожее на JSON: { ... } с ключом "recommendations"
+        # Позволяем пробелы и переносы строк
+        json_pattern = r'\{[^{}]*"recommendations"[^{}]*\{[^{}]*\}[^{}]*\}'
+
+        # Если не нашли, ищем любой JSON объект
+        if not re.search(json_pattern, content, re.DOTALL):
+            json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
+
+        matches = re.findall(json_pattern, content, re.DOTALL)
+
+        for match in matches:
+            try:
+                # Очищаем от trailing commas
+                cleaned = re.sub(r",\s*}", "}", match)
+                cleaned = re.sub(r",\s*]", "]", cleaned)
+                data = json.loads(cleaned)
+                if "recommendations" in data:
+                    logger.info("JSON успешно извлечён из ответа")
+                    return data
+            except json.JSONDecodeError:
+                continue
+
+        # 3. Пробуем найти по ключевым словам (самый широкий поиск)
+        start = content.find("{")
+        end = content.rfind("}")
+        if start != -1 and end != -1 and start < end:
+            json_str = content[start : end + 1]
+            try:
+                # Удаляем trailing commas
+                json_str = re.sub(r",\s*}", "}", json_str)
+                json_str = re.sub(r",\s*]", "]", json_str)
+                data = json.loads(json_str)
+                if "recommendations" in data:
+                    logger.info("JSON успешно извлечён с очисткой от trailing commas")
+                    return data
+            except json.JSONDecodeError as e:
+                logger.debug(f"Парсинг с очисткой не удался: {e}")
+
+        # 4. Пробуем разбить на части и найти кусок с "recommendations"
+        # Иногда AI добавляет текст после JSON
+        try:
+            # Ищем строку, которая начинается с {"recommendations"
+            pattern = r'(\{"recommendations":\s*\[.*?\])'
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+                data = json.loads(json_str)
+                if "recommendations" in data:
+                    logger.info("JSON успешно извлечён через поиск по шаблону")
+                    return data
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+        # 5. Если ничего не помогло, сохраняем для отладки
+        logger.error("Не удалось извлечь JSON из ответа")
+        logger.debug(f"Содержимое ответа (первые 1000 символов): {content[:1000]}...")
+        logger.debug(f"Содержимое ответа (последние 500 символов): {content[-500:]}...")
+
+        return {"recommendations": []}

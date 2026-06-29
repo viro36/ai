@@ -1,7 +1,9 @@
+from django.core.paginator import Paginator
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+
 from .models import CourseRecommendation, RecommendationTask
 from .tasks import generate_recommendations_for_user
 from .utils import (
@@ -13,24 +15,34 @@ from .utils import (
 
 @login_required
 def my_recommendations(request):
-    """Отображает рекомендации пользователя"""
-    recommendations = CourseRecommendation.objects.filter(
+    """Отображает рекомендации пользователя с пагинацией"""
+    recommendations_list = CourseRecommendation.objects.filter(
         user=request.user
-    ).select_related("course")[:10]
+    ).select_related("course")
+
+    # Пагинация по 20 рекомендаций на страницу
+    paginator = Paginator(recommendations_list, 20)
+    page_number = request.GET.get("page", 1)
+    recommendations = paginator.get_page(page_number)
 
     task_status = RecommendationTask.objects.filter(user=request.user).first()
 
     ready_for_recs = is_ready_for_recommendations(request.user)
-    all_surveys_completed = has_completed_all_surveys(request.user)
     profile_completed = has_completed_profile(request.user)
+    surveys_info = has_completed_all_surveys(request.user)
 
     context = {
         "recommendations": recommendations,
         "task_status": task_status,
-        "has_recommendations": recommendations.exists(),
+        "has_recommendations": recommendations_list.exists(),
         "ready_for_recommendations": ready_for_recs,
-        "all_surveys_completed": all_surveys_completed,
         "profile_completed": profile_completed,
+        "surveys_completed": surveys_info["completed"],
+        "surveys_total": surveys_info["total"],
+        "all_surveys_completed": surveys_info["all_completed"],
+        "has_surveys": surveys_info["total"] > 0,
+        "paginator": paginator,
+        "page_obj": recommendations,
     }
     return render(request, "recommendations/my_recommendations.html", context)
 
@@ -40,10 +52,8 @@ def generate_recommendations(request):
     """Запускает генерацию рекомендаций (без очистки старых)"""
     if request.method == "POST":
         if not is_ready_for_recommendations(request.user):
-            messages.warning(
-                request, "Пожалуйста, сначала пройдите все опросы и заполните анкету."
-            )
-            return redirect("surveys:survey_list")
+            messages.warning(request, "Пожалуйста, сначала заполните анкету.")
+            return redirect("accounts:employee_profile")
 
         existing_task = RecommendationTask.objects.filter(
             user=request.user, status="pending"
@@ -79,18 +89,12 @@ def regenerate_recommendations(request):
     """Перегенерирует рекомендации (очищает старые и запускает заново)"""
     if request.method == "POST":
         if not is_ready_for_recommendations(request.user):
-            messages.warning(
-                request, "Пожалуйста, сначала пройдите все опросы и заполните анкету."
-            )
-            return redirect("surveys:survey_list")
+            messages.warning(request, "Пожалуйста, сначала заполните анкету.")
+            return redirect("accounts:employee_profile")
 
-        # Очищаем старые рекомендации
         CourseRecommendation.objects.filter(user=request.user).delete()
-
-        # Удаляем старую задачу, если была
         RecommendationTask.objects.filter(user=request.user).delete()
 
-        # Запускаем новую задачу
         task = generate_recommendations_for_user.delay(request.user.id)
 
         RecommendationTask.objects.create(

@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.utils.html import strip_tags
+import re
 
 User = get_user_model()
 
@@ -46,6 +48,23 @@ class SurveyCategory(models.Model):
         if self.description and "Импортирован из Excel" in self.description:
             return "Пройдите опрос, чтобы оценить свои навыки"
         return self.description or "Пройдите опрос, чтобы оценить свои навыки"
+
+    def get_result_description_clean(self):
+        """
+        Возвращает чистый текст из result_description без HTML-тегов.
+        Используется для передачи в AI.
+        """
+        if not self.result_description:
+            return None
+
+        # Удаляем HTML-теги
+        text = strip_tags(self.result_description)
+        # Удаляем лишние пробелы и переносы строк
+        text = re.sub(r"\s+", " ", text).strip()
+        # Обрезаем до 1500 символов
+        if len(text) > 1500:
+            text = text[:1500] + "..."
+        return text
 
 
 class SurveyBlock(models.Model):

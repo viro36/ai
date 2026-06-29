@@ -9,25 +9,28 @@ def get_all_survey_categories():
 
 
 def has_completed_all_surveys(user):
-    """Проверяет, прошёл ли пользователь все активные опросы"""
+    """Проверяет, прошёл ли пользователь все активные опросы (НЕОБЯЗАТЕЛЬНО)"""
     required_categories = SurveyCategory.objects.filter(is_active=True)
+    completed_count = 0
+    total_count = required_categories.count()
 
     for category in required_categories:
         has_completed = user.survey_sessions.filter(
             category=category, status="completed"
         ).exists()
-        if not has_completed:
-            print(f"  -> MISSING: {category.name}")
-            return False
+        if has_completed:
+            completed_count += 1
 
-    return True
+    return {
+        "completed": completed_count,
+        "total": total_count,
+        "all_completed": completed_count == total_count and total_count > 0,
+    }
 
 
 def has_completed_profile(user):
-    """Проверяет, заполнена ли анкета пользователя"""
-    # Проверяем, что у пользователя есть профиль работника
+    """Проверяет, заполнена ли анкета пользователя (ОБЯЗАТЕЛЬНО)"""
     if not hasattr(user, "employee_profile"):
-        print(f"  No employee_profile")
         return False
 
     profile = user.employee_profile
@@ -44,9 +47,6 @@ def has_completed_profile(user):
 
 
 def is_ready_for_recommendations(user):
-    """Проверяет, готов ли пользователь к получению рекомендаций"""
-    all_surveys = has_completed_all_surveys(user)
-    profile = has_completed_profile(user)
-    result = all_surveys and profile
-
-    return result
+    """Проверяет, готов ли пользователь к получению рекомендаций (только анкета обязательна)"""
+    profile_completed = has_completed_profile(user)
+    return profile_completed

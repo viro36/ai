@@ -26,12 +26,24 @@
         {% endif %}
     </div>
 
+    <!-- Информация о подборе -->
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="fa-solid fa-circle-info me-2"></i>
+        <strong>Как мы подбираем курсы:</strong>
+        <ul class="mt-2 mb-0">
+            <li><i class="fa-regular fa-circle-check text-success me-2"></i><strong>Обязательно:</strong> заполненная анкета (должность, уровень, организация)</li>
+            <li><i class="fa-regular fa-chart-bar me-2"></i><strong>По желанию:</strong> прохождение опросов для более точного подбора</li>
+            <li><i class="fa-solid fa-bullseye me-2"></i>Чем больше данных, тем точнее рекомендации</li>
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
     {% if task_status.status == 'pending' %}
     <div class="alert alert-info text-center" id="pendingAlert">
         <i class="fa-solid fa-spinner fa-spin fa-2x mb-3 d-block" style="color: #5C5C99;"></i>
         <h4>Генерация рекомендаций</h4>
-        <p>Искусственный интеллект анализирует ваши результаты и подбирает подходящие курсы...</p>
-        <p class="small text-muted">Это может занять до 30 секунд</p>
+        <p>Искусственный интеллект анализирует ваши данные и подбирает подходящие курсы...</p>
+        <p class="small text-muted">Это может занять до несколько минут</p>
         <div class="progress" style="height: 10px;">
             <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
         </div>
@@ -39,9 +51,14 @@
     {% endif %}
 
     {% if has_recommendations %}
-    <div class="alert alert-info alert-dismissible fade show" role="alert">
-        <i class="fa-solid fa-info-circle me-2"></i>
-        Если вы прошли новые опросы или изменили анкету, нажмите кнопку <strong>"Обновить рекомендации"</strong> для получения актуальных рекомендаций.
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fa-regular fa-circle-check me-2"></i>
+        Найдено <strong>{{ paginator.count }}</strong> рекомендаций.
+        {% if not all_surveys_completed and has_surveys %}
+        <span class="badge bg-warning text-dark ms-2">
+            <i class="fa-regular fa-clock me-1"></i>Опросы пройдены не полностью
+        </span>
+        {% endif %}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 
@@ -55,22 +72,22 @@
                             <i class="fa-solid fa-graduation-cap me-2"></i>
                             {{ rec.course.title }}
                         </h5>
-                        <span class="badge">
-                            {{ rec.relevance_score|floatformat:0 }}% <small>релевантности</small>
+                        <span class="badge {% if rec.relevance_score >= 80 %}bg-success{% elif rec.relevance_score >= 65 %}bg-primary{% else %}bg-warning text-dark{% endif %}">
+                            {{ rec.get_relevance_percent }}% <small>релевантности</small>
                         </span>
                     </div>
                     <p class="card-text text-muted small mb-2">
-                        <i class="fa-solid fa-building me-1"></i>{{ rec.course.organization.short_name }}
+                        <i class="fa-regular fa-building me-1"></i>{{ rec.course.organization.short_name }}
                     </p>
 
                     <div class="relevance-progress">
-                        <div class="relevance-progress-bar" style="width: {{ rec.relevance_score|floatformat:0 }}%;"></div>
+                        <div class="relevance-progress-bar" style="width: {{ rec.get_relevance_percent }}%;"></div>
                     </div>
 
                     <p class="card-text mt-3">{{ rec.reason }}</p>
                     <div class="mt-3">
                         <a href="{% url 'courses:course_detail' rec.course.id %}" class="btn btn-sm btn-outline-primary">
-                            <i class="fa-solid fa-eye me-1"></i>Подробнее о курсе
+                            <i class="fa-regular fa-eye me-1"></i>Подробнее о курсе
                         </a>
                     </div>
                 </div>
@@ -78,46 +95,125 @@
         </div>
         {% endfor %}
     </div>
+
+    <!-- Пагинация -->
+    {% if paginator.num_pages > 1 %}
+    <nav aria-label="Навигация по рекомендациям">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Предыдущая">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">&laquo;</span>
+            </li>
+            {% endif %}
+
+            {% for num in paginator.page_range %}
+                {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Следующая">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">&raquo;</span>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
     {% elif not ready_for_recommendations %}
     <div class="alert alert-warning text-center">
-        <i class="fa-solid fa-info-circle fa-2x mb-3 d-block"></i>
-        <h4>Необходимо заполнить данные</h4>
-        <p>Для получения персонализированных рекомендаций необходимо:</p>
-        <div class="text-start d-inline-block">
+        <i class="fa-regular fa-circle-exclamation fa-2x mb-3 d-block"></i>
+        <h4>Необходимо заполнить анкету</h4>
+        <p>Для получения персонализированных рекомендаций необходимо заполнить анкету.</p>
+        <p class="text-muted small">Опросы необязательны, но помогут сделать рекомендации точнее.</p>
+        <div class="text-start d-inline-block mt-3">
             <ul class="list-unstyled">
                 <li>
-                    <i class="fa-solid {% if all_surveys_completed %}fa-check-circle{% else %}fa-circle-xmark{% endif %} me-2"></i>
-                    Пройти все опросы
+                    <i class="fa-regular {% if profile_completed %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} me-2"></i>
+                    Заполнить анкету
+                    {% if not profile_completed %}
+                        <span class="badge bg-danger ms-2">Обязательно</span>
+                    {% endif %}
                 </li>
                 <li class="mt-2">
-                    <i class="fa-solid {% if profile_completed %}fa-check-circle{% else %}fa-circle-xmark{% endif %} me-2"></i>
-                    Заполнить анкету
+                    <i class="fa-regular {% if all_surveys_completed %}fa-circle-check text-success{% else %}fa-circle{% endif %} me-2"></i>
+                    Пройти опросы
+                    {% if has_surveys %}
+                        <span class="badge bg-info ms-2">{{ surveys_completed }}/{{ surveys_total }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary ms-2">Необязательно</span>
+                    {% endif %}
                 </li>
             </ul>
         </div>
         <div class="mt-3">
-            {% if not all_surveys_completed %}
-                <a href="{% url 'surveys:survey_list' %}" class="btn btn-primary mt-2">
-                    <i class="fa-solid fa-clipboard-list me-2"></i>Перейти к опросам
-                </a>
-            {% elif not profile_completed %}
+            {% if not profile_completed %}
                 <a href="{% url 'accounts:employee_profile' %}" class="btn btn-primary mt-2">
                     <i class="fa-solid fa-user-edit me-2"></i>Заполнить анкету
                 </a>
+            {% elif not all_surveys_completed and has_surveys %}
+                <a href="{% url 'surveys:survey_list' %}" class="btn btn-outline-primary mt-2">
+                    <i class="fa-solid fa-clipboard-list me-2"></i>Пройти опросы (необязательно)
+                </a>
+                <form method="post" action="{% url 'recommendations:generate_recommendations' %}" class="d-inline mt-2 ms-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">
+                        <i class="fa-solid fa-play me-2"></i>Получить рекомендации без опросов
+                    </button>
+                </form>
+            {% else %}
+                <form method="post" action="{% url 'recommendations:generate_recommendations' %}" class="d-inline mt-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fa-solid fa-play me-2"></i>Получить рекомендации
+                    </button>
+                </form>
             {% endif %}
         </div>
     </div>
-    {% elif task_status.status != 'pending' and not has_recommendations %}
-    <div class="alert alert-info text-center">
-        <i class="fa-solid fa-lightbulb fa-2x mb-3 d-block"></i>
+    {% elif task_status.status != 'pending' and not has_recommendations and ready_for_recommendations %}
+    <div class="alert alert-success text-center">
+        <i class="fa-regular fa-circle-check fa-2x mb-3 d-block"></i>
         <h4>Готово к генерации</h4>
-        <p>Все данные заполнены! Нажмите кнопку, чтобы получить персональные рекомендации.</p>
-        <form method="post" action="{% url 'recommendations:regenerate_recommendations' %}" class="mt-3">
+        <p>Все необходимые данные заполнены! Нажмите кнопку, чтобы получить персональные рекомендации.</p>
+        <p class="text-muted small">
+            <i class="fa-regular fa-chart-bar me-1"></i>
+            {% if all_surveys_completed %}
+                Опросы пройдены полностью — рекомендации будут максимально точными!
+            {% elif has_surveys %}
+                Опросы пройдены частично ({{ surveys_completed }}/{{ surveys_total }}) — рекомендации будут точнее, если пройти все.
+            {% else %}
+                Опросы не пройдены — рекомендации будут на основе анкеты.
+            {% endif %}
+        </p>
+        <form method="post" action="{% url 'recommendations:generate_recommendations' %}" class="mt-3">
             {% csrf_token %}
             <button type="submit" class="btn btn-primary btn-lg">
                 <i class="fa-solid fa-magic me-2"></i>Получить рекомендации
             </button>
         </form>
+        {% if not all_surveys_completed and has_surveys %}
+        <div class="mt-2">
+            <a href="{% url 'surveys:survey_list' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fa-solid fa-clipboard-list me-1"></i>Пройти оставшиеся опросы
+            </a>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>

@@ -101,7 +101,13 @@
                                 <i class="fa-solid fa-clipboard-list"></i>
                             </div>
                             <h3 class="action-title">Моя анкета</h3>
-                            <p class="action-description">Заполните или отредактируйте свои персональные данные</p>
+                            <p class="action-description">
+                                Заполните или отредактируйте свои персональные данные
+                                <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966; display: block;">
+                                    <i class="fa-regular {% if profile_completed %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} me-1"></i>
+                                    {% if profile_completed %}Заполнена{% else %}Обязательно заполнить{% endif %}
+                                </span>
+                            </p>
                         </div>
                     </a>
                 </div>
@@ -110,10 +116,24 @@
                     <a href="{% url 'surveys:survey_list' %}" class="text-decoration-none">
                         <div class="action-card action-card-employee">
                             <div class="action-icon">
-                                <i class="fa-solid fa-chart-simple"></i>
+                                <i class="fa-regular fa-chart-bar"></i>
                             </div>
                             <h3 class="action-title">Опросы</h3>
-                            <p class="action-description">Пройдите опросы для получения рекомендаций</p>
+                            <p class="action-description">
+                                Пройдите опросы для более точных рекомендаций
+                                <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966; display: block;">
+                                    <i class="fa-regular {% if all_surveys_completed %}fa-circle-check text-success{% else %}fa-circle{% endif %} me-1"></i>
+                                    {% if has_surveys %}
+                                        {% if all_surveys_completed %}
+                                            Все опросы пройдены
+                                        {% else %}
+                                            {{ surveys_completed }}/{{ surveys_total }} пройдено
+                                        {% endif %}
+                                    {% else %}
+                                        Необязательно
+                                    {% endif %}
+                                </span>
+                            </p>
                         </div>
                     </a>
                 </div>
@@ -122,24 +142,30 @@
                     <a href="{% url 'recommendations:my_recommendations' %}" class="text-decoration-none">
                         <div class="action-card action-card-employee">
                             <div class="action-icon">
-                                <i class="fa-solid fa-lightbulb"></i>
+                                <i class="fa-regular fa-lightbulb"></i>
                             </div>
                             <h3 class="action-title">Мои рекомендации</h3>
                             <p class="action-description">
-                                Персональные рекомендации курсов на основе ваших ответов
+                                Персональные рекомендации курсов
                                 {% if user.course_recommendations.exists %}
-                                    <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966;">
+                                    <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966; display: block;">
+                                        <i class="fa-solid fa-graduation-cap me-1"></i>
                                         {{ user.course_recommendations.count }} рекомендаций
                                     </span>
                                 {% else %}
-                                    <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966;">
+                                    <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966; display: block;">
+                                        <i class="fa-regular {% if ready_for_recommendations %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} me-1"></i>
                                         {% if ready_for_recommendations %}
-                                            Готово
+                                            Готово к генерации
                                         {% else %}
-                                            Заполните данные
+                                            Заполните анкету
                                         {% endif %}
                                     </span>
                                 {% endif %}
+                                <small class="text-muted d-block mt-1">
+                                    <i class="fa-solid fa-circle-info me-1"></i>
+                                    Для рекомендаций нужна анкета, опросы необязательны
+                                </small>
                             </p>
                         </div>
                     </a>
