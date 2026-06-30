@@ -208,7 +208,9 @@ class TestEmployeeProfileView:
         response = client.get(url)
         assert response.status_code == 200
 
-    def test_employee_profile_post(self, client, test_employee_user, test_organization):
+    def test_employee_profile_post(
+        self, client, test_employee_user, test_organization, test_organization_type
+    ):
         EmployeeProfile.objects.create(
             user=test_employee_user,
             snils="123-456-789 01",
@@ -229,9 +231,56 @@ class TestEmployeeProfileView:
             "position_level": "specialist",
             "phone": "+7 999 888-77-66",
             "organization_id": test_organization.id,
+            # Новые поля
+            "desired_organization_type": test_organization_type.id,
+            "desired_organization": "ООО ТехноИнновации",
+            "desired_position": "Руководитель IT-отдела",
         }
         response = client.post(url, data)
         assert response.status_code == 302
+
+        # Проверяем, что новые поля сохранились
+        profile = EmployeeProfile.objects.get(user=test_employee_user)
+        assert profile.desired_organization_type == test_organization_type
+        assert profile.desired_organization == "ООО ТехноИнновации"
+        assert profile.desired_position == "Руководитель IT-отдела"
+
+    def test_employee_profile_post_empty_desired_fields(
+        self, client, test_employee_user, test_organization
+    ):
+        """Тест сохранения с пустыми желаемыми полями"""
+        EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employee_profile")
+        data = {
+            "last_name": "Петров",
+            "first_name": "Петр",
+            "patronymic": "Петрович",
+            "birthday": "1990-01-01",
+            "snils": "123-456-789 01",
+            "email": "newemail@test.com",
+            "position": "Старший инженер",
+            "position_level": "specialist",
+            "phone": "+7 999 888-77-66",
+            "organization_id": test_organization.id,
+            "desired_organization_type": "",
+            "desired_organization": "",
+            "desired_position": "",
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+        # Проверяем, что новые поля остались пустыми
+        profile = EmployeeProfile.objects.get(user=test_employee_user)
+        assert profile.desired_organization_type is None
+        assert profile.desired_organization is None
+        assert profile.desired_position is None
 
 
 @pytest.mark.django_db

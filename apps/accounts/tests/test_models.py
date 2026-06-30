@@ -6,6 +6,7 @@ from apps.accounts.models import (
     EmployerProfile,
     EmployeeProfile,
 )
+from apps.organizations.models import OrganizationType
 
 User = get_user_model()
 
@@ -131,8 +132,10 @@ class TestEmployerProfileModel:
 class TestEmployeeProfileModel:
     """Тесты для модели EmployeeProfile"""
 
-    def test_create_employee_profile(self, test_employee_user, test_organization):
-        """Тест создания профиля работника"""
+    def test_create_employee_profile(
+        self, test_employee_user, test_organization, test_organization_type
+    ):
+        """Тест создания профиля работника со всеми полями"""
         profile = EmployeeProfile.objects.create(
             user=test_employee_user,
             snils="123-456-789 01",
@@ -148,6 +151,10 @@ class TestEmployeeProfileModel:
             education_institution="ВГУ",
             graduation_year=2015,
             specialty="Программная инженерия",
+            # Новые поля
+            desired_organization_type=test_organization_type,
+            desired_organization="ООО ТехноИнновации",
+            desired_position="Руководитель IT-отдела",
         )
 
         assert profile.user == test_employee_user
@@ -160,10 +167,43 @@ class TestEmployeeProfileModel:
         assert profile.employment_status == "employed"
         assert profile.work_experience_years == 5
         assert profile.education_level == "higher"
+        assert profile.desired_organization_type == test_organization_type
+        assert profile.desired_organization == "ООО ТехноИнновации"
+        assert profile.desired_position == "Руководитель IT-отдела"
         assert (
             str(profile)
             == f"{test_employee_user.get_full_name()} - {test_organization.short_name}"
         )
+
+    def test_employee_profile_desired_fields_optional(
+        self, test_employee_user, test_organization
+    ):
+        """Тест новых полей - все опциональны"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Тест",
+            position_level="specialist",
+        )
+
+        assert profile.desired_organization_type is None
+        assert profile.desired_organization is None
+        assert profile.desired_position is None
+
+    def test_employee_profile_desired_organization_type_null(
+        self, test_employee_user, test_organization
+    ):
+        """Тест поля desired_organization_type может быть null"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Тест",
+            position_level="specialist",
+            desired_organization_type=None,
+        )
+        assert profile.desired_organization_type is None
 
     def test_employee_profile_unique_snils(
         self, test_employee_user, test_employee_user2, test_organization
@@ -210,7 +250,6 @@ class TestEmployeeProfileModel:
     def test_employee_profile_position_level_choices(self, test_organization):
         """Тест выбора категории должности"""
         for i, (level, display) in enumerate(EmployeeProfile.POSITION_LEVEL_CHOICES):
-            # Создаём нового пользователя для каждой итерации
             user = User.objects.create_user(
                 username=f"test_user_{level}_{i}",
                 email=f"test_{level}_{i}@test.com",
@@ -255,7 +294,6 @@ class TestEmployeeProfileModel:
         }
 
         for i, (status, display) in enumerate(status_map.items()):
-            # Создаём нового пользователя для каждой итерации
             user = User.objects.create_user(
                 username=f"test_status_{status}_{i}",
                 email=f"test_{status}_{i}@test.com",
@@ -279,7 +317,6 @@ class TestEmployeeProfileModel:
     def test_employee_profile_education_level_choices(self, test_organization):
         """Тест выбора уровня образования"""
         for i, (level, display) in enumerate(EmployeeProfile.EDUCATION_LEVEL_CHOICES):
-            # Создаём нового пользователя для каждой итерации
             user = User.objects.create_user(
                 username=f"test_edu_{level}_{i}",
                 email=f"test_edu_{level}_{i}@test.com",

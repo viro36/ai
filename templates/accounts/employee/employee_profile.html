@@ -89,6 +89,26 @@
                 {% bootstrap_field form.education_institution %}
                 {% bootstrap_field form.specialty %}
 
+                <!-- 6. Желаемая сфера/организация/должность -->
+                <h5 class="section-title mt-4">
+                    <i class="fa-solid fa-compass me-2"></i>6. Желаемая сфера, организация и должность
+                </h5>
+                <p class="text-muted small mb-3">
+                    <i class="fa-regular fa-circle-question me-1"></i>
+                    Все поля опциональны. Помогут нам подбирать более точные рекомендации.
+                </p>
+                <div class="row">
+                    <div class="col-md-4">
+                        {% bootstrap_field form.desired_organization_type %}
+                    </div>
+                    <div class="col-md-4">
+                        {% bootstrap_field form.desired_organization %}
+                    </div>
+                    <div class="col-md-4">
+                        {% bootstrap_field form.desired_position %}
+                    </div>
+                </div>
+
                 <hr>
                 <div class="d-flex justify-content-between">
                     <a href="{% url 'home' %}" class="btn btn-secondary">

@@ -335,6 +335,9 @@ def employee_profile(request):
             "graduation_year": profile.graduation_year,
             "specialty": profile.specialty,
             "organization": profile.organization_id if profile.organization else None,
+            "desired_organization_type": profile.desired_organization_type_id,
+            "desired_organization": profile.desired_organization,
+            "desired_position": profile.desired_position,
         }
         form = EmployeeProfileForm(initial=initial_data, instance=profile)
 

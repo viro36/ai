@@ -118,6 +118,14 @@ class DeepSeekRecommendationService:
                 "position_level": None,
                 "organization_name": None,
                 "organization_industry": None,
+                # НОВЫЕ ПОЛЯ
+                "education_level": None,
+                "education_institution": None,
+                "graduation_year": None,
+                "specialty": None,
+                "desired_organization_type": None,
+                "desired_organization": None,
+                "desired_position": None,
             },
             "survey_results": {},
             "survey_interpretations": {},
@@ -140,6 +148,29 @@ class DeepSeekRecommendationService:
                     profile["user_info"][
                         "organization_industry"
                     ] = emp_profile.organization.organization_type.name
+
+            # ========== НОВЫЕ ПОЛЯ ИЗ ПРОФИЛЯ ==========
+            # Образование
+            profile["user_info"]["education_level"] = (
+                emp_profile.get_education_level_display()
+                if emp_profile.education_level
+                else None
+            )
+            profile["user_info"][
+                "education_institution"
+            ] = emp_profile.education_institution
+            profile["user_info"]["graduation_year"] = emp_profile.graduation_year
+            profile["user_info"]["specialty"] = emp_profile.specialty
+
+            # Желаемая сфера/организация/должность
+            if emp_profile.desired_organization_type:
+                profile["user_info"][
+                    "desired_organization_type"
+                ] = emp_profile.desired_organization_type.name
+            profile["user_info"][
+                "desired_organization"
+            ] = emp_profile.desired_organization
+            profile["user_info"]["desired_position"] = emp_profile.desired_position
 
         # ========== Результаты RIASEC ==========
         riasec_session = self.get_latest_completed_session("Холланд")
@@ -277,6 +308,32 @@ class DeepSeekRecommendationService:
 
         has_surveys = user_profile.get("has_surveys", False)
 
+        # Формируем секцию с дополнительной информацией из профиля
+        extra_info = ""
+        if user_profile["user_info"].get("education_level"):
+            extra_info += (
+                f"Уровень образования: {user_profile['user_info']['education_level']}\n"
+            )
+        if user_profile["user_info"].get("education_institution"):
+            extra_info += f"Учебное заведение: {user_profile['user_info']['education_institution']}\n"
+        if user_profile["user_info"].get("graduation_year"):
+            extra_info += (
+                f"Год окончания: {user_profile['user_info']['graduation_year']}\n"
+            )
+        if user_profile["user_info"].get("specialty"):
+            extra_info += f"Специальность: {user_profile['user_info']['specialty']}\n"
+        if user_profile["user_info"].get("desired_organization_type"):
+            extra_info += f"Желаемая сфера: {user_profile['user_info']['desired_organization_type']}\n"
+        if user_profile["user_info"].get("desired_organization"):
+            extra_info += f"Желаемая организация: {user_profile['user_info']['desired_organization']}\n"
+        if user_profile["user_info"].get("desired_position"):
+            extra_info += (
+                f"Желаемая должность: {user_profile['user_info']['desired_position']}\n"
+            )
+
+        if extra_info:
+            extra_info = f"\n## ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ ИЗ ПРОФИЛЯ\n{extra_info}"
+
         surveys_section = ""
         if has_surveys:
             surveys_section = f"""
@@ -326,6 +383,7 @@ class DeepSeekRecommendationService:
 Уровень должности: {user_profile['user_info']['position_level'] or 'Не указан'}
 Организация: {user_profile['user_info']['organization_name'] or 'Не указана'}
 Сфера деятельности: {user_profile['user_info']['organization_industry'] or 'Не указана'}
+{extra_info}
 
 {surveys_section}
 
@@ -354,6 +412,8 @@ class DeepSeekRecommendationService:
 - Если есть результаты тестов, используй их для более точного подбора
 - Если тестов нет, подбирай курсы на основе профиля (должность, уровень, сфера)
 - **ОБЯЗАТЕЛЬНО** проверяй даты начала курсов и исключай те, которые уже начались
+- Учитывай образование пользователя (если указано)
+- Учитывай желаемую сферу/организацию/должность (если указаны)
 
 **НЕ ОГРАНИЧИВАЙ количество рекомендаций** — выдай ВСЕ подходящие курсы с оценкой 50% и выше.
 НО КАЖДУЮ ПРИЧИНУ ДЕЛАЙ КРАТКОЙ (1-2 предложения), не более 50 слов.
@@ -407,9 +467,9 @@ class DeepSeekRecommendationService:
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
-            logger.info(f"DeepSeek ответ (первые 500 символов): {content[:500]}...")
-            logger.info(f"Длина ответа: {len(content)} символов")
-            logger.info(f"Последние 200 символов ответа: {content[-200:]}...")
+            # logger.info(f"DeepSeek ответ (первые 500 символов): {content[:500]}...")
+            # logger.info(f"Длина ответа: {len(content)} символов")
+            # logger.info(f"Последние 200 символов ответа: {content[-200:]}...")
 
             # Пытаемся извлечь JSON
             recommendations_data = self._extract_json_from_response(content)
@@ -421,7 +481,7 @@ class DeepSeekRecommendationService:
                 return []
 
             recommendations = recommendations_data.get("recommendations", [])
-            logger.info(f"Успешно извлечено {len(recommendations)} рекомендаций")
+            # logger.info(f"Успешно извлечено {len(recommendations)} рекомендаций")
 
             # AI возвращает оценку 0-100, оставляем как есть
             for rec in recommendations:

@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from apps.organizations.models import Organization
+from apps.organizations.models import Organization, OrganizationType
 
 User = get_user_model()
 
@@ -173,7 +173,6 @@ class EmployeeProfile(models.Model):
         "users.CustomUser", on_delete=models.CASCADE, related_name="employee_profile"
     )
 
-    # ========== Существующие поля ==========
     snils = models.CharField(max_length=14, unique=True, verbose_name="СНИЛС")
     organization = models.ForeignKey(
         "organizations.Organization",
@@ -186,8 +185,6 @@ class EmployeeProfile(models.Model):
         choices=POSITION_LEVEL_CHOICES,
         verbose_name="Категория должности",
     )
-
-    # ========== НОВЫЕ ПОЛЯ ==========
 
     # 1. Персональные данные
     gender = models.CharField(
@@ -246,6 +243,30 @@ class EmployeeProfile(models.Model):
         blank=True,
         null=True,
         verbose_name="Специальность/направление подготовки",
+    )
+
+    # ========== Желаемая сфера/организация/должность ==========
+    desired_organization_type = models.ForeignKey(
+        OrganizationType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Желаемая сфера деятельности",
+        help_text="В какой сфере вы хотели бы работать?",
+    )
+    desired_organization = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name="Желаемая организация",
+        help_text="В какой организации вы хотели бы работать?",
+    )
+    desired_position = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name="Желаемая должность",
+        help_text="Какую должность вы хотели бы занимать?",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

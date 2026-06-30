@@ -379,6 +379,9 @@ class EmployeeProfileForm(forms.ModelForm):
             "graduation_year",  # Год окончания
             "specialty",  # Специальность
             "organization",  # Организация (скрытое поле)
+            "desired_organization_type",
+            "desired_organization",
+            "desired_position",
         ]
         widgets = {
             "gender": forms.Select(attrs={"class": "form-control"}),
@@ -402,6 +405,19 @@ class EmployeeProfileForm(forms.ModelForm):
             "organization": forms.Select(
                 attrs={"class": "form-control", "id": "organization-select"}
             ),
+            "desired_organization_type": forms.Select(attrs={"class": "form-control"}),
+            "desired_organization": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Например: ООО Ромашка или любая организация в сфере IT",
+                }
+            ),
+            "desired_position": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Например: Руководитель отдела, Аналитик данных",
+                }
+            ),
         }
 
     # Фильтры для организации (не сохраняются в БД)
@@ -423,3 +439,6 @@ class EmployeeProfileForm(forms.ModelForm):
         self.fields["organization"].required = False
         self.fields["district"].required = False
         self.fields["organization_type"].required = False
+        self.fields["desired_organization_type"].required = False
+        self.fields["desired_organization"].required = False
+        self.fields["desired_position"].required = False
