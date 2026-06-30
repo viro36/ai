@@ -35,10 +35,27 @@ def has_completed_profile(user):
 
     profile = user.employee_profile
 
-    # Обязательные поля для заполнения
-    required_fields = ["position", "position_level"]
+    # Проверяем поля пользователя
+    if not user.last_name:
+        return False
+    if not user.first_name:
+        return False
 
-    for field in required_fields:
+    # Проверяем поля профиля
+    required_profile_fields = [
+        "snils",
+        "organization",
+        "position",
+        "position_level",
+        "education_level",
+        "graduation_year",
+        "education_institution",
+        "specialty",
+        "locality",
+        "municipality",
+    ]
+
+    for field in required_profile_fields:
         value = getattr(profile, field)
         if not value:
             return False
