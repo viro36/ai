@@ -15,7 +15,7 @@ User = get_user_model()
 class TestEmployerRegistrationRequestModel:
     """Тесты для модели EmployerRegistrationRequest"""
 
-    def test_create_employer_registration_request(self, test_organization):
+    def test_create_employer_registration_request(self):
         """Тест создания заявки на регистрацию работодателя"""
         request = EmployerRegistrationRequest.objects.create(
             username="test_employer",
@@ -34,7 +34,7 @@ class TestEmployerRegistrationRequestModel:
         assert request.status == "pending"
         assert str(request) == "ООО Тест (На рассмотрении)"
 
-    def test_employer_registration_request_unique_username(self, test_organization):
+    def test_employer_registration_request_unique_username(self):
         """Тест уникальности username"""
         EmployerRegistrationRequest.objects.create(
             username="unique_user",
@@ -55,7 +55,7 @@ class TestEmployerRegistrationRequestModel:
                 inn="123456789013",
             )
 
-    def test_employer_registration_request_str_method(self, test_organization):
+    def test_employer_registration_request_str_method(self):
         """Тест строкового представления"""
         request = EmployerRegistrationRequest.objects.create(
             username="test_str",
@@ -94,9 +94,7 @@ class TestEmployerProfileModel:
         assert profile.annual_revenue == 5000000.00
         assert str(profile) == f"Профиль {test_organization.short_name}"
 
-    def test_employer_profile_one_to_one_user(
-        self, test_employer_user, test_organization
-    ):
+    def test_employer_profile_one_to_one_user(self, test_employer_user):
         """Тест уникальности связи с пользователем"""
         EmployerProfile.objects.create(user=test_employer_user)
 
@@ -114,9 +112,7 @@ class TestEmployerProfileModel:
         assert profile.employee_count is None
         assert profile.annual_revenue is None
 
-    def test_employer_profile_for_university(
-        self, test_university_user, test_organization
-    ):
+    def test_employer_profile_for_university(self, test_university_user):
         """Тест профиля для ВУЗа"""
         profile = EmployerProfile.objects.create(
             user=test_university_user,
@@ -151,7 +147,6 @@ class TestEmployeeProfileModel:
             education_institution="ВГУ",
             graduation_year=2015,
             specialty="Программная инженерия",
-            # Новые поля
             desired_organization_type=test_organization_type,
             desired_organization="ООО ТехноИнновации",
             desired_position="Руководитель IT-отдела",
@@ -336,3 +331,125 @@ class TestEmployeeProfileModel:
             )
             assert profile.education_level == level
             assert profile.get_education_level_display() == display
+
+    @pytest.mark.parametrize(
+        "missing_field, field_value, field_name",
+        [
+            ("snils", "", "СНИЛС"),
+            ("position", "", "Должность"),
+            ("position_level", "", "Категория должности"),
+            ("gender", "", "Пол"),
+            ("citizenship", "", "Гражданство"),
+            ("education_level", "", "Уровень образования"),
+            ("graduation_year", None, "Год окончания"),
+            ("education_institution", "", "Учебное заведение"),
+            ("specialty", "", "Специальность"),
+            ("locality", "", "Населённый пункт"),
+            ("municipality", "", "Муниципалитет"),
+        ],
+    )
+    def test_is_profile_complete_false_missing_field(
+        self,
+        test_employee_user,
+        test_organization,
+        missing_field,
+        field_value,
+        field_name,
+    ):
+        """Тест: анкета не заполнена - отсутствует поле"""
+        profile_data = {
+            "user": test_employee_user,
+            "snils": "123-456-789 01",
+            "organization": test_organization,
+            "position": "Инженер",
+            "position_level": "specialist",
+            "gender": "M",
+            "citizenship": "Россия",
+            "education_level": "higher",
+            "graduation_year": 2015,
+            "education_institution": "ВГУ",
+            "specialty": "Программная инженерия",
+            "locality": "Воронеж",
+            "municipality": "Городской округ",
+        }
+        profile_data[missing_field] = field_value
+
+        profile = EmployeeProfile.objects.create(**profile_data)
+
+        user = profile.user
+        user.last_name = "Иванов"
+        user.first_name = "Иван"
+        user.birthday = "1990-01-01"
+        user.save()
+
+        assert (
+            profile.is_profile_complete() is False
+        ), f"Поле '{field_name}' должно делать анкету неполной"
+
+    @pytest.mark.parametrize(
+        "missing_user_field, field_value, field_name",
+        [
+            ("last_name", "", "Фамилия"),
+            ("first_name", "", "Имя"),
+            ("birthday", None, "Дата рождения"),
+        ],
+    )
+    def test_is_profile_complete_false_missing_user_field(
+        self,
+        test_employee_user,
+        test_organization,
+        missing_user_field,
+        field_value,
+        field_name,
+    ):
+        """Тест: анкета не заполнена - отсутствует поле пользователя"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+            gender="M",
+            citizenship="Россия",
+            education_level="higher",
+            graduation_year=2015,
+            education_institution="ВГУ",
+            specialty="Программная инженерия",
+            locality="Воронеж",
+            municipality="Городской округ",
+        )
+
+        user = profile.user
+        user.last_name = "Иванов" if missing_user_field != "last_name" else ""
+        user.first_name = "Иван" if missing_user_field != "first_name" else ""
+        user.birthday = "1990-01-01" if missing_user_field != "birthday" else None
+        user.save()
+
+        assert (
+            profile.is_profile_complete() is False
+        ), f"Поле '{field_name}' должно делать анкету неполной"
+
+    def test_is_profile_complete_true(self, test_employee_user, test_organization):
+        """Тест проверки заполненной анкеты (все поля заполнены)"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+            gender="M",
+            citizenship="Россия",
+            education_level="higher",
+            graduation_year=2015,
+            education_institution="ВГУ",
+            specialty="Программная инженерия",
+            locality="Воронеж",
+            municipality="Городской округ",
+        )
+        user = profile.user
+        user.last_name = "Иванов"
+        user.first_name = "Иван"
+        user.birthday = "1990-01-01"
+        user.save()
+
+        assert profile.is_profile_complete() is True

@@ -278,3 +278,34 @@ class EmployeeProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.organization.short_name}"
+
+    def is_profile_complete(self):
+        """
+        Проверяет, заполнена ли анкета полностью.
+        """
+        # Проверяем ФИО и дату рождения у пользователя
+        user = self.user
+        if not user.last_name or not user.first_name or not user.birthday:
+            return False
+
+        # Проверяем поля профиля (используем organization_id вместо organization)
+        required_fields = {
+            "СНИЛС": self.snils,
+            "organization_id": self.organization_id,
+            "Должность": self.position,
+            "Категория должности": self.position_level,
+            "Пол": self.gender,
+            "Гражданство": self.citizenship,
+            "Уровень образования": self.education_level,
+            "Год окончания": self.graduation_year,
+            "Учебное заведение": self.education_institution,
+            "Специальность": self.specialty,
+            "Населённый пункт": self.locality,
+            "Муниципалитет": self.municipality,
+        }
+
+        for field_name, value in required_fields.items():
+            if not value:
+                return False
+
+        return True
