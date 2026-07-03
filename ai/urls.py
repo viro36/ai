@@ -41,4 +41,6 @@ urlpatterns = [
     path("courses/", include("apps.courses.urls")),
     # Рекомендации
     path("recommendations/", include("apps.recommendations.urls")),
+    # Целеполагание развития
+    path("goal_setting/", include("apps.goal_setting.urls")),
 ]

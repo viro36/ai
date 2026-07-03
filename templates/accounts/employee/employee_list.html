@@ -57,6 +57,7 @@
                             <th>Категория должности</th>
                             <th>Должность</th>
                             <th>Анкета</th>
+                            <th>Целеполагание</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -81,7 +82,20 @@
                                         </span>
                                     {% else %}
                                         <span class="badge bg-warning text-dark">
-                                            <i class="fa-regular fa-circle-exclamation me-1"></i> Не заполнена
+                                            <i class="fa-solid fa-circle-exclamation me-1"></i> Не заполнена
+                                        </span>
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {% with profile=employee.employee_profile %}
+                                    {% if profile.is_goal_setting_complete %}
+                                        <span class="badge bg-success">
+                                            <i class="fa-regular fa-circle-check me-1"></i> Заполнено
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fa-solid fa-circle-exclamation me-1"></i> Не заполнено
                                         </span>
                                     {% endif %}
                                 {% endwith %}
@@ -89,7 +103,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="empty-table-message">
+                            <td colspan="7" class="empty-table-message">
                                 <i class="fa-solid fa-user-slash fa-3x mb-3 d-block"></i>
                                 Нет сотрудников в организации
                             </td>

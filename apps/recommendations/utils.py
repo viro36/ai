@@ -1,3 +1,4 @@
+from apps.goal_setting.utils import has_completed_goal_setting
 from apps.surveys.models import SurveyCategory
 
 
@@ -38,5 +39,11 @@ def has_completed_profile(user):
 
 
 def is_ready_for_recommendations(user):
-    """Проверяет, готов ли пользователь к получению рекомендаций (только анкета обязательна)"""
-    return has_completed_profile(user)
+    """
+    Проверяет, готов ли пользователь к получению рекомендаций.
+    Обязательно: анкета + целеполагание.
+    Опросы необязательны.
+    """
+    profile_completed = has_completed_profile(user)
+    goal_completed = has_completed_goal_setting(user)
+    return profile_completed and goal_completed

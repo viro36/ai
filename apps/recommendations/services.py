@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 
 from apps.courses.models import Course
 from apps.surveys.models import SurveyInterpretation
+from apps.goal_setting.models import GoalSettingResponse
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -109,6 +110,29 @@ class DeepSeekRecommendationService:
 
         return None
 
+    def get_goal_setting_data(self):
+        """Получает данные целеполагания пользователя"""
+        responses = GoalSettingResponse.objects.filter(user=self.user).select_related(
+            "question", "answer_option"
+        )
+
+        goal_data = {}
+        for response in responses:
+            question_text = response.question.text
+            if response.answer_option:
+                if response.answer_option.is_custom:
+                    goal_data[question_text] = response.answer_text
+                else:
+                    goal_data[question_text] = response.answer_option.label
+            elif response.answer_text:
+                goal_data[question_text] = response.answer_text
+            elif response.answer_date_start and response.answer_date_end:
+                goal_data[question_text] = (
+                    f"{response.answer_date_start} - {response.answer_date_end}"
+                )
+
+        return goal_data
+
     def get_user_profile(self):
         """Собирает полный профиль пользователя из ВСЕХ опросов (берёт последние попытки)"""
         profile = {
@@ -118,7 +142,6 @@ class DeepSeekRecommendationService:
                 "position_level": None,
                 "organization_name": None,
                 "organization_industry": None,
-                # НОВЫЕ ПОЛЯ
                 "education_level": None,
                 "education_institution": None,
                 "graduation_year": None,
@@ -267,6 +290,7 @@ class DeepSeekRecommendationService:
         """Подготавливает промпт для DeepSeek"""
         user_profile = self.get_user_profile()
         courses = self.get_courses_for_ai()
+        goal_data = self.get_goal_setting_data()
 
         # Получаем сегодняшнюю дату
         today = date.today()
@@ -334,6 +358,16 @@ class DeepSeekRecommendationService:
         if extra_info:
             extra_info = f"\n## ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ ИЗ ПРОФИЛЯ\n{extra_info}"
 
+        # Формируем секцию с целеполаганием
+        goal_section = ""
+        if goal_data:
+            goal_text = ""
+            for question, answer in goal_data.items():
+                goal_text += f"- {question}: {answer}\n"
+            goal_section = f"""
+## ЦЕЛЕПОЛАГАНИЕ (ответы пользователя)
+{goal_text}"""
+
         surveys_section = ""
         if has_surveys:
             surveys_section = f"""
@@ -362,13 +396,11 @@ class DeepSeekRecommendationService:
 Баллы: {json.dumps(user_profile['survey_results'].get('gardner', {}).get('scores', {}), ensure_ascii=False)}
 
 **Интерпретация:**
-{gardner_interp.get('description', 'Нет описания')}
-"""
+{gardner_interp.get('description', 'Нет описания')}"""
         else:
             surveys_section = """
 ## РЕЗУЛЬТАТЫ ТЕСТОВ
-Пользователь ещё не проходил опросы. Используй только информацию из профиля для подбора курсов.
-"""
+Пользователь ещё не проходил опросы. Используй только информацию из профиля для подбора курсов."""
 
         prompt = f"""
 Ты - эксперт по подбору образовательных курсов.
@@ -384,14 +416,14 @@ class DeepSeekRecommendationService:
 Организация: {user_profile['user_info']['organization_name'] or 'Не указана'}
 Сфера деятельности: {user_profile['user_info']['organization_industry'] or 'Не указана'}
 {extra_info}
-
+{goal_section}
 {surveys_section}
 
 ## ДОСТУПНЫЕ КУРСЫ
 {json.dumps(courses_list, ensure_ascii=False, indent=2)}
 
 ## ЗАДАНИЕ
-На основе профиля пользователя (обязательно) и результатов тестов (если есть), выбери ВСЕ подходящие курсы с оценкой 50% и выше.
+На основе профиля пользователя (обязательно), целеполагания (обязательно) и результатов тестов (если есть), выбери ВСЕ подходящие курсы с оценкой 50% и выше.
 
 **ВАЖНОЕ ПРАВИЛО ПО ДАТАМ:**
 - У каждого курса может быть указана дата начала (поле start_dates)
@@ -401,6 +433,10 @@ class DeepSeekRecommendationService:
 - Если дата начала в будущем или сегодня - курс можно рекомендовать
 - Если дата начала не указана ("Не указана") - просто игнорируй это поле, рекомендация возможна
 
+**ПРАВИЛА УЧЁТА ЦЕЛЕПОЛАГАНИЯ:**
+- **Желаемая форма обучения** — учитывай, НО только если у курса указан формат (поле format). Если формат курса не указан — не исключай курс, просто оценивай по другим критериям.
+- **Желаемый период обучения** — учитывай, НО только если у курса есть конкретные даты или периоды набора (поле start_dates). Если даты не указаны — не исключай курс, период не является обязательным условием.
+
 **ПРАВИЛА ОЦЕНКИ:**
 - 95-100: Идеальное совпадение
 - 80-94: Отличное совпадение
@@ -409,13 +445,23 @@ class DeepSeekRecommendationService:
 
 **ВАЖНО:**
 - Учитывай должность, уровень, организацию пользователя
+- **ОБЯЗАТЕЛЬНО** учитывай целеполагание пользователя (причины обучения, желаемые результаты, ключевые слова)
 - Если есть результаты тестов, используй их для более точного подбора
-- Если тестов нет, подбирай курсы на основе профиля (должность, уровень, сфера)
+- Если тестов нет, подбирай курсы на основе профиля и целеполагания
 - **ОБЯЗАТЕЛЬНО** проверяй даты начала курсов и исключай те, которые уже начались
 - Учитывай образование пользователя (если указано)
 - Учитывай желаемую сферу/организацию/должность (если указаны)
 
-**НЕ ОГРАНИЧИВАЙ количество рекомендаций** — выдай ВСЕ подходящие курсы с оценкой 50% и выше.
+**ОГРАНИЧЕНИЯ:**
+- Максимальное количество рекомендаций: НЕ БОЛЕЕ 90 курсов.
+- Если подходит больше 90 курсов, выбери 90 САМЫХ РЕЛЕВАНТНЫХ.
+- Если подходит меньше 90, выдай все подходящие.
+- **НЕ ДУБЛИРУЙ КУРСЫ** — каждый курс должен быть указан только один раз.
+
+**ФОРМАТ ПРИЧИНЫ РЕКОМЕНДАЦИИ:**
+- НЕ ПОВТОРЯЙ название курса в причине.
+- Начинай причину со слов: "Этот курс..." или "Программа..." или сразу с описания пользы.
+
 НО КАЖДУЮ ПРИЧИНУ ДЕЛАЙ КРАТКОЙ (1-2 предложения), не более 50 слов.
 
 Для каждого курса укажи:

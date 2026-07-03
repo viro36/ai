@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load django_bootstrap5 %}
+{% load form_filters %}
+
+{% block title %}Целеполагание - СкиллКомпас{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/goal_setting/goal_setting.css' %}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/goal_setting/goal_setting.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="goal-setting-container">
+    <div class="goal-setting-header">
+        <h1>
+            <i class="fa-solid fa-bullseye me-2" style="color: #292966;"></i>
+            Целеполагание
+        </h1>
+        <p class="subtitle">
+            Ответьте на вопросы, чтобы мы могли подобрать для вас наиболее подходящие курсы
+        </p>
+    </div>
+
+    <div class="progress-container">
+        <div class="progress-label">
+            <span>Прогресс заполнения</span>
+            <span>{{ progress }}%</span>
+        </div>
+        <div class="progress">
+            <div class="progress-bar" role="progressbar" style="width: {{ progress }}%;">
+            </div>
+        </div>
+    </div>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% for question in questions %}
+        <div class="question-card">
+            <div class="question-number">
+                Вопрос {{ forloop.counter }} из {{ total_questions }}
+            </div>
+            <div class="question-text">
+                {{ question.text }}
+                {% if question.is_required %}
+                    <span class="required-star">*</span>
+                {% endif %}
+            </div>
+            {% if question.description %}
+                <div class="question-description">{{ question.description }}</div>
+            {% endif %}
+
+            {% with q_num=forloop.counter|stringformat:"s" %}
+            {% with field_name="question_"|add:q_num %}
+            <div class="mt-3">
+
+                {% if question.question_type == 'choice' %}
+                    {# Все стандартные варианты #}
+                    {% for choice in question.options.all %}
+                        {% if not choice.is_custom %}
+                            {% with field=form|get_field:field_name %}
+                            <div class="form-check">
+                                <input type="radio"
+                                    name="{{ field_name }}"
+                                    id="id_{{ field_name }}_{{ forloop.counter }}"
+                                    value="{{ choice.value }}"
+                                    class="form-check-input"
+                                    {% if field and field.value == choice.value %}checked{% endif %}
+                                    {% if question.is_required %}required{% endif %}>
+                                <label class="form-check-label" for="id_{{ field_name }}_{{ forloop.counter }}">
+                                    {{ choice.label }}
+                                </label>
+                            </div>
+                            {% endwith %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {# Вариант "Свой вариант" #}
+                    {% if question.has_custom_option %}
+                        {% with field=form|get_field:field_name %}
+                        <div class="form-check">
+                            <input type="radio"
+                                name="{{ field_name }}"
+                                id="id_{{ field_name }}_custom_radio"
+                                value="custom"
+                                class="form-check-input"
+                                {% if field and field.value == 'custom' %}checked{% endif %}
+                                {% if question.is_required %}required{% endif %}>
+                            <label class="form-check-label" for="id_{{ field_name }}_custom_radio">
+                                {{ question.custom_option_label|default:"Свой вариант" }}
+                            </label>
+                        </div>
+                        {% endwith %}
+                        {# Поле для ввода своего варианта #}
+                        {% with custom_field_name=field_name|add:"_custom" %}
+                        {% with custom_field=form|get_field:custom_field_name %}
+                        <div class="custom-option-input" id="custom_wrapper_{{ q_num }}" style="display: {% if custom_field and custom_field.value %}block{% else %}none{% endif %};">
+                            <input type="text"
+                                name="{{ custom_field_name }}"
+                                id="id_{{ custom_field_name }}"
+                                class="form-control"
+                                placeholder="Введите свой вариант..."
+                                value="{{ custom_field.value|default:'' }}">
+                        </div>
+                        {% endwith %}
+                        {% endwith %}
+                    {% endif %}
+
+                {% elif question.question_type == 'multiple_choice' %}
+                    {% with field=form|get_field:field_name %}
+                    {% for choice in question.options.all %}
+                        {% if not choice.is_custom %}
+                            <div class="form-check">
+                                <input type="checkbox"
+                                    name="{{ field_name }}"
+                                    id="id_{{ field_name }}_{{ forloop.counter }}"
+                                    value="{{ choice.value }}"
+                                    class="form-check-input"
+                                    {% if choice.value in field.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_{{ field_name }}_{{ forloop.counter }}">
+                                    {{ choice.label }}
+                                </label>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                    {% endwith %}
+
+                {% elif question.question_type == 'text' %}
+                    {% with field=form|get_field:field_name %}
+                    <textarea
+                        name="{{ field_name }}"
+                        id="id_{{ field_name }}"
+                        class="form-control"
+                        rows="4"
+                        {% if question.is_required %}required{% endif %}
+                        maxlength="{{ question.max_length|default:500 }}"
+                        placeholder="{{ question.description|default:'Введите ваш ответ...' }}"
+                    >{{ field.value|default:'' }}</textarea>
+                    {% if question.max_length %}
+                        <small class="text-muted">Максимум {{ question.max_length }} символов</small>
+                    {% endif %}
+                    {% endwith %}
+
+                {% elif question.question_type == 'date_range' %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Дата начала</label>
+                            {% with start_field_name=field_name|add:"_start" %}
+                            {% with field=form|get_field:start_field_name %}
+                            <input type="date"
+                                name="{{ start_field_name }}"
+                                id="id_{{ start_field_name }}"
+                                class="form-control"
+                                {% if question.is_required %}required{% endif %}
+                                value="{{ field.value|date:'Y-m-d'|default:'' }}">
+                            {% endwith %}
+                            {% endwith %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Дата окончания</label>
+                            {% with end_field_name=field_name|add:"_end" %}
+                            {% with field=form|get_field:end_field_name %}
+                            <input type="date"
+                                name="{{ end_field_name }}"
+                                id="id_{{ end_field_name }}"
+                                class="form-control"
+                                {% if question.is_required %}required{% endif %}
+                                value="{{ field.value|date:'Y-m-d'|default:'' }}">
+                            {% endwith %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                {% endif %}
+
+            </div>
+            {% endwith %}
+            {% endwith %}
+        </div>
+        {% endfor %}
+
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-primary btn-lg px-5">
+                <i class="fa-solid fa-check me-2"></i>Сохранить целеполагание
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

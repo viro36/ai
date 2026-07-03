@@ -1,0 +1,240 @@
+.goal-setting-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.goal-setting-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.goal-setting-header h1 {
+    color: #292966;
+    font-weight: 700;
+}
+
+.goal-setting-header .subtitle {
+    color: #6c757d;
+    font-size: 1.1rem;
+}
+
+/* Прогресс */
+.progress-container {
+    margin-bottom: 30px;
+}
+
+.progress-container .progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 0.95rem;
+    color: #495057;
+}
+
+.progress-container .progress {
+    height: 12px;
+    border-radius: 10px;
+    background-color: #e9ecef;
+    overflow: hidden;
+}
+
+.progress-container .progress-bar {
+    background-color: #292966;
+    transition: width 0.5s ease;
+}
+
+/* Карточка вопроса */
+.question-card {
+    margin-bottom: 25px;
+    padding: 25px;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.2s ease;
+}
+
+.question-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.question-card .question-number {
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.question-card .question-text {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 5px;
+    line-height: 1.5;
+}
+
+.question-card .question-text .required-star {
+    color: #dc3545;
+    margin-left: 4px;
+}
+
+.question-card .question-description {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #292966;
+}
+
+/* Радиокнопки */
+.question-card .form-check {
+    margin-bottom: 8px;
+    padding-left: 30px;
+}
+
+.question-card .form-check-input {
+    width: 18px;
+    height: 18px;
+    margin-top: 0.15rem;
+    cursor: pointer;
+}
+
+.question-card .form-check-input:checked {
+    background-color: #292966;
+    border-color: #292966;
+}
+
+.question-card .form-check-label {
+    cursor: pointer;
+    font-weight: 400;
+    color: #212529;
+}
+
+/* Текстовые поля */
+.question-card .form-control {
+    border-radius: 8px;
+    border: 1px solid #ced4da;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s ease;
+}
+
+.question-card .form-control:focus {
+    border-color: #292966;
+    box-shadow: 0 0 0 3px rgba(41, 41, 102, 0.15);
+}
+
+.question-card textarea.form-control {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Свой вариант */
+.custom-option-input {
+    margin-top: 10px;
+    margin-left: 30px;
+}
+
+.custom-option-input .form-control {
+    background-color: #f8f9fa;
+}
+
+.custom-option-input .form-control:focus {
+    background-color: #ffffff;
+}
+
+/* Даты */
+.date-range-container {
+    display: flex;
+    gap: 20px;
+}
+
+.date-range-container .form-group {
+    flex: 1;
+}
+
+.date-range-container .form-label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+/* Кнопка отправки */
+.btn-submit {
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+.btn-submit .btn {
+    padding: 12px 50px;
+    font-size: 1.1rem;
+    border-radius: 10px;
+    background-color: #292966;
+    border: none;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.btn-submit .btn:hover {
+    background-color: #1e1e4a;
+    transform: translateY(-2px);
+}
+
+.btn-submit .btn:active {
+    transform: translateY(0);
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .goal-setting-container {
+        padding: 10px;
+    }
+
+    .question-card {
+        padding: 18px;
+    }
+
+    .question-card .question-text {
+        font-size: 1rem;
+    }
+
+    .date-range-container {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .btn-submit .btn {
+        width: 100%;
+        padding: 12px 20px;
+    }
+}
+
+/* Анимация появления */
+.question-card {
+    animation: fadeInUp 0.4s ease forwards;
+    opacity: 0;
+}
+
+.question-card:nth-child(1) { animation-delay: 0.05s; }
+.question-card:nth-child(2) { animation-delay: 0.10s; }
+.question-card:nth-child(3) { animation-delay: 0.15s; }
+.question-card:nth-child(4) { animation-delay: 0.20s; }
+.question-card:nth-child(5) { animation-delay: 0.25s; }
+.question-card:nth-child(6) { animation-delay: 0.30s; }
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

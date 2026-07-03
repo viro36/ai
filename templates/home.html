@@ -113,6 +113,24 @@
                 </div>
 
                 <div class="col-md-4">
+                    <a href="{% url 'goal_setting:goal_setting' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employee">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-bullseye"></i>
+                            </div>
+                            <h3 class="action-title">Целеполагание</h3>
+                            <p class="action-description">
+                                Определите свои цели и ожидания от обучения
+                                <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966; display: block;">
+                                    <i class="fa-regular {% if goal_setting_completed %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} me-1"></i>
+                                    {% if goal_setting_completed %}Заполнено{% else %}Обязательно заполнить{% endif %}
+                                </span>
+                            </p>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
                     <a href="{% url 'surveys:survey_list' %}" class="text-decoration-none">
                         <div class="action-card action-card-employee">
                             <div class="action-icon">
@@ -158,13 +176,13 @@
                                         {% if ready_for_recommendations %}
                                             Готово к генерации
                                         {% else %}
-                                            Заполните анкету
+                                            Заполните анкету и целеполагание
                                         {% endif %}
                                     </span>
                                 {% endif %}
                                 <small class="text-muted d-block mt-1">
                                     <i class="fa-solid fa-circle-info me-1"></i>
-                                    Для рекомендаций нужна анкета, опросы необязательны
+                                    Для рекомендаций нужна анкета и целеполагание, опросы необязательны
                                 </small>
                             </p>
                         </div>

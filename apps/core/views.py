@@ -4,6 +4,7 @@ from apps.recommendations.utils import (
     has_completed_profile,
     has_completed_all_surveys,
 )
+from apps.goal_setting.utils import has_completed_goal_setting
 
 
 class HomeView(TemplateView):
@@ -22,6 +23,9 @@ class HomeView(TemplateView):
             context["surveys_total"] = surveys_info["total"]
             context["all_surveys_completed"] = surveys_info["all_completed"]
             context["has_surveys"] = surveys_info["total"] > 0
+
+            # Целеполагание
+            context["goal_setting_completed"] = has_completed_goal_setting(user)
         else:
             context["ready_for_recommendations"] = False
             context["profile_completed"] = False
@@ -29,5 +33,6 @@ class HomeView(TemplateView):
             context["surveys_total"] = 0
             context["all_surveys_completed"] = False
             context["has_surveys"] = False
+            context["goal_setting_completed"] = False
 
         return context

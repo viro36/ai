@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from django.utils import timezone
+from datetime import datetime
 
 from apps.recommendations.tasks import generate_recommendations_for_user
 from apps.recommendations.models import CourseRecommendation, RecommendationTask
-from apps.surveys.models import SurveyCategory, SurveySession
 from apps.accounts.models import EmployeeProfile
 from apps.courses.models import Course
+from apps.goal_setting.models import Question, GoalSettingResponse
 
 pytestmark = pytest.mark.django_db
 
@@ -14,15 +14,61 @@ pytestmark = pytest.mark.django_db
 class TestGenerateRecommendationsTask:
     """Тесты для задачи генерации рекомендаций"""
 
+    def _create_complete_profile(self, user, organization):
+        """Хелпер для создания полного профиля"""
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="123-456-789 01",
+            organization=organization,
+            position="Начальник цеха",
+            position_level="middle",
+            gender="M",
+            citizenship="Россия",
+            education_level="higher",
+            graduation_year=2015,
+            education_institution="ВГУ",
+            specialty="Программная инженерия",
+            locality="Воронеж",
+            municipality="Городской округ",
+        )
+        user.last_name = "Иванов"
+        user.first_name = "Иван"
+        user.birthday = datetime(1990, 1, 1).date()
+        user.save()
+
+    def _create_complete_goal_setting(self, user):
+        """Хелпер для создания полного целеполагания"""
+        # Создаём активные вопросы
+        question1 = Question.objects.create(
+            text="Какая ваша цель?",
+            question_type="text",
+            is_active=True,
+            order=1,
+        )
+        question2 = Question.objects.create(
+            text="Что вы хотите изучить?",
+            question_type="text",
+            is_active=True,
+            order=2,
+        )
+
+        # Создаём ответы
+        GoalSettingResponse.objects.create(
+            user=user,
+            question=question1,
+            answer_text="Стать экспертом в AI",
+        )
+        GoalSettingResponse.objects.create(
+            user=user,
+            question=question2,
+            answer_text="Машинное обучение",
+        )
+
     @patch("apps.recommendations.tasks.DeepSeekRecommendationService")
     def test_task_success(self, mock_service, regular_user, organization):
         """Тест успешной генерации рекомендаций"""
-        EmployeeProfile.objects.create(
-            user=regular_user,
-            position="Начальник цеха",
-            position_level="middle",
-            organization=organization,
-        )
+        self._create_complete_profile(regular_user, organization)
+        self._create_complete_goal_setting(regular_user)
 
         course = Course.objects.create(
             title="Тестовый курс",
@@ -30,23 +76,12 @@ class TestGenerateRecommendationsTask:
             url="https://example.com/course/test",
         )
 
-        survey = SurveyCategory.objects.create(
-            name="RIASEC",
-            is_active=True,
-        )
-        SurveySession.objects.create(
-            user=regular_user,
-            category=survey,
-            status="completed",
-            completed_at=timezone.now(),
-        )
-
         mock_instance = MagicMock()
         mock_instance.get_recommendations.return_value = [
             {
                 "course_id": course.id,
                 "reason": "Отличный курс",
-                "relevance_score": 85,  # 85% (будет преобразован в 0.85)
+                "relevance_score": 85,
             }
         ]
         mock_service.return_value = mock_instance
@@ -60,18 +95,13 @@ class TestGenerateRecommendationsTask:
         assert rec is not None
         assert rec.course == course
         assert rec.reason == "Отличный курс"
-        # В задаче relevance_score делится на 100, если > 1
         assert rec.relevance_score == 0.85
 
     @patch("apps.recommendations.tasks.DeepSeekRecommendationService")
     def test_task_no_recommendations(self, mock_service, regular_user, organization):
         """Тест когда нет рекомендаций"""
-        EmployeeProfile.objects.create(
-            user=regular_user,
-            position="Начальник цеха",
-            position_level="middle",
-            organization=organization,
-        )
+        self._create_complete_profile(regular_user, organization)
+        self._create_complete_goal_setting(regular_user)
 
         mock_instance = MagicMock()
         mock_instance.get_recommendations.return_value = []
@@ -85,7 +115,6 @@ class TestGenerateRecommendationsTask:
         rec = CourseRecommendation.objects.filter(user=regular_user).first()
         assert rec is None
 
-        # Проверяем, что задача создана со статусом completed
         task = RecommendationTask.objects.filter(user=regular_user).first()
         assert task is not None
         assert task.status == "completed"
@@ -95,12 +124,8 @@ class TestGenerateRecommendationsTask:
         self, mock_service, regular_user, organization
     ):
         """Тест когда уже есть рекомендации"""
-        EmployeeProfile.objects.create(
-            user=regular_user,
-            position="Начальник цеха",
-            position_level="middle",
-            organization=organization,
-        )
+        self._create_complete_profile(regular_user, organization)
+        self._create_complete_goal_setting(regular_user)
 
         # Старый курс
         course1 = Course.objects.create(
@@ -139,7 +164,6 @@ class TestGenerateRecommendationsTask:
         assert result["created"] == 1
         assert CourseRecommendation.objects.filter(user=regular_user).count() == 1
 
-        # Проверяем, что старая рекомендация удалена
         new_rec = CourseRecommendation.objects.filter(user=regular_user).first()
         assert new_rec.course == course2
         assert new_rec.reason == "Новая рекомендация"
@@ -150,12 +174,8 @@ class TestGenerateRecommendationsTask:
         self, mock_service, regular_user, organization
     ):
         """Тест с несуществующим ID курса"""
-        EmployeeProfile.objects.create(
-            user=regular_user,
-            position="Начальник цеха",
-            position_level="middle",
-            organization=organization,
-        )
+        self._create_complete_profile(regular_user, organization)
+        self._create_complete_goal_setting(regular_user)
 
         mock_instance = MagicMock()
         mock_instance.get_recommendations.return_value = [
@@ -169,12 +189,10 @@ class TestGenerateRecommendationsTask:
 
         result = generate_recommendations_for_user(regular_user.id)
 
-        # Рекомендация не должна создаться
         assert CourseRecommendation.objects.filter(user=regular_user).count() == 0
         assert result["status"] == "success"
         assert result["created"] == 0
 
-        # Проверяем, что задача создана со статусом completed
         task = RecommendationTask.objects.filter(user=regular_user).first()
         assert task is not None
         assert task.status == "completed"
@@ -182,12 +200,8 @@ class TestGenerateRecommendationsTask:
     @patch("apps.recommendations.tasks.DeepSeekRecommendationService")
     def test_task_with_error(self, mock_service, regular_user, organization):
         """Тест с ошибкой в сервисе"""
-        EmployeeProfile.objects.create(
-            user=regular_user,
-            position="Начальник цеха",
-            position_level="middle",
-            organization=organization,
-        )
+        self._create_complete_profile(regular_user, organization)
+        self._create_complete_goal_setting(regular_user)
 
         mock_instance = MagicMock()
         mock_instance.get_recommendations.side_effect = Exception("API Error")
@@ -208,3 +222,18 @@ class TestGenerateRecommendationsTask:
         result = generate_recommendations_for_user(99999)
         assert result["status"] == "error"
         assert result["error"] == "User not found"
+
+    def test_task_profile_not_complete(self, regular_user, organization):
+        """Тест когда профиль не заполнен"""
+        # Создаём неполный профиль
+        EmployeeProfile.objects.create(
+            user=regular_user,
+            organization=organization,
+            position="Начальник цеха",
+            # position_level не заполнен
+        )
+
+        result = generate_recommendations_for_user(regular_user.id)
+
+        assert result["status"] == "error"
+        assert "заполнил анкету" in result["error"]

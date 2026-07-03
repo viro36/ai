@@ -309,3 +309,14 @@ class EmployeeProfile(models.Model):
                 return False
 
         return True
+
+    def is_goal_setting_complete(self):
+        """
+        Проверяет, заполнено ли целеполагание пользователя.
+        """
+        from apps.goal_setting.models import Question, GoalSettingResponse
+
+        questions = Question.objects.filter(is_active=True)
+        total = questions.count()
+        answered = GoalSettingResponse.objects.filter(user=self.user).count()
+        return answered == total and total > 0

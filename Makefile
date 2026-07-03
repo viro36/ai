@@ -103,6 +103,9 @@ pytest-courses:
 pytest-recommendations:
 	docker-compose exec ai python -m pytest -v apps/recommendations/tests/
 
+pytest-goal:
+	docker-compose exec ai python -m pytest -v apps/goal_setting/tests/
+
 pytest-all:
 	docker-compose exec ai python -m pytest apps/ -v --cov=apps --cov-report=term-missing
 
@@ -132,3 +135,6 @@ load_orgs:
 
 load_init:
 	docker-compose exec ai python apps/surveys/scripts/init_survey_data.py
+
+load_goal:
+	docker-compose exec ai python manage.py seed_goal_setting_questions

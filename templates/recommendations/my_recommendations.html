@@ -32,6 +32,7 @@
         <strong>Как мы подбираем курсы:</strong>
         <ul class="mt-2 mb-0">
             <li><i class="fa-regular fa-circle-check text-success me-2"></i><strong>Обязательно:</strong> заполненная анкета (должность, уровень, организация)</li>
+            <li><i class="fa-solid fa-bullseye text-success me-2"></i><strong>Обязательно:</strong> заполненное целеполагание</li>
             <li><i class="fa-regular fa-chart-bar me-2"></i><strong>По желанию:</strong> прохождение опросов для более точного подбора</li>
             <li><i class="fa-solid fa-bullseye me-2"></i>Чем больше данных, тем точнее рекомендации</li>
         </ul>
@@ -138,15 +139,21 @@
     {% elif not ready_for_recommendations %}
     <div class="alert alert-warning text-center">
         <i class="fa-regular fa-circle-exclamation fa-2x mb-3 d-block"></i>
-        <h4>Необходимо заполнить анкету</h4>
-        <p>Для получения персонализированных рекомендаций необходимо заполнить анкету.</p>
-        <p class="text-muted small">Опросы необязательны, но помогут сделать рекомендации точнее.</p>
+        <h4>Необходимо заполнить анкету и целеполагание</h4>
+        <p>Для получения персонализированных рекомендаций необходимо:</p>
         <div class="text-start d-inline-block mt-3">
             <ul class="list-unstyled">
                 <li>
                     <i class="fa-regular {% if profile_completed %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} me-2"></i>
                     Заполнить анкету
                     {% if not profile_completed %}
+                        <span class="badge bg-danger ms-2">Обязательно</span>
+                    {% endif %}
+                </li>
+                <li class="mt-2">
+                    <i class="fa-regular {% if goal_setting_completed %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} me-2"></i>
+                    Заполнить целеполагание
+                    {% if not goal_setting_completed %}
                         <span class="badge bg-danger ms-2">Обязательно</span>
                     {% endif %}
                 </li>
@@ -165,6 +172,10 @@
             {% if not profile_completed %}
                 <a href="{% url 'accounts:employee_profile' %}" class="btn btn-primary mt-2">
                     <i class="fa-solid fa-user-edit me-2"></i>Заполнить анкету
+                </a>
+            {% elif not goal_setting_completed %}
+                <a href="{% url 'goal_setting:goal_setting' %}" class="btn btn-primary mt-2">
+                    <i class="fa-solid fa-bullseye me-2"></i>Заполнить целеполагание
                 </a>
             {% elif not all_surveys_completed and has_surveys %}
                 <a href="{% url 'surveys:survey_list' %}" class="btn btn-outline-primary mt-2">
@@ -198,7 +209,7 @@
             {% elif has_surveys %}
                 Опросы пройдены частично ({{ surveys_completed }}/{{ surveys_total }}) — рекомендации будут точнее, если пройти все.
             {% else %}
-                Опросы не пройдены — рекомендации будут на основе анкеты.
+                Опросы не пройдены — рекомендации будут на основе анкеты и целеполагания.
             {% endif %}
         </p>
         <form method="post" action="{% url 'recommendations:generate_recommendations' %}" class="mt-3">

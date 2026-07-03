@@ -404,3 +404,96 @@ def user_with_employee_profile(regular_user, organization):
         organization=organization,
     )
     return regular_user
+
+
+@pytest.fixture
+def test_question_choice():
+    """Фикстура вопроса типа choice"""
+    from apps.goal_setting.models import Question, QuestionOption
+
+    question = Question.objects.create(
+        text="Какой ваш любимый язык программирования?",
+        question_type="choice",
+        is_active=True,
+        order=1,
+    )
+    QuestionOption.objects.create(
+        question=question,
+        value="python",
+        label="Python",
+        order=1,
+    )
+    QuestionOption.objects.create(
+        question=question,
+        value="javascript",
+        label="JavaScript",
+        order=2,
+    )
+    return question
+
+
+@pytest.fixture
+def test_question_text():
+    """Фикстура вопроса типа text"""
+    from apps.goal_setting.models import Question
+
+    return Question.objects.create(
+        text="Опишите ваш опыт работы",
+        question_type="text",
+        is_active=True,
+        order=2,
+        max_length=1000,
+    )
+
+
+@pytest.fixture
+def test_question_multiple_choice():
+    """Фикстура вопроса типа multiple_choice"""
+    from apps.goal_setting.models import Question, QuestionOption
+
+    question = Question.objects.create(
+        text="Какие технологии вы используете?",
+        question_type="multiple_choice",
+        is_active=True,
+        order=3,
+        is_multiple=True,
+    )
+    QuestionOption.objects.create(
+        question=question,
+        value="docker",
+        label="Docker",
+        order=1,
+    )
+    QuestionOption.objects.create(
+        question=question,
+        value="kubernetes",
+        label="Kubernetes",
+        order=2,
+    )
+    return question
+
+
+@pytest.fixture
+def test_question_date_range():
+    """Фикстура вопроса типа date_range"""
+    from apps.goal_setting.models import Question
+
+    return Question.objects.create(
+        text="Укажите период вашей работы на последнем месте",
+        question_type="date_range",
+        is_active=True,
+        order=4,
+    )
+
+
+@pytest.fixture
+def test_question_inactive():
+    """Фикстура неактивного вопроса"""
+    from apps.goal_setting.models import Question
+
+    return Question.objects.create(
+        text="Неактивный вопрос",
+        question_type="text",
+        is_active=False,
+        order=999,
+    )

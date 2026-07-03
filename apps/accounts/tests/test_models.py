@@ -6,7 +6,7 @@ from apps.accounts.models import (
     EmployerProfile,
     EmployeeProfile,
 )
-from apps.organizations.models import OrganizationType
+from apps.goal_setting.models import Question, GoalSettingResponse
 
 User = get_user_model()
 
@@ -453,3 +453,97 @@ class TestEmployeeProfileModel:
         user.save()
 
         assert profile.is_profile_complete() is True
+
+    # ========== ТЕСТЫ ДЛЯ is_goal_setting_complete ==========
+
+    def test_is_goal_setting_complete_true(
+        self,
+        test_employee_user,
+        test_organization,
+        test_question_choice,
+        test_question_text,
+        test_question_multiple_choice,
+        test_question_date_range,
+    ):
+        """Тест: целеполагание заполнено (все вопросы отвечены)"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+
+        # Создаём ответы на все вопросы
+        questions = [
+            test_question_choice,
+            test_question_text,
+            test_question_multiple_choice,
+            test_question_date_range,
+        ]
+        for question in questions:
+            GoalSettingResponse.objects.create(
+                user=test_employee_user,
+                question=question,
+                answer_text="Тестовый ответ",
+            )
+
+        assert profile.is_goal_setting_complete() is True
+
+    def test_is_goal_setting_complete_false_partial(
+        self,
+        test_employee_user,
+        test_organization,
+        test_question_choice,
+        test_question_text,
+        test_question_multiple_choice,
+        test_question_date_range,
+    ):
+        """Тест: целеполагание не заполнено (часть вопросов отвечена)"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+
+        # Создаём ответ только на первый вопрос
+        GoalSettingResponse.objects.create(
+            user=test_employee_user,
+            question=test_question_choice,
+            answer_text="Тестовый ответ",
+        )
+
+        assert profile.is_goal_setting_complete() is False
+
+    def test_is_goal_setting_complete_false_empty(
+        self, test_employee_user, test_organization
+    ):
+        """Тест: целеполагание не заполнено (нет ответов)"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+
+        assert profile.is_goal_setting_complete() is False
+
+    def test_is_goal_setting_complete_no_active_questions(
+        self, test_employee_user, test_organization
+    ):
+        """Тест: нет активных вопросов (возвращает False)"""
+        # Удаляем все активные вопросы
+        Question.objects.all().update(is_active=False)
+
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+
+        assert profile.is_goal_setting_complete() is False
