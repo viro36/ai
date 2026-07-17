@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+/Users/angelinaelfimova/Desktop/Projects/ai/templates/accounts/employee/employee_list.html{% extends 'base.html' %}
 {% load static %}
 
 {% block title %}Сотрудники {{ organization.short_name }} - СкиллКомпас{% endblock %}
@@ -58,6 +58,8 @@
                             <th>Должность</th>
                             <th>Анкета</th>
                             <th>Целеполагание</th>
+                            <th>Рекомендации</th>
+                            <th>Выбранные курсы</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -100,10 +102,34 @@
                                     {% endif %}
                                 {% endwith %}
                             </td>
+                            <td>
+                                {% if employee.recommendations_count > 0 %}
+                                    <span class="badge" style="background-color: #CCCCFF; color: #292966;">
+                                        <i class="fa-solid fa-graduation-cap me-1"></i>
+                                        {{ employee.recommendations_count }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fa-regular fa-circle me-1"></i> Нет
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if employee.has_selected_courses %}
+                                    <a href="{% url 'accounts:employee_selected_courses' employee.id %}" class="badge text-decoration-none" style="background-color: #CCCCFF; color: #292966;">
+                                        <i class="fa-solid fa-bookmark me-1"></i>
+                                        {{ employee.selected_courses_count }}
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fa-regular fa-circle me-1"></i> Нет
+                                    </span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="empty-table-message">
+                            <td colspan="9" class="empty-table-message">
                                 <i class="fa-solid fa-user-slash fa-3x mb-3 d-block"></i>
                                 Нет сотрудников в организации
                             </td>

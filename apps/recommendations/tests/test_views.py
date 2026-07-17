@@ -4,7 +4,11 @@ from django.urls import reverse
 from django.contrib.messages import get_messages
 from datetime import datetime
 
-from apps.recommendations.models import CourseRecommendation, RecommendationTask
+from apps.recommendations.models import (
+    CourseRecommendation,
+    RecommendationTask,
+    SelectedCourse,
+)
 from apps.accounts.models import EmployeeProfile
 from apps.courses.models import Course
 from apps.goal_setting.models import Question, GoalSettingResponse
@@ -126,6 +130,24 @@ class TestMyRecommendationsView:
         response = client.get(url)
         assert response.status_code == 200
         assert response.context["ready_for_recommendations"] is True
+
+    def test_view_selected_course_ids(self, client, regular_user, course):
+        """Тест передачи ID выбранных курсов в контекст"""
+        # Создаём выбранный курс
+        SelectedCourse.objects.create(user=regular_user, course=course)
+
+        # Создаём рекомендацию
+        CourseRecommendation.objects.create(
+            user=regular_user,
+            course=course,
+            reason="Тест",
+        )
+
+        client.force_login(regular_user)
+        url = reverse("recommendations:my_recommendations")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert course.id in response.context["selected_course_ids"]
 
 
 class TestGenerateRecommendationsView:
@@ -295,3 +317,174 @@ class TestRegenerateRecommendationsView:
         assert task is not None
         assert task.task_id == "test-task-456"
         assert task.status == "pending"
+
+
+class TestCheckRecommendationsStatusView:
+    """Тесты для проверки статуса генерации"""
+
+    def test_status_requires_login(self, client):
+        url = reverse("recommendations:check_status")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_status_pending(self, client, regular_user, recommendation_task):
+        client.force_login(regular_user)
+        url = reverse("recommendations:check_status")
+        response = client.get(url)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "pending"
+
+    def test_status_completed(self, client, regular_user, organization):
+        """Тест статуса completed"""
+        # Создаём завершённую задачу
+        task = RecommendationTask.objects.create(
+            user=regular_user,
+            task_id="task-123",
+            status="completed",
+        )
+        # Создаём курс с организацией
+        course = Course.objects.create(
+            title="Курс",
+            organization=organization,
+            url="https://test.com",
+            is_deleted=False,
+        )
+        # Создаём рекомендацию
+        CourseRecommendation.objects.create(
+            user=regular_user,
+            course=course,
+            reason="Тест",
+        )
+
+        client.force_login(regular_user)
+        url = reverse("recommendations:check_status")
+        response = client.get(url)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        assert data["has_recommendations"] is True
+        assert data["count"] == 1
+
+    def test_status_failed(self, client, regular_user):
+        task = RecommendationTask.objects.create(
+            user=regular_user,
+            task_id="task-123",
+            status="failed",
+            error_message="Ошибка генерации",
+        )
+
+        client.force_login(regular_user)
+        url = reverse("recommendations:check_status")
+        response = client.get(url)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "failed"
+        assert data["error"] == "Ошибка генерации"
+
+
+class TestSelectCourseView:
+    """Тесты для выбора курса"""
+
+    def test_select_requires_login(self, client, course):
+        url = reverse("recommendations:select_course", args=[course.id])
+        response = client.post(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_select_course_success(self, client, regular_user, course):
+        client.force_login(regular_user)
+        url = reverse("recommendations:select_course", args=[course.id])
+        response = client.post(url, follow=True)
+
+        assert response.status_code == 200
+        assert SelectedCourse.objects.filter(user=regular_user, course=course).exists()
+
+        messages = list(get_messages(response.wsgi_request))
+        assert any("успешно выбран" in str(msg).lower() for msg in messages)
+
+    def test_select_course_already_selected(self, client, regular_user, course):
+        SelectedCourse.objects.create(user=regular_user, course=course)
+
+        client.force_login(regular_user)
+        url = reverse("recommendations:select_course", args=[course.id])
+        response = client.post(url, follow=True)
+
+        assert response.status_code == 200
+        # Проверяем, что дубликат не создался
+        assert (
+            SelectedCourse.objects.filter(user=regular_user, course=course).count() == 1
+        )
+
+        messages = list(get_messages(response.wsgi_request))
+        assert any("уже был выбран" in str(msg).lower() for msg in messages)
+
+    def test_select_deleted_course(self, client, regular_user, deleted_course):
+        client.force_login(regular_user)
+        url = reverse("recommendations:select_course", args=[deleted_course.id])
+        response = client.post(url)
+        assert response.status_code == 404
+
+
+class TestSelectedCoursesView:
+    """Тесты для списка выбранных курсов"""
+
+    def test_selected_requires_login(self, client):
+        url = reverse("recommendations:selected_courses")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_selected_empty(self, client, regular_user):
+        client.force_login(regular_user)
+        url = reverse("recommendations:selected_courses")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.context["total"] == 0
+        assert len(response.context["selected_courses"]) == 0
+
+    def test_selected_with_courses(self, client, regular_user, multiple_courses):
+        for course in multiple_courses[:3]:
+            SelectedCourse.objects.create(user=regular_user, course=course)
+
+        client.force_login(regular_user)
+        url = reverse("recommendations:selected_courses")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.context["total"] == 3
+        assert len(response.context["selected_courses"]) == 3
+
+
+class TestRemoveSelectedCourseView:
+    """Тесты для удаления выбранного курса"""
+
+    def test_remove_requires_login(self, client, course):
+        url = reverse("recommendations:remove_selected_course", args=[course.id])
+        response = client.post(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_remove_success(self, client, regular_user, course):
+        SelectedCourse.objects.create(user=regular_user, course=course)
+
+        client.force_login(regular_user)
+        url = reverse("recommendations:remove_selected_course", args=[course.id])
+        response = client.post(url, follow=True)
+
+        assert response.status_code == 200
+        assert not SelectedCourse.objects.filter(
+            user=regular_user, course=course
+        ).exists()
+
+        messages = list(get_messages(response.wsgi_request))
+        assert any("удалён из выбранных" in str(msg).lower() for msg in messages)
+
+    def test_remove_nonexistent(self, client, regular_user, course):
+        client.force_login(regular_user)
+        url = reverse("recommendations:remove_selected_course", args=[course.id])
+        response = client.post(url, follow=True)
+
+        assert response.status_code == 200
+        # Просто проверяем, что ошибки нет
+        assert "Курс" in str(list(get_messages(response.wsgi_request))[0])

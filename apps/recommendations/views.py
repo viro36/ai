@@ -1,16 +1,18 @@
 from django.core.paginator import Paginator
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.utils import timezone
 
-from .models import CourseRecommendation, RecommendationTask
+from .models import CourseRecommendation, RecommendationTask, SelectedCourse
 from .tasks import generate_recommendations_for_user
 from .utils import (
     has_completed_all_surveys,
     has_completed_profile,
     is_ready_for_recommendations,
 )
+from apps.courses.models import Course
 
 
 @login_required
@@ -31,6 +33,13 @@ def my_recommendations(request):
     profile_completed = has_completed_profile(request.user)
     surveys_info = has_completed_all_surveys(request.user)
 
+    # Получаем ID выбранных курсов (как числа)
+    selected_course_ids = list(
+        SelectedCourse.objects.filter(user=request.user).values_list(
+            "course_id", flat=True
+        )
+    )
+
     context = {
         "recommendations": recommendations,
         "task_status": task_status,
@@ -43,6 +52,7 @@ def my_recommendations(request):
         "has_surveys": surveys_info["total"] > 0,
         "paginator": paginator,
         "page_obj": recommendations,
+        "selected_course_ids": selected_course_ids,
     }
     return render(request, "recommendations/my_recommendations.html", context)
 
@@ -136,3 +146,41 @@ def check_recommendations_status(request):
         )
     else:
         return JsonResponse({"status": "pending"})
+
+
+@login_required
+def select_course(request, course_id):
+    """Выбор курса пользователем"""
+    if request.method == "POST":
+        course = get_object_or_404(Course, id=course_id, is_deleted=False)
+
+        if SelectedCourse.objects.filter(user=request.user, course=course).exists():
+            messages.info(request, f'Курс "{course.title}" уже был выбран ранее.')
+        else:
+            SelectedCourse.objects.create(user=request.user, course=course)
+            messages.success(request, f'Курс "{course.title}" успешно выбран!')
+
+        return redirect("recommendations:my_recommendations")
+    return redirect("recommendations:my_recommendations")
+
+
+@login_required
+def selected_courses(request):
+    """Список выбранных курсов пользователя"""
+    selected = SelectedCourse.objects.filter(user=request.user).select_related("course")
+
+    context = {
+        "selected_courses": selected,
+        "total": selected.count(),
+    }
+    return render(request, "recommendations/selected_courses.html", context)
+
+
+@login_required
+def remove_selected_course(request, course_id):
+    """Удаление выбранного курса"""
+    if request.method == "POST":
+        course = get_object_or_404(Course, id=course_id)
+        SelectedCourse.objects.filter(user=request.user, course=course).delete()
+        messages.success(request, f'Курс "{course.title}" удалён из выбранных.')
+    return redirect("recommendations:selected_courses")

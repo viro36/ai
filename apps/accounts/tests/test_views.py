@@ -2,12 +2,14 @@ import pytest
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
+from apps.courses.models import Course
 from apps.organizations.models import Organization
 from apps.accounts.models import (
     EmployerRegistrationRequest,
     EmployerProfile,
     EmployeeProfile,
 )
+from apps.recommendations.models import CourseRecommendation, SelectedCourse
 
 User = get_user_model()
 
@@ -450,9 +452,197 @@ class TestEmployeeListView:
         response = client.get(url)
 
         assert response.status_code == 200
-        # Проверяем, что отображается сообщение о пустом списке
         content = response.content.decode()
         assert "Нет сотрудников" in content or "0" in content
+
+    def test_employee_list_recommendations_count(
+        self, client, test_employer_user, test_employee_user, test_course
+    ):
+        """Тест подсчёта количества рекомендаций у сотрудника"""
+        # Создаём рекомендации для сотрудника
+        for i in range(5):
+            CourseRecommendation.objects.create(
+                user=test_employee_user,
+                course=test_course,
+                reason=f"Тестовая причина {i}",
+                relevance_score=0.8,
+                order=i,
+            )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        # Проверяем, что в контексте есть аннотация с количеством
+        employees = response.context["employees"]
+        for emp in employees:
+            if emp.id == test_employee_user.id:
+                assert emp.recommendations_count == 5
+
+    def test_employee_list_selected_courses_count(
+        self, client, test_employer_user, test_employee_user, test_course
+    ):
+        """Тест подсчёта количества выбранных курсов у сотрудника"""
+        # Создаём выбранные курсы для сотрудника
+        for i in range(3):
+            course = Course.objects.create(
+                title=f"Выбранный курс {i}",
+                organization=test_employee_user.organization,
+                url=f"https://test.com/course{i}",
+                is_deleted=False,
+            )
+            SelectedCourse.objects.create(
+                user=test_employee_user,
+                course=course,
+            )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        employees = response.context["employees"]
+        for emp in employees:
+            if emp.id == test_employee_user.id:
+                assert emp.selected_courses_count == 3
+                assert emp.has_selected_courses is True
+
+    def test_employee_list_no_recommendations(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест когда у сотрудника нет рекомендаций"""
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        employees = response.context["employees"]
+        for emp in employees:
+            if emp.id == test_employee_user.id:
+                assert emp.recommendations_count == 0
+
+    def test_employee_list_no_selected_courses(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест когда у сотрудника нет выбранных курсов"""
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        employees = response.context["employees"]
+        for emp in employees:
+            if emp.id == test_employee_user.id:
+                assert emp.selected_courses_count == 0
+                assert emp.has_selected_courses is False
+
+
+@pytest.mark.django_db
+class TestEmployeeSelectedCoursesView:
+    """Тесты для просмотра выбранных курсов сотрудника работодателем"""
+
+    def test_employee_selected_courses_requires_login(self, client, test_employee_user):
+        """Тест требования авторизации"""
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_employee_selected_courses_requires_employer_type(
+        self, client, test_employee_user
+    ):
+        """Тест - только работодатель имеет доступ"""
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+        assert response.status_code == 403
+
+    def test_employee_selected_courses_returns_200_for_employer(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест успешного доступа для работодателя"""
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_employee_selected_courses_404_for_wrong_organization(
+        self, client, test_employer_user
+    ):
+        """Тест - сотрудник из другой организации не доступен"""
+        # Создаём другую организацию
+        other_org = Organization.objects.create(
+            inn="999999999999",
+            kpp="999999999",
+            ogrn="999999999999999",
+            full_name="Другая организация",
+            short_name="Другая ООО",
+            address_raw="г. Другой",
+            status="ACTIVE",
+        )
+        # Создаём сотрудника в другой организации
+        other_employee = User.objects.create_user(
+            username="other_employee",
+            email="other@test.com",
+            password="pass123",
+            user_type="employee",
+            organization=other_org,
+        )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_selected_courses", args=[other_employee.id])
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_employee_selected_courses_displays_courses(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест отображения выбранных курсов сотрудника"""
+        # Создаём выбранные курсы
+        for i in range(3):
+            course = Course.objects.create(
+                title=f"Курс {i}",
+                organization=test_employee_user.organization,
+                url=f"https://test.com/course{i}",
+                is_deleted=False,
+            )
+            SelectedCourse.objects.create(
+                user=test_employee_user,
+                course=course,
+            )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Курс 0" in content
+        assert "Курс 1" in content
+        assert "Курс 2" in content
+        assert "Кнопка удалить" not in content  # Проверяем, что нет кнопки удаления
+
+    def test_employee_selected_courses_empty(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест когда у сотрудника нет выбранных курсов"""
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "нет выбранных курсов" in content.lower() or "0" in content
 
 
 @pytest.mark.django_db
@@ -461,7 +651,6 @@ class TestOrganizationEmployeeCountProperty:
 
     def test_employee_count_property(self, test_organization):
         """Тест подсчёта количества сотрудников"""
-        # Создаём сотрудников
         for i in range(5):
             emp = User.objects.create_user(
                 username=f"count_emp_{i}",
@@ -498,14 +687,12 @@ class TestOrganizationEmployeeCountProperty:
             position_level="specialist",
         )
 
-        # Неактивный сотрудник не должен учитываться
         assert test_organization.employee_count == 0
 
     def test_employee_count_ignores_non_employee_users(
         self, test_organization, test_employer_user
     ):
         """Тест - не считаются пользователи других типов"""
-        # Работодатель не должен учитываться
         assert test_organization.employee_count == 0
 
 
@@ -515,5 +702,20 @@ class TestOrganizationActiveCoursesCountProperty:
 
     def test_active_courses_count_property(self, test_organization, test_course):
         """Тест подсчёта активных курсов"""
-        # test_course уже активный (is_deleted=False)
+        assert test_organization.active_courses_count == 1
+
+    def test_active_courses_count_ignores_deleted(self, test_organization):
+        """Тест - удалённые курсы не считаются"""
+        course1 = Course.objects.create(
+            title="Активный курс",
+            organization=test_organization,
+            url="https://test.com/active",
+            is_deleted=False,
+        )
+        course2 = Course.objects.create(
+            title="Удалённый курс",
+            organization=test_organization,
+            url="https://test.com/deleted",
+            is_deleted=True,
+        )
         assert test_organization.active_courses_count == 1

@@ -12,4 +12,11 @@ urlpatterns = [
         name="regenerate_recommendations",
     ),
     path("status/", views.check_recommendations_status, name="check_status"),
+    path("select/<int:course_id>/", views.select_course, name="select_course"),
+    path("selected/", views.selected_courses, name="selected_courses"),
+    path(
+        "remove/<int:course_id>/",
+        views.remove_selected_course,
+        name="remove_selected_course",
+    ),
 ]

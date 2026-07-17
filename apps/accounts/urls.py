@@ -39,4 +39,10 @@ urlpatterns = [
         employee_views.EmployeeListView.as_view(),
         name="employee_list",
     ),
+    # Выбранные курсы сотрудника
+    path(
+        "employee/<int:employee_id>/selected-courses/",
+        employee_views.EmployeeSelectedCoursesView.as_view(),
+        name="employee_selected_courses",
+    ),
 ]

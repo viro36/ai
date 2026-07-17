@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Выбранные курсы{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/recommendations/selected_courses.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4 selected-header">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-bookmark me-2" style="color: #CCCCFF;"></i>
+            Выбранные курсы
+            <span class="badge ms-2">{{ total }}</span>
+        </h1>
+        <a href="{% url 'recommendations:my_recommendations' %}" class="btn btn-outline-primary">
+            <i class="fa-solid fa-arrow-left me-2"></i>Назад к рекомендациям
+        </a>
+    </div>
+
+    {% if selected_courses %}
+        <div class="row">
+            {% for item in selected_courses %}
+            <div class="col-md-4 mb-4">
+                <div class="card selected-course-card h-100 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fa-solid fa-graduation-cap me-2"></i>
+                            {{ item.course.title }}
+                        </h5>
+                        <p class="card-text text-muted small">
+                            <i class="fa-regular fa-building me-1"></i>{{ item.course.organization.short_name }}
+                        </p>
+                        <p class="card-text text-muted small">
+                            <i class="fa-regular fa-calendar me-1"></i>Выбран: {{ item.created_at|date:"d.m.Y" }}
+                        </p>
+                        <div class="mt-3 d-flex gap-2 flex-wrap">
+                            <a href="{% url 'courses:course_detail' item.course.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fa-regular fa-eye me-1"></i>Подробнее
+                            </a>
+                            <form method="post" action="{% url 'recommendations:remove_selected_course' item.course.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить этот курс из выбранных?')">
+                                    <i class="fa-solid fa-trash me-1"></i>Удалить
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center py-5">
+            <i class="fa-regular fa-circle-info fa-3x mb-3 d-block"></i>
+            <h4>Вы ещё не выбрали ни одного курса</h4>
+            <p class="mb-3">Перейдите в раздел рекомендаций и выберите подходящие курсы.</p>
+            <a href="{% url 'recommendations:my_recommendations' %}" class="btn btn-primary">
+                <i class="fa-solid fa-lightbulb me-2"></i>К рекомендациям
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

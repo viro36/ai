@@ -5,6 +5,7 @@ from apps.accounts.models import EmployeeProfile
 from apps.courses.models import Course
 from apps.organizations.models import Organization, District, OrganizationType
 from apps.goal_setting.models import Question, QuestionOption
+from apps.recommendations.models import CourseRecommendation, SelectedCourse
 
 User = get_user_model()
 
@@ -248,3 +249,36 @@ def test_question_inactive():
         is_active=False,
         order=999,
     )
+
+
+@pytest.fixture
+def test_employee_user_with_selected_courses(test_employee_user, test_organization):
+    """Фикстура для работника с выбранными курсами"""
+    courses = []
+    for i in range(3):
+        course = Course.objects.create(
+            title=f"Выбранный курс {i}",
+            organization=test_organization,
+            url=f"https://test.com/selected{i}",
+            is_deleted=False,
+        )
+        SelectedCourse.objects.create(
+            user=test_employee_user,
+            course=course,
+        )
+        courses.append(course)
+    return test_employee_user
+
+
+@pytest.fixture
+def test_employee_user_with_recommendations(test_employee_user, test_course):
+    """Фикстура для работника с рекомендациями"""
+    for i in range(5):
+        CourseRecommendation.objects.create(
+            user=test_employee_user,
+            course=test_course,
+            reason=f"Тестовая причина {i}",
+            relevance_score=0.8,
+            order=i,
+        )
+    return test_employee_user

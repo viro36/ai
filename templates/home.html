@@ -188,6 +188,28 @@
                         </div>
                     </a>
                 </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'recommendations:selected_courses' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employee">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-bookmark"></i>
+                            </div>
+                            <h3 class="action-title">Выбранные курсы</h3>
+                            <p class="action-description">
+                                Курсы, которые вы отметили для себя
+                                <span class="badge mt-2" style="background-color: #CCCCFF; color: #292966; display: block;">
+                                    <i class="fa-solid fa-bookmark me-1"></i>
+                                    {{ user.selected_courses.count }} выбрано
+                                </span>
+                                <small class="text-muted d-block mt-1">
+                                    <i class="fa-solid fa-circle-info me-1"></i>
+                                    Выбирайте курсы из рекомендаций
+                                </small>
+                            </p>
+                        </div>
+                    </a>
+                </div>
             {% endif %}
 
             <!-- Карточка для ВУЗов -->

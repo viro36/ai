@@ -75,3 +75,30 @@ class RecommendationTask(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.status}"
+
+
+class SelectedCourse(models.Model):
+    """Выбранные пользователем курсы"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="selected_courses",
+        verbose_name="Пользователь",
+    )
+    course = models.ForeignKey(
+        "courses.Course",
+        on_delete=models.CASCADE,
+        related_name="selected_by_users",
+        verbose_name="Курс",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата выбора")
+
+    class Meta:
+        verbose_name = "Выбранный курс"
+        verbose_name_plural = "Выбранные курсы"
+        unique_together = ["user", "course"]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} -> {self.course.title}"

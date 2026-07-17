@@ -1,0 +1,116 @@
+/* Стили для страницы выбранных курсов */
+.selected-course-card {
+    border: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 16px;
+    overflow: hidden;
+    background: white;
+}
+
+.selected-course-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.selected-course-card .card-title {
+    color: #292966;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.selected-course-card .card-title i {
+    color: #CCCCFF;
+}
+
+.selected-course-card .badge {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    color: #292966;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.selected-course-card .btn-outline-primary {
+    color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.selected-course-card .btn-outline-primary:hover {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+    color: white;
+}
+
+.selected-course-card .btn-danger {
+    background-color: #dc3545;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.selected-course-card .btn-danger:hover {
+    background-color: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.selected-course-card .text-muted {
+    color: #6c757d !important;
+}
+
+.selected-course-card .text-muted i {
+    color: #A3A3CC;
+}
+
+/* Стили для заголовка */
+.selected-header h1 {
+    color: #292966;
+}
+
+.selected-header h1 i {
+    color: #CCCCFF;
+}
+
+.selected-header .badge {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    color: #292966;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+/* Стили для пустого состояния */
+.alert-info {
+    background-color: #f0f0ff;
+    border: none;
+    border-left: 4px solid #5C5C99;
+    color: #292966;
+    border-radius: 12px;
+}
+
+.alert-info i {
+    color: #5C5C99;
+}
+
+.alert-info .btn-primary {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.alert-info .btn-primary:hover {
+    background: linear-gradient(135deg, #4a4a7a 0%, #1f1f4f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+}
+
+/* Кнопка "Назад" */
+.btn-outline-primary {
+    color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.btn-outline-primary:hover {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+    color: white;
+}
