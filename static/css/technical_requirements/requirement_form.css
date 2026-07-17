@@ -1,0 +1,495 @@
+/* Общие стили */
+.requirement-form .form-group {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #eee;
+}
+
+.requirement-form .form-group:last-child {
+    border-bottom: none;
+}
+
+.requirement-form label {
+    font-weight: 600;
+    color: #292966;
+}
+
+.requirement-form .help-text {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.requirement-form .help-text i {
+    color: #A3A3CC;
+}
+
+/* Стили для выбора ВУЗов */
+.requirement-form .form-check {
+    padding: 6px 12px;
+    margin-bottom: 0;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.requirement-form .form-check:hover {
+    background-color: rgba(92, 92, 153, 0.05);
+}
+
+.requirement-form .form-check-input:checked {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.requirement-form .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(92, 92, 153, 0.25);
+}
+
+.requirement-form .form-check-label {
+    font-weight: 400;
+    color: #2d3748;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.requirement-form .form-check-label:hover {
+    color: #292966;
+}
+
+/* Стили для переключателей boolean */
+.form-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+}
+
+.form-switch .form-check-input {
+    width: 2.5em;
+    height: 1.5em;
+    cursor: pointer;
+    margin: 0;
+}
+
+.form-switch .form-check-input:checked {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.form-switch .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(92, 92, 153, 0.25);
+}
+
+.form-switch .form-check-label {
+    margin-left: 5px;
+    cursor: pointer;
+}
+
+.form-switch .form-check-label .badge {
+    font-size: 0.85rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+}
+
+.form-switch .form-check-label .badge.bg-success {
+    background-color: #28a745 !important;
+}
+
+.form-switch .form-check-label .badge.bg-secondary {
+    background-color: #6c757d !important;
+}
+
+/* Счетчик выбранных ВУЗов */
+.selected-count {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.selected-count strong {
+    color: #292966;
+}
+
+.selected-count .text-danger {
+    font-weight: 500;
+}
+
+/* Условные поля */
+.conditional-field {
+    margin-top: 1rem;
+    padding: 1rem 1.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #5C5C99;
+    transition: all 0.3s ease;
+}
+
+.conditional-field label {
+    color: #292966 !important;
+}
+
+.conditional-field.hidden {
+    display: none;
+}
+
+.conditional-field.show {
+    display: block;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Нумерация вопросов с иконками */
+.question-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #CCCCFF 0%, #5C5C99 100%);
+    color: white;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 14px;
+    margin-right: 12px;
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.question-number i {
+    font-size: 16px;
+}
+
+.question-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.required-star {
+    color: #dc3545;
+    margin-left: 5px;
+}
+
+/* Стили для полей ввода */
+.form-control,
+.form-select {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 10px 14px;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #5C5C99;
+    box-shadow: 0 0 0 0.2rem rgba(92, 92, 153, 0.25);
+}
+
+.form-control.is-invalid,
+.form-select.is-invalid {
+    border-color: #dc3545;
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus {
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+/* Стили для textarea */
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Стили для checkboxes внутри вопросов */
+.multiple-choice-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.multiple-choice-group .form-check {
+    margin-right: 15px;
+    padding-left: 2rem;
+}
+
+.multiple-choice-group .form-check-input {
+    width: 1.1em;
+    height: 1.1em;
+    margin-top: 0.15em;
+}
+
+.multiple-choice-group .form-check-input:checked {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.multiple-choice-group .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(92, 92, 153, 0.25);
+}
+
+/* Кнопки */
+.btn-primary {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    border: none;
+    transition: all 0.3s ease;
+    padding: 10px 30px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #4a4a7a 0%, #1f1f4f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+    border-radius: 8px;
+    padding: 10px 30px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* Алerts */
+.alert-info {
+    background-color: #f0f0ff;
+    border: none;
+    border-left: 4px solid #5C5C99;
+    color: #292966;
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+
+.alert-info i {
+    color: #5C5C99;
+}
+
+.alert-warning {
+    background-color: #fafaff;
+    border: none;
+    border-left: 4px solid #A3A3CC;
+    color: #292966;
+    border-radius: 12px;
+}
+
+/* Ошибки */
+.text-danger {
+    color: #dc3545 !important;
+    font-size: 0.9rem;
+    margin-top: 5px;
+}
+
+.text-danger i {
+    margin-right: 4px;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.conditional-field.show {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Стили для заголовка формы */
+.requirements-header h1 {
+    color: #292966;
+}
+
+.requirements-header h1 i {
+    color: #CCCCFF;
+}
+
+/* Стили для заголовков секций */
+.form-section-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #292966;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #CCCCFF;
+}
+
+/* Стили для disabled полей */
+.form-control:disabled,
+.form-select:disabled {
+    background-color: #e9ecef;
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Стили для placeholder */
+.form-control::placeholder {
+    color: #a0aec0;
+    font-size: 0.9rem;
+}
+
+/* Стили для выбранных элементов в select */
+.form-select option:checked {
+    background-color: #5C5C99;
+    color: white;
+}
+
+/* Стили для спиннера загрузки */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.15em;
+}
+
+/* Стили для счетчика символов */
+.char-count {
+    font-size: 0.8rem;
+    color: #6c757d;
+    text-align: right;
+    margin-top: 4px;
+}
+
+.char-count.danger {
+    color: #dc3545;
+}
+
+/* Стили для other input */
+.other-input-group {
+    padding: 10px 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #A3A3CC;
+}
+
+.other-input-group label {
+    font-weight: 500;
+    color: #292966 !important;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .checkbox-group {
+        grid-template-columns: 1fr;
+        padding: 10px;
+    }
+
+    .checkbox-group .form-check {
+        align-items: flex-start;
+        padding: 8px 12px;
+        min-height: auto;
+    }
+
+    .checkbox-group .form-check-input {
+        margin-top: 3px;
+    }
+
+    .checkbox-group .form-check-label {
+        white-space: normal;
+        word-break: break-word;
+        overflow: visible;
+        text-overflow: unset;
+    }
+
+    .question-label {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .question-number {
+        width: 30px;
+        height: 30px;
+        font-size: 12px;
+        margin-right: 8px;
+        margin-bottom: 4px;
+    }
+
+    .question-number i {
+        font-size: 14px;
+    }
+
+    .conditional-field {
+        padding: 0.75rem 1rem;
+        margin-top: 0.75rem;
+    }
+
+    .btn-primary,
+    .btn-outline-secondary {
+        padding: 8px 20px;
+        font-size: 0.9rem;
+    }
+
+    .selected-count {
+        font-size: 0.8rem;
+        padding: 6px 10px;
+    }
+
+    .multiple-choice-group {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .multiple-choice-group .form-check {
+        margin-right: 0;
+    }
+
+    .form-control,
+    .form-select {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+
+    .form-switch .form-check-input {
+        width: 2em;
+        height: 1.2em;
+    }
+
+    .form-switch .form-check-label .badge {
+        font-size: 0.75rem;
+        padding: 2px 10px;
+    }
+}
+
+/* Для планшетов */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .checkbox-group {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+/* Для больших экранов */
+@media (min-width: 1200px) {
+    .checkbox-group {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+}

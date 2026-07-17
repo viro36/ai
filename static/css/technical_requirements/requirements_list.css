@@ -1,0 +1,221 @@
+/* Общие стили */
+.requirements-header h1 {
+    color: #292966;
+}
+
+.requirements-header h1 i {
+    color: #CCCCFF;
+}
+
+.requirements-header .badge {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    color: #292966;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+/* Стили для работодателя */
+.requirements-employer .btn-primary {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.requirements-employer .btn-primary:hover {
+    background: linear-gradient(135deg, #4a4a7a 0%, #1f1f4f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+}
+
+.requirements-employer .btn-outline-primary {
+    color: #5C5C99;
+    border-color: #5C5C99;
+}
+
+.requirements-employer .btn-outline-primary:hover {
+    background-color: #5C5C99;
+    border-color: #5C5C99;
+    color: white;
+}
+
+.requirements-employer .btn-outline-success {
+    color: #28a745;
+    border-color: #28a745;
+}
+
+.requirements-employer .btn-outline-success:hover {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.requirements-employer .btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.requirements-employer .btn-outline-danger:hover {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+/* Стили для ВУЗа */
+.requirements-university .btn-primary {
+    background: linear-gradient(135deg, #292966 0%, #1a1a4a 100%);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.requirements-university .btn-primary:hover {
+    background: linear-gradient(135deg, #1f1f4f 0%, #0f0f2f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(41, 41, 102, 0.3);
+}
+
+.requirements-university .btn-outline-primary {
+    color: #292966;
+    border-color: #292966;
+}
+
+.requirements-university .btn-outline-primary:hover {
+    background-color: #292966;
+    border-color: #292966;
+    color: white;
+}
+
+/* Стили для таблицы */
+.requirements-table {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.requirements-table .table {
+    margin-bottom: 0;
+}
+
+.requirements-table .table thead th {
+    background-color: #f8f8ff;
+    color: #292966;
+    font-weight: 600;
+    border-bottom: 2px solid #CCCCFF;
+    padding: 12px 15px;
+}
+
+.requirements-table .table tbody td {
+    padding: 12px 15px;
+    vertical-align: middle;
+}
+
+.requirements-table .table tbody tr:hover {
+    background-color: #f8f8ff;
+}
+
+/* Бейджи статусов */
+.badge-status-draft {
+    background-color: #6c757d;
+    color: white;
+}
+
+.badge-status-sent {
+    background-color: #5C5C99;
+    color: white;
+}
+
+.badge-status-in_development {
+    background-color: #CCCCFF;
+    color: #292966;
+}
+
+.badge-status-completed {
+    background-color: #28a745;
+    color: white;
+}
+
+.badge-status-rejected {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Бейдж ВУЗов */
+.badge-universities {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    color: #292966;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+/* Alert стили */
+.alert-info {
+    background-color: #f0f0ff;
+    border: none;
+    border-left: 4px solid #5C5C99;
+    color: #292966;
+    border-radius: 12px;
+}
+
+.alert-info i {
+    color: #5C5C99;
+}
+
+.alert-empty {
+    background-color: #fafaff;
+    border: none;
+    border-radius: 16px;
+    padding: 40px;
+}
+
+.alert-empty i {
+    color: #CCCCFF;
+}
+
+.alert-empty h4 {
+    color: #292966;
+}
+
+.alert-empty p {
+    color: #6c757d;
+}
+
+/* Пагинация */
+.pagination .page-link {
+    color: #5C5C99;
+    border-radius: 8px;
+    margin: 0 2px;
+}
+
+.pagination .page-item.active .page-link {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    border-color: #5C5C99;
+    color: white;
+}
+
+.pagination .page-link:hover {
+    background-color: #f0f0ff;
+    color: #292966;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .requirements-table {
+        overflow-x: auto;
+    }
+
+    .requirements-table .table {
+        font-size: 0.85rem;
+    }
+
+    .requirements-table .table thead th,
+    .requirements-table .table tbody td {
+        padding: 8px 10px;
+    }
+
+    .btn-group-sm .btn {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.75rem;
+    }
+}

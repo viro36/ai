@@ -1,0 +1,91 @@
+.question-answer-item {
+    padding: 15px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.question-answer-item:last-child {
+    border-bottom: none;
+}
+
+.question-text {
+    font-weight: 600;
+    color: #292966;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.question-number-small {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #CCCCFF 0%, #5C5C99 100%);
+    color: white;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.answer-text {
+    color: #2d3748;
+    padding-left: 38px;
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+.required-star {
+    color: #dc3545;
+    margin-left: 4px;
+}
+
+/* Бейджи статусов */
+.badge-status-draft {
+    background-color: #6c757d;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.badge-status-sent {
+    background-color: #5C5C99;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.badge-status-in_development {
+    background-color: #CCCCFF;
+    color: #292966;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.badge-status-completed {
+    background-color: #28a745;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.badge-status-rejected {
+    background-color: #dc3545;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .answer-text {
+        padding-left: 0;
+        margin-top: 5px;
+    }
+
+    .question-text {
+        flex-wrap: wrap;
+    }
+}

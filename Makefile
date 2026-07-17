@@ -138,3 +138,6 @@ load_init:
 
 load_goal:
 	docker-compose exec ai python manage.py seed_goal_setting_questions
+
+load_technical_requirements:
+	docker-compose exec ai python manage.py create_initial_questions

@@ -72,6 +72,7 @@ PROGRAM_APPS = [
     "apps.surveys",
     "apps.recommendations",
     "apps.goal_setting",
+    "apps.technical_requirements",
 ]
 
 INSTALLED_APPS = BASIC_APPS + THIRD_PARTY_APPS + PROGRAM_APPS

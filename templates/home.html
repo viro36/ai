@@ -245,6 +245,25 @@
                         </div>
                     </a>
                 </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'technical_requirements:received_requirements' %}" class="text-decoration-none">
+                        <div class="action-card action-card-university">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-inbox"></i>
+                            </div>
+                            <h3 class="action-title">Входящие ТЗ</h3>
+                            <p class="action-description">
+                                Полученные технические задания от работодателей
+                            </p>
+                            <span class="badge">
+                                {% with count=user.organization.received_requirements.count %}
+                                    {{ count }} новых
+                                {% endwith %}
+                            </span>
+                        </div>
+                    </a>
+                </div>
             {% endif %}
 
             <!-- Карточка для работодателей -->
@@ -274,6 +293,25 @@
                                 Просмотр сотрудников вашей организации
                             </p>
                             <span class="badge">{{ user.organization.employee_count }} человек</span>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'technical_requirements:my_requirements' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employer">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-file-pen"></i>
+                            </div>
+                            <h3 class="action-title">Технические задания</h3>
+                            <p class="action-description">
+                                Создание и управление техническими заданиями для ВУЗов
+                            </p>
+                            <span class="badge">
+                                {% with total=user.technical_requirements.count %}
+                                    {{ total }} заданий
+                                {% endwith %}
+                            </span>
                         </div>
                     </a>
                 </div>

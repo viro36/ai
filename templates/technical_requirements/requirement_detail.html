@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load technical_requirements_tags %}
+
+{% block title %}Техническое задание #{{ requirement.id }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/technical_requirements/requirement_detail.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-file-pen me-2" style="color: #CCCCFF;"></i>
+            Техническое задание #{{ requirement.id }}
+        </h1>
+        <div>
+            {% if user.user_type == 'employer' %}
+                <a href="{% url 'technical_requirements:my_requirements' %}" class="btn btn-outline-secondary">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Назад
+                </a>
+            {% elif user.user_type == 'university' %}
+                <a href="{% url 'technical_requirements:received_requirements' %}" class="btn btn-outline-secondary">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Назад
+                </a>
+            {% else %}
+                <a href="{% url 'technical_requirements:my_requirements' %}" class="btn btn-outline-secondary">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Назад
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Информация о ТЗ -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong><i class="fa-regular fa-calendar me-2"></i>Дата создания:</strong> {{ requirement.created_at|date:"d.m.Y H:i" }}</p>
+                    <p><strong><i class="fa-regular fa-user me-2"></i>Работодатель:</strong> {{ requirement.employer.organization.short_name }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p>
+                        <strong><i class="fa-solid fa-university me-2"></i>ВУЗы-получатели:</strong>
+                        <span class="badge" style="background-color: #CCCCFF; color: #292966;">
+                            {{ requirement.universities.count }} ВУЗов
+                        </span>
+                    </p>
+                    <p>
+                        <strong><i class="fa-regular fa-circle me-2"></i>Статус:</strong>
+                        {% if requirement.status == 'draft' %}
+                            <span class="badge badge-status-draft">Черновик</span>
+                        {% elif requirement.status == 'sent' %}
+                            <span class="badge badge-status-sent">Отправлено</span>
+                        {% elif requirement.status == 'in_development' %}
+                            <span class="badge badge-status-in_development">В разработке</span>
+                        {% elif requirement.status == 'completed' %}
+                            <span class="badge badge-status-completed">Завершено</span>
+                        {% elif requirement.status == 'rejected' %}
+                            <span class="badge badge-status-rejected">Отклонено</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Список ВУЗов -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header" style="background-color: #f8f9fa; color: #292966;">
+            <i class="fa-solid fa-university me-2"></i>Получатели
+        </div>
+        <div class="card-body">
+            <ul class="list-unstyled mb-0">
+                {% for university in requirement.universities.all %}
+                    <li class="py-1">
+                        <i class="fa-solid fa-landmark me-2" style="color: #5C5C99;"></i>
+                        {{ university.short_name }}
+                    </li>
+                {% empty %}
+                    <li class="text-muted">Нет выбранных ВУЗов</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Ответы на вопросы -->
+    <div class="card shadow-sm">
+        <div class="card-header" style="background-color: #f8f9fa; color: #292966;">
+            <i class="fa-solid fa-list-check me-2"></i>Содержание технического задания
+        </div>
+        <div class="card-body">
+            {% for question in questions %}
+                <div class="question-answer-item">
+                    <div class="question-text">
+                        <span class="question-number-small">{{ question.order }}</span>
+                        {{ question.text }}
+                        {% if question.is_required %}
+                            <span class="required-star">*</span>
+                        {% endif %}
+                    </div>
+                    <div class="answer-text">
+                        {% render_answer requirement question %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Кнопки действий для работодателя -->
+    {% if user.user_type == 'employer' and requirement.status == 'draft' %}
+        <div class="mt-4 d-flex gap-2">
+            <a href="{% url 'technical_requirements:edit' requirement.id %}" class="btn btn-primary">
+                <i class="fa-solid fa-pen me-2"></i>Редактировать
+            </a>
+            <a href="{% url 'technical_requirements:send' requirement.id %}" class="btn btn-success">
+                <i class="fa-solid fa-paper-plane me-2"></i>Отправить
+            </a>
+            <a href="{% url 'technical_requirements:delete' requirement.id %}" class="btn btn-danger" onclick="return confirm('Удалить это задание?')">
+                <i class="fa-solid fa-trash me-2"></i>Удалить
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

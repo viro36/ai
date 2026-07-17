@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load technical_requirements_tags %}
+
+{% block title %}{% if is_create %}Создание{% else %}Редактирование{% endif %} технического задания{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/technical_requirements/requirement_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4 requirements-header">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-file-pen me-2" style="color: #CCCCFF;"></i>
+            {% if is_create %}Создание{% else %}Редактирование{% endif %} технического задания
+        </h1>
+        <a href="{% url 'technical_requirements:my_requirements' %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i> Назад
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fa-solid fa-circle-info me-2"></i>
+        <strong>Важно:</strong> Заполните все обязательные поля. Техническое задание будет отправлено выбранным ВУЗам.
+    </div>
+
+    <form method="post" class="requirement-form" id="requirementForm" novalidate>
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            <i class="fa-solid fa-circle-exclamation me-2"></i>
+            <strong>Пожалуйста, исправьте следующие ошибки:</strong>
+            <ul class="mb-0 mt-2">
+                {% for field, errors in form.errors.items %}
+                    <li><strong>{{ field }}:</strong> {{ errors|join:", " }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- Выбор ВУЗов -->
+        <div class="form-group">
+            <div class="question-label">
+                <span class="question-number">
+                    <i class="fa-solid fa-university"></i>
+                </span>
+                <label class="form-label mb-0">
+                    Выберите ВУЗы для отправки (не менее 5)
+                    <span class="required-star">*</span>
+                </label>
+            </div>
+            <div class="row g-2 p-3 bg-light rounded border border-light">
+                {% for checkbox in form.universities %}
+                    <div class="col-md-6 col-lg-4 col-xl-3">
+                        <div class="form-check">
+                            {{ checkbox.tag }}
+                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                {{ checkbox.choice_label }}
+                            </label>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div id="universityCount" class="selected-count">
+                Выбрано: <strong id="selectedCount">0</strong> из <span id="totalCount">{{ universities_count }}</span>
+                <span id="validationMessage" class="text-danger" style="display: none;">
+                    <i class="fa-solid fa-exclamation-circle me-1"></i>Выберите не менее 5 ВУЗов
+                </span>
+            </div>
+            {% if form.universities.errors %}
+                <div class="text-danger">{{ form.universities.errors }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Динамические вопросы через кастомный тег -->
+        {% for question in questions %}
+            {% render_question_field form question %}
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fa-solid fa-paper-plane me-2"></i>
+                {% if is_create %}Создать и отправить{% else %}Сохранить изменения{% endif %}
+            </button>
+            <a href="{% url 'technical_requirements:my_requirements' %}" class="btn btn-outline-secondary btn-lg">
+                <i class="fa-solid fa-xmark me-1"></i> Отмена
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/technical_requirements/requirement_form.js' %}"></script>
+{% endblock %}

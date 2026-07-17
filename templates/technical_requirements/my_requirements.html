@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Мои технические задания{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/technical_requirements/requirements_list.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container requirements-employer">
+    <div class="d-flex justify-content-between align-items-center mb-4 requirements-header">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-file-pen me-2" style="color: #CCCCFF;"></i>
+            Мои технические задания
+            <span class="badge ms-2">{{ requirements.count }}</span>
+        </h1>
+        <a href="{% url 'technical_requirements:create' %}" class="btn btn-primary">
+            <i class="fa-solid fa-plus me-2"></i>Создать ТЗ
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fa-solid fa-circle-info me-2"></i>
+        <strong>Как это работает:</strong> Вы создаете техническое задание, выбираете ВУЗы (не менее 5) и отправляете. ВУЗы увидят ваше ТЗ в своих входящих и смогут предложить свои программы.
+    </div>
+
+    {% if requirements %}
+        <div class="requirements-table">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>№</th>
+                        <th>Дата создания</th>
+                        <th>ВУЗы</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requirements %}
+                    <tr>
+                        <td><strong>#{{ req.id }}</strong></td>
+                        <td>{{ req.created_at|date:"d.m.Y H:i" }}</td>
+                        <td>
+                            <span class="badge-universities">
+                                <i class="fa-solid fa-university me-1"></i>
+                                {{ req.universities.count }} ВУЗов
+                            </span>
+                        </td>
+                        <td>
+                            {% if req.status == 'draft' %}
+                                <span class="badge badge-status-draft">Черновик</span>
+                            {% elif req.status == 'sent' %}
+                                <span class="badge badge-status-sent">Отправлено</span>
+                            {% elif req.status == 'in_development' %}
+                                <span class="badge badge-status-in_development">В разработке</span>
+                            {% elif req.status == 'completed' %}
+                                <span class="badge badge-status-completed">Завершено</span>
+                            {% elif req.status == 'rejected' %}
+                                <span class="badge badge-status-rejected">Отклонено</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'technical_requirements:detail' req.id %}" class="btn btn-outline-primary" title="Просмотр">
+                                    <i class="fa-regular fa-eye"></i>
+                                </a>
+                                {% if req.status == 'draft' %}
+                                    <a href="{% url 'technical_requirements:edit' req.id %}" class="btn btn-outline-secondary" title="Редактировать">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </a>
+                                    <a href="{% url 'technical_requirements:send' req.id %}" class="btn btn-outline-success" title="Отправить">
+                                        <i class="fa-solid fa-paper-plane"></i>
+                                    </a>
+                                    <a href="{% url 'technical_requirements:delete' req.id %}" class="btn btn-outline-danger" title="Удалить" onclick="return confirm('Удалить это задание?')">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Пагинация -->
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-empty text-center">
+            <i class="fa-regular fa-file fa-3x mb-3 d-block"></i>
+            <h4>У вас пока нет технических заданий</h4>
+            <p>Создайте первое техническое задание, чтобы начать поиск образовательных программ для ваших сотрудников.</p>
+            <a href="{% url 'technical_requirements:create' %}" class="btn btn-primary mt-2">
+                <i class="fa-solid fa-plus me-2"></i>Создать ТЗ
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
