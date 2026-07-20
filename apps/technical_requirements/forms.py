@@ -212,9 +212,17 @@ class TechnicalRequirementForm(forms.ModelForm):
                     if depends_value != depends_expected:
                         continue
 
-                if not value:
-                    self.add_error(field_name, "Это поле обязательно для заполнения")
-                    continue
+                # Для boolean полей: если значение None, это False
+                if question.question_type == "boolean":
+                    if value is None:
+                        pass
+                else:
+                    if not value:
+                        self.add_error(
+                            field_name,
+                            f"Поле {question.text} обязательно для заполнения",
+                        )
+                        continue
 
             # Обработка "Свой вариант"
             if (
@@ -236,7 +244,7 @@ class TechnicalRequirementForm(forms.ModelForm):
                     answers[str(question.id)] = value
             # Для boolean полей сохраняем True/False
             elif question.question_type == "boolean":
-                answers[str(question.id)] = bool(value)
+                answers[str(question.id)] = bool(value) if value is not None else False
             # Для multiple_choice сохраняем список
             elif question.question_type == "multiple_choice":
                 answers[str(question.id)] = value or []
@@ -260,7 +268,6 @@ class TechnicalRequirementForm(forms.ModelForm):
         # Преобразуем словарь в JSON строку для JSONField
         import json
 
-        # Используем default параметр для обработки всех типов
         cleaned_data["answers"] = json.dumps(answers, ensure_ascii=False, default=str)
 
         if not cleaned_data.get("status"):

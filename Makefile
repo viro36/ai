@@ -106,6 +106,9 @@ pytest-recommendations:
 pytest-goal:
 	docker-compose exec ai python -m pytest -v apps/goal_setting/tests/
 
+pytest-tech:
+	docker-compose exec ai python -m pytest -v apps/technical_requirements/tests/
+
 pytest-all:
 	docker-compose exec ai python -m pytest apps/ -v --cov=apps --cov-report=term-missing
 
