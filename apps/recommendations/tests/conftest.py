@@ -1,14 +1,21 @@
 import pytest
+from datetime import datetime, timedelta
+
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.fallback import FallbackStorage
-from datetime import datetime, timedelta
 
 from apps.courses.models import Course, Category
 from apps.organizations.models import Organization
 from apps.surveys.models import SurveyCategory
-from apps.recommendations.models import CourseRecommendation, RecommendationTask
+from apps.recommendations.models import (
+    CourseRecommendation,
+    RecommendationTask,
+    SelectedCourse,
+)
 from apps.accounts.models import EmployeeProfile
 
 User = get_user_model()
@@ -404,6 +411,132 @@ def user_with_employee_profile(regular_user, organization):
         organization=organization,
     )
     return regular_user
+
+
+@pytest.fixture
+def survey_category():
+    """Фикстура категории опроса"""
+    return SurveyCategory.objects.create(
+        name="RIASEC",
+        description="Опросник профессиональных склонностей",
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def survey_session(regular_user, survey_category):
+    """Фикстура сессии опроса"""
+    from apps.surveys.models import SurveySession as Session
+
+    return Session.objects.create(
+        user=regular_user,
+        category=survey_category,
+        status="completed",
+        completed_at=timezone.now(),
+    )
+
+
+@pytest.fixture
+def course_recommendation(regular_user, course):
+    """Фикстура рекомендации курса"""
+    return CourseRecommendation.objects.create(
+        user=regular_user,
+        course=course,
+        reason="Тестовая рекомендация",
+        relevance_score=0.85,
+        order=1,
+    )
+
+
+@pytest.fixture
+def course_recommendations(regular_user, multiple_courses):
+    """Фикстура нескольких рекомендаций"""
+    recommendations = []
+    for i, course in enumerate(multiple_courses[:5]):
+        rec = CourseRecommendation.objects.create(
+            user=regular_user,
+            course=course,
+            reason=f"Рекомендация {i+1}",
+            relevance_score=0.9 - (i * 0.1),
+            order=i,
+        )
+        recommendations.append(rec)
+    return recommendations
+
+
+@pytest.fixture
+def recommendation_task(regular_user):
+    """Фикстура задачи рекомендаций"""
+    return RecommendationTask.objects.create(
+        user=regular_user,
+        task_id="test-task-123",
+        status="pending",
+    )
+
+
+@pytest.fixture
+def selected_course(regular_user, course):
+    """Фикстура выбранного курса"""
+    return SelectedCourse.objects.create(
+        user=regular_user,
+        course=course,
+    )
+
+
+@pytest.fixture
+def user_with_employee_profile(regular_user, organization):
+    """Фикстура пользователя с профилем работника"""
+    profile = EmployeeProfile.objects.create(
+        user=regular_user,
+        position="Начальник цеха",
+        position_level="middle",
+        organization=organization,
+    )
+    return regular_user
+
+
+@pytest.fixture
+def viewer_user():
+    """Фикстура пользователя-просмотрщика с правами на просмотр в recommendations"""
+    user = User.objects.create_user(
+        username="viewer",
+        email="viewer@test.com",
+        password="viewer123",
+        user_type="admin",
+        is_staff=True,
+        is_active=True,
+        first_name="Просмотр",
+        last_name="Просмотрщиков",
+    )
+
+    group, _ = Group.objects.get_or_create(name="Просмотрщик")
+    user.groups.add(group)
+
+    # Даем права на просмотр моделей recommendations
+    for model in [CourseRecommendation, RecommendationTask, SelectedCourse]:
+        ct = ContentType.objects.get_for_model(model)
+        view_perm, _ = Permission.objects.get_or_create(
+            content_type=ct,
+            codename=f"view_{model._meta.model_name}",
+            defaults={"name": f"Can view {model._meta.model_name}"},
+        )
+        group.permissions.add(view_perm)
+
+    return user
+
+
+@pytest.fixture
+def viewer_client(client, viewer_user):
+    """Фикстура для клиента просмотрщика"""
+    client.login(username=viewer_user.username, password="viewer123")
+    return client
+
+
+@pytest.fixture
+def admin_client(client, admin_user):
+    """Фикстура для клиента администратора"""
+    client.login(username=admin_user.username, password="adminpass123")
+    return client
 
 
 @pytest.fixture
