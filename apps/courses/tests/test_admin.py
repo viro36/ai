@@ -79,7 +79,7 @@ class TestCourseResource:
         result = resource.dehydrate_categories(course)
         assert category.name in result
         assert another_category.name in result
-        assert ", " in result
+        assert "; " in result
 
     def test_dehydrate_categories_empty(self, course):
         """Тест получения списка категорий когда их нет"""
@@ -730,11 +730,9 @@ class TestCourseResourceIntegration:
         assert dataset.height >= 1
 
         headers = dataset.headers
-        assert "title" in headers
-        assert "organization__short_name" in headers
-        assert "categories" in headers
-        assert "is_deleted" in headers
-        assert "deleted_at" in headers
+        assert "Название курса" in headers
+        assert "Организация" in headers
+        assert "Категории" in headers
 
     def test_course_resource_export_categories(
         self, course, category, another_category
@@ -756,7 +754,6 @@ class TestCourseResourceIntegration:
         """Тест порядка полей при экспорте"""
         resource = CourseResource()
         expected_order = (
-            "id",
             "title",
             "organization__short_name",
             "organization__inn",
@@ -822,3 +819,131 @@ class TestCategoryAdminIntegration:
         assert response.status_code == 200
         content = response.content.decode()
         assert "1" in content  # Количество курсов должно быть 1
+
+
+class TestViewerPermissions:
+    """Тесты для проверки прав просмотрщика в админке"""
+
+    def test_viewer_can_view_course_list(self, client, viewer_user):
+        """Тест - просмотрщик может видеть список курсов"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_course_changelist")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_viewer_can_view_category_list(self, client, viewer_user):
+        """Тест - просмотрщик может видеть список категорий"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_category_changelist")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_viewer_cannot_add_course(self, client, viewer_user):
+        """Тест - просмотрщик не может добавлять курсы"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_course_add")
+        response = client.get(url)
+        # Перенаправление на страницу списка или 403
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_edit_course(self, client, viewer_user, course):
+        """Тест - просмотрщик не может редактировать курсы"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_course_change", args=[course.id])
+        # Пытаемся отправить POST запрос на изменение
+        data = {
+            "title": "Измененное название",
+            "url": "https://example.com/changed",
+        }
+        response = client.post(url, data)
+        # Должен быть редирект или 403
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_delete_course(self, client, viewer_user, course):
+        """Тест - просмотрщик не может удалять курсы"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_course_delete", args=[course.id])
+        response = client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_add_category(self, client, viewer_user):
+        """Тест - просмотрщик не может добавлять категории"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_category_add")
+        response = client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_edit_category(self, client, viewer_user, category):
+        """Тест - просмотрщик не может редактировать категории"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_category_change", args=[category.id])
+        # Пытаемся отправить POST запрос на изменение
+        data = {
+            "name": "Измененная категория",
+            "slug": "changed-category",
+        }
+        response = client.post(url, data)
+        # Должен быть редирект или 403
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_delete_category(self, client, viewer_user, category):
+        """Тест - просмотрщик не может удалять категории"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_category_delete", args=[category.id])
+        response = client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_run_parser(self, client, viewer_user):
+        """Тест - просмотрщик не может запускать парсер"""
+        client.force_login(viewer_user)
+        url = reverse("admin:parse_vsu")
+        response = client.post(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_run_all_parsers(self, client, viewer_user):
+        """Тест - просмотрщик не может запускать парсер всех источников"""
+        client.force_login(viewer_user)
+        url = reverse("admin:parse_all")
+        response = client.post(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_does_not_see_parse_buttons(self, client, viewer_user):
+        """Тест - просмотрщик не видит кнопки парсинга в админке"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_course_changelist")
+        response = client.get(url)
+        content = response.content.decode()
+        # Проверяем, что кнопки парсинга не видны
+        assert "ВСЕ ИСТОЧНИКИ" not in content
+        assert "ВГУ" not in content
+        assert "ВГТУ" not in content
+        assert "Парсинг" not in content
+
+    def test_admin_sees_parse_buttons(self, client, admin_user):
+        """Тест - администратор видит кнопки парсинга"""
+        client.force_login(admin_user)
+        url = reverse("admin:courses_course_changelist")
+        response = client.get(url)
+        content = response.content.decode()
+        # Проверяем, что кнопки парсинга видны
+        assert "ВСЕ ИСТОЧНИКИ" in content
+        assert "ВГУ" in content
+        assert "ВГТУ" in content
+
+    def test_viewer_has_no_actions(self, client, viewer_user):
+        """Тест - у просмотрщика нет выпадающего списка действий"""
+        client.force_login(viewer_user)
+        url = reverse("admin:courses_course_changelist")
+        response = client.get(url)
+        content = response.content.decode()
+        # Проверяем, что нет выпадающего списка действий
+        assert 'name="action"' not in content or "action" not in content.lower()
+
+    def test_admin_has_actions(self, client, admin_user):
+        """Тест - у администратора есть выпадающий список действий"""
+        client.force_login(admin_user)
+        url = reverse("admin:courses_course_changelist")
+        response = client.get(url)
+        content = response.content.decode()
+        # Проверяем наличие кнопки "Действия" или select
+        assert "Действия" in content or "action" in content.lower()

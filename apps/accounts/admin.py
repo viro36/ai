@@ -32,6 +32,31 @@ class EmployerRegistrationRequestAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
     actions = ["approve_selected", "reject_selected"]
 
+    def _is_viewer(self, request):
+        """Проверка, является ли пользователь просмотрщиком"""
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
+    def get_actions(self, request):
+        """Скрываем выпадающий список действий для просмотрщика"""
+        if self._is_viewer(request):
+            return {}  # Возвращаем пустой словарь - действий нет
+        return super().get_actions(request)
+
+    def has_add_permission(self, request):
+        if self._is_viewer(request):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_delete_permission(request, obj)
+
     def approve_selected(self, request, queryset):
         """Массовое одобрение заявок"""
         pending = queryset.filter(status="pending")
@@ -216,6 +241,31 @@ class EmployerProfileAdmin(admin.ModelAdmin):
         ),
     )
 
+    def _is_viewer(self, request):
+        """Проверка, является ли пользователь просмотрщиком"""
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
+    def get_actions(self, request):
+        """Скрываем выпадающий список действий для просмотрщика"""
+        if self._is_viewer(request):
+            return {}  # Возвращаем пустой словарь - действий нет
+        return super().get_actions(request)
+
+    def has_add_permission(self, request):
+        if self._is_viewer(request):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_delete_permission(request, obj)
+
     def user_link(self, obj):
         """Ссылка на пользователя"""
         url = reverse("admin:users_customuser_change", args=[obj.user.id])
@@ -354,6 +404,31 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+    def _is_viewer(self, request):
+        """Проверка, является ли пользователь просмотрщиком"""
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
+    def get_actions(self, request):
+        """Скрываем выпадающий список действий для просмотрщика"""
+        if self._is_viewer(request):
+            return {}  # Возвращаем пустой словарь - действий нет
+        return super().get_actions(request)
+
+    def has_add_permission(self, request):
+        if self._is_viewer(request):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_delete_permission(request, obj)
 
     def user_link(self, obj):
         """Ссылка на пользователя"""

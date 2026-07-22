@@ -2,6 +2,8 @@ import pytest
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.fallback import FallbackStorage
 
 from apps.courses.models import Course, Category
@@ -273,3 +275,55 @@ def course_update_data():
         "duration_weeks": "16 недель",
         "price": "50000",
     }
+
+
+@pytest.fixture
+def viewer_user():
+    """Фикстура пользователя-просмотрщика с правами на просмотр курсов"""
+    user = User.objects.create_user(
+        username="viewer",
+        email="viewer@test.com",
+        password="viewer123",
+        user_type="admin",
+        is_staff=True,
+        is_active=True,
+        first_name="Просмотр",
+        last_name="Просмотрщиков",
+    )
+
+    # Создаем группу
+    group, _ = Group.objects.get_or_create(name="Просмотрщик")
+    user.groups.add(group)
+
+    # Даем права на просмотр курсов и категорий
+    for model in [Course, Category]:
+        ct = ContentType.objects.get_for_model(model)
+        # Права на просмотр
+        view_perm, _ = Permission.objects.get_or_create(
+            content_type=ct,
+            codename=f"view_{model._meta.model_name}",
+            defaults={"name": f"Can view {model._meta.model_name}"},
+        )
+        group.permissions.add(view_perm)
+
+    return user
+
+
+@pytest.fixture
+def viewer_user_no_perms():
+    """Фикстура пользователя-просмотрщика без прав (для проверки запрета)"""
+    user = User.objects.create_user(
+        username="viewer_no_perms",
+        email="viewer_no_perms@test.com",
+        password="viewer123",
+        user_type="admin",
+        is_staff=True,
+        is_active=True,
+        first_name="Просмотр",
+        last_name="Безправов",
+    )
+
+    group, _ = Group.objects.get_or_create(name="Просмотрщик")
+    user.groups.add(group)
+    # Не даем никаких прав
+    return user

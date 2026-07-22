@@ -1,7 +1,13 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 
-from apps.accounts.models import EmployeeProfile
+from apps.accounts.models import (
+    EmployeeProfile,
+    EmployerProfile,
+    EmployerRegistrationRequest,
+)
 from apps.courses.models import Course
 from apps.organizations.models import Organization, District, OrganizationType
 from apps.goal_setting.models import Question, QuestionOption
@@ -282,3 +288,41 @@ def test_employee_user_with_recommendations(test_employee_user, test_course):
             order=i,
         )
     return test_employee_user
+
+
+@pytest.fixture
+def viewer_user(db):
+    """Фикстура пользователя-просмотрщика с правами на просмотр в accounts"""
+    user = User.objects.create_user(
+        username="viewer",
+        email="viewer@test.com",
+        password="viewer123",
+        user_type="admin",
+        is_staff=True,
+        is_active=True,
+        first_name="Просмотр",
+        last_name="Просмотрщиков",
+    )
+
+    # Создаем группу
+    group, _ = Group.objects.get_or_create(name="Просмотрщик")
+    user.groups.add(group)
+
+    # Даем права на просмотр моделей accounts
+    for model in [EmployerRegistrationRequest, EmployerProfile, EmployeeProfile]:
+        ct = ContentType.objects.get_for_model(model)
+        view_perm, _ = Permission.objects.get_or_create(
+            content_type=ct,
+            codename=f"view_{model._meta.model_name}",
+            defaults={"name": f"Can view {model._meta.model_name}"},
+        )
+        group.permissions.add(view_perm)
+
+    return user
+
+
+@pytest.fixture
+def viewer_client(client, viewer_user):
+    """Фикстура для клиента просмотрщика"""
+    client.login(username=viewer_user.username, password="viewer123")
+    return client

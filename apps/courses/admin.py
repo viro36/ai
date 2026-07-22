@@ -6,6 +6,7 @@ from django.utils.safestring import mark_safe
 from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.db.models import Count
+from django.core.exceptions import PermissionDenied
 from import_export import resources
 from import_export.admin import ExportMixin
 from import_export.formats import base_formats
@@ -24,9 +25,6 @@ from .tasks import (
 
 
 class CourseResource(resources.ModelResource):
-    """Ресурс для экспорта/импорта курсов"""
-
-    # Словарь перевода полей на русский
     FIELD_HEADERS = {
         "title": "Название курса",
         "organization__short_name": "Организация",
@@ -75,7 +73,6 @@ class CourseResource(resources.ModelResource):
         export_order = fields
 
     def get_export_headers(self, selected_fields=None):
-        """Возвращает русские заголовки для экспорта"""
         if selected_fields:
             return [self.FIELD_HEADERS.get(field, field) for field in selected_fields]
         return [
@@ -89,7 +86,6 @@ class CourseResource(resources.ModelResource):
         return course.organization.inn if course.organization else ""
 
     def dehydrate_categories(self, course):
-        """Категории (теги) курса для экспорта"""
         return "; ".join([cat.name for cat in course.categories.all()])
 
     def dehydrate_is_deleted(self, course):
@@ -110,7 +106,16 @@ class ParseActionsMixin:
         "vivt": {"name": "ВИВТ", "task": parse_vivt_courses},
     }
 
+    def _is_viewer(self, request):
+        """Проверка, является ли пользователь просмотрщиком"""
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
+    def _check_viewer_permission(self, request):
+        if self._is_viewer(request):
+            raise PermissionDenied("У вас нет прав на выполнение этого действия")
+
     def _run_parser(self, request, parser_key):
+        self._check_viewer_permission(request)
         parser_info = self.PARSER_TASKS.get(parser_key)
         if not parser_info:
             messages.error(request, f"Парсер {parser_key} не найден")
@@ -144,10 +149,10 @@ class ParseActionsMixin:
             )
 
         custom_urls.append(path("parse-all/", self.parse_all, name="parse_all"))
-
         return custom_urls + urls
 
     def parse_all(self, request):
+        self._check_viewer_permission(request)
         task = parse_all_courses.delay()
         messages.success(
             request, f"Парсинг всех источников запущен в фоне! (ID задачи: {task.id})"
@@ -156,8 +161,6 @@ class ParseActionsMixin:
 
 
 class SoftDeleteFilter(admin.SimpleListFilter):
-    """Кастомный фильтр для показа активных/удалённых/всех курсов"""
-
     title = "Статус курсов"
     parameter_name = "course_status"
 
@@ -170,14 +173,12 @@ class SoftDeleteFilter(admin.SimpleListFilter):
 
     def queryset(self, request, queryset):
         value = self.value()
-
         if value == "active":
             return queryset.filter(is_deleted=False)
         if value == "deleted":
             return queryset.filter(is_deleted=True)
         if value == "all":
             return queryset
-
         return queryset
 
 
@@ -209,15 +210,21 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
 
     actions = ["soft_delete_action", "restore_action", "hard_delete_action"]
 
+    def _is_viewer(self, request):
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
+    def _check_viewer_permission(self, request):
+        if self._is_viewer(request):
+            raise PermissionDenied("У вас нет прав на выполнение этого действия")
+
     @admin.display(description="Категории")
     def categories_display(self, obj):
-        """Отображение категорий в виде цветных бейджей"""
         categories = obj.categories.all()
         if not categories:
             return mark_safe('<span style="color: #6c757d;">—</span>')
 
         badges = []
-        for cat in categories[:5]:  # Показываем первые 5 категорий
+        for cat in categories[:5]:
             badges.append(
                 f'<span style="display: inline-block; background: #e9ecef; '
                 f"padding: 2px 8px; border-radius: 12px; font-size: 11px; "
@@ -244,10 +251,10 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         )
 
     def get_queryset(self, request):
-        """Оптимизация запроса - подгружаем категории для уменьшения количества запросов"""
         return super().get_queryset(request).prefetch_related("categories")
 
     def soft_delete_action(self, request, queryset):
+        self._check_viewer_permission(request)
         count = queryset.filter(is_deleted=False).count()
         queryset.filter(is_deleted=False).update(
             is_deleted=True, deleted_at=timezone.now()
@@ -259,6 +266,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     soft_delete_action.short_description = "Переместить в корзину"
 
     def restore_action(self, request, queryset):
+        self._check_viewer_permission(request)
         count = queryset.filter(is_deleted=True).count()
         queryset.filter(is_deleted=True).update(is_deleted=False, deleted_at=None)
         self.message_user(
@@ -268,6 +276,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     restore_action.short_description = "Восстановить из корзины"
 
     def hard_delete_action(self, request, queryset):
+        self._check_viewer_permission(request)
         count = queryset.count()
         for course in queryset:
             course.categories.clear()
@@ -281,13 +290,19 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
     hard_delete_action.short_description = "Полностью удалить навсегда"
 
     def get_actions(self, request):
+        """Скрываем выпадающий список действий для просмотрщика"""
         actions = super().get_actions(request)
+        if self._is_viewer(request):
+            return {}  # Возвращаем пустой словарь - действий нет
         if "delete_selected" in actions:
             del actions["delete_selected"]
         return actions
 
     def get_urls(self):
+        """Скрываем URL для парсинга у просмотрщика"""
+        # Получаем базовые URL без кастомных
         urls = super().get_urls()
+        # Кастомные URL добавляем всегда, но доступ к ним будет закрыт через _check_viewer_permission
         custom_urls = [
             path(
                 "restore/<int:course_id>/",
@@ -308,6 +323,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         return custom_urls + urls
 
     def restore_single_course(self, request, course_id):
+        self._check_viewer_permission(request)
         course = get_object_or_404(Course, id=course_id, is_deleted=True)
         course.is_deleted = False
         course.deleted_at = None
@@ -318,6 +334,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/admin/"))
 
     def soft_delete_single_course(self, request, course_id):
+        self._check_viewer_permission(request)
         course = get_object_or_404(Course, id=course_id, is_deleted=False)
         course.is_deleted = True
         course.deleted_at = timezone.now()
@@ -328,6 +345,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/admin/"))
 
     def hard_delete_single_course(self, request, course_id):
+        self._check_viewer_permission(request)
         course = get_object_or_404(Course, id=course_id)
         title = course.title
         course.categories.clear()
@@ -340,6 +358,7 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/admin/"))
 
     def delete_model(self, request, obj):
+        self._check_viewer_permission(request)
         obj.is_deleted = True
         obj.deleted_at = timezone.now()
         obj.save()
@@ -348,7 +367,30 @@ class CourseAdmin(ExportMixin, ParseActionsMixin, admin.ModelAdmin):
         )
 
     def delete_queryset(self, request, queryset):
+        self._check_viewer_permission(request)
         self.soft_delete_action(request, queryset)
+
+    def has_add_permission(self, request):
+        if self._is_viewer(request):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def changelist_view(self, request, extra_context=None):
+        """Скрываем кнопку "Добавить курс" для просмотрщика"""
+        if self._is_viewer(request):
+            extra_context = extra_context or {}
+            extra_context["show_add_button"] = False
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 @admin.register(Category)
@@ -357,9 +399,27 @@ class CategoryAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name",)
 
+    def _is_viewer(self, request):
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(courses_count=Count("course"))
 
     @admin.display(description="Количество курсов")
     def courses_count(self, obj):
         return obj.courses_count
+
+    def has_add_permission(self, request):
+        if self._is_viewer(request):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_delete_permission(request, obj)

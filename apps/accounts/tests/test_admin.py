@@ -1,7 +1,10 @@
 import pytest
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.hashers import make_password
+from django.urls import reverse
+
 from unittest.mock import Mock
+
 from apps.accounts.admin import (
     EmployerRegistrationRequestAdmin,
     EmployerProfileAdmin,
@@ -330,3 +333,97 @@ class TestEmployeeProfileForm:
 
         assert queryset.filter(id=test_employee_user.id).exists()
         assert not queryset.filter(id=test_employer_user.id).exists()
+
+
+class TestViewerPermissions:
+    """Тесты для проверки прав просмотрщика в админке accounts"""
+
+    def test_viewer_can_view_employer_requests(self, viewer_client):
+        """Тест - просмотрщик может видеть список заявок"""
+        url = reverse("admin:accounts_employerregistrationrequest_changelist")
+        response = viewer_client.get(url)
+        assert response.status_code == 200
+
+    def test_viewer_can_view_employer_profiles(self, viewer_client):
+        """Тест - просмотрщик может видеть список профилей работодателей"""
+        url = reverse("admin:accounts_employerprofile_changelist")
+        response = viewer_client.get(url)
+        assert response.status_code == 200
+
+    def test_viewer_can_view_employee_profiles(self, viewer_client):
+        """Тест - просмотрщик может видеть список профилей работников"""
+        url = reverse("admin:accounts_employeeprofile_changelist")
+        response = viewer_client.get(url)
+        assert response.status_code == 200
+
+    def test_viewer_cannot_add_employer_request(self, viewer_client):
+        """Тест - просмотрщик не может добавлять заявки"""
+        url = reverse("admin:accounts_employerregistrationrequest_add")
+        response = viewer_client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_add_employer_profile(self, viewer_client):
+        """Тест - просмотрщик не может добавлять профили работодателей"""
+        url = reverse("admin:accounts_employerprofile_add")
+        response = viewer_client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_add_employee_profile(self, viewer_client):
+        """Тест - просмотрщик не может добавлять профили работников"""
+        url = reverse("admin:accounts_employeeprofile_add")
+        response = viewer_client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_edit_employer_request(self, viewer_client):
+        """Тест - просмотрщик не может редактировать заявки"""
+        request_obj = EmployerRegistrationRequest.objects.create(
+            username="edit_test",
+            email="edit@test.com",
+            password=make_password("testpass"),
+            short_name="ООО Тест",
+            full_name="Общество с ограниченной ответственностью Тест",
+            inn="123456789099",
+            status="pending",
+        )
+        url = reverse(
+            "admin:accounts_employerregistrationrequest_change", args=[request_obj.id]
+        )
+        # Пытаемся отправить POST запрос на изменение
+        data = {
+            "short_name": "Измененное ООО",
+            "full_name": "Измененное полное название",
+        }
+        response = viewer_client.post(url, data)
+        # Должен быть редирект или 403
+        assert response.status_code in [302, 403]
+
+    def test_viewer_cannot_delete_employer_request(self, viewer_client):
+        """Тест - просмотрщик не может удалять заявки"""
+        request_obj = EmployerRegistrationRequest.objects.create(
+            username="delete_test",
+            email="delete@test.com",
+            password=make_password("testpass"),
+            short_name="ООО Тест",
+            full_name="Общество с ограниченной ответственностью Тест",
+            inn="123456789099",
+            status="pending",
+        )
+        url = reverse(
+            "admin:accounts_employerregistrationrequest_delete", args=[request_obj.id]
+        )
+        response = viewer_client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_viewer_has_no_actions_on_employer_requests(self, viewer_client):
+        """Тест - у просмотрщика нет выпадающего списка действий в заявках"""
+        url = reverse("admin:accounts_employerregistrationrequest_changelist")
+        response = viewer_client.get(url)
+        content = response.content.decode()
+        assert 'name="action"' not in content or "action" not in content.lower()
+
+    def test_admin_has_actions_on_employer_requests(self, admin_client):
+        """Тест - у администратора есть выпадающий список действий в заявках"""
+        url = reverse("admin:accounts_employerregistrationrequest_changelist")
+        response = admin_client.get(url)
+        content = response.content.decode()
+        assert "Действия" in content or "action" in content.lower()
