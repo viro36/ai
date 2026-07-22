@@ -263,3 +263,18 @@ class CourseDetailView(LoginRequiredMixin, DetailView):
     def get_queryset(self):
         """Показываем только активные курсы"""
         return Course.objects.filter(is_deleted=False)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        course = self.object
+
+        # Если пользователь авторизован, отмечаем рекомендацию как просмотренную
+        if user.is_authenticated:
+            from apps.recommendations.models import CourseRecommendation
+
+            CourseRecommendation.objects.filter(
+                user=user, course=course, is_viewed=False
+            ).update(is_viewed=True)
+
+        return context
