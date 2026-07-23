@@ -91,6 +91,25 @@
                         </div>
                     </a>
                 </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'technical_requirements:my_requirements' %}" class="text-decoration-none">
+                        <div class="action-card action-card-admin">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-file-pen"></i>
+                            </div>
+                            <h3 class="action-title">Технические задания</h3>
+                            <p class="action-description">
+                                Создание и управление техническими заданиями для ВУЗов
+                            </p>
+                            <span class="badge">
+                                {% with total=user.technical_requirements.count %}
+                                    {{ total }} заданий
+                                {% endwith %}
+                            </span>
+                        </div>
+                    </a>
+                </div>
             {% endif %}
 
             {% if user.user_type == 'employee' %}

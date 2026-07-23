@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools %}
+    <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+        <a href="{{ create_tech_req_url }}" class="button" style="background: #28a745; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;">
+            <i class="fas fa-plus"></i> Создать ТЗ через форму
+        </a>
+        {{ block.super }}
+    </div>
+{% endblock %}

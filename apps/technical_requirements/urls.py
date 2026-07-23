@@ -7,9 +7,7 @@ urlpatterns = [
     # Для работодателя
     path("create/", views.create_technical_requirement, name="create"),
     path("my/", views.MyRequirementsListView.as_view(), name="my_requirements"),
-    path("edit/<int:pk>/", views.edit_technical_requirement, name="edit"),
     path("delete/<int:pk>/", views.delete_technical_requirement, name="delete"),
-    path("send/<int:pk>/", views.send_technical_requirement, name="send"),
     # Для ВУЗа
     path(
         "received/",
@@ -17,4 +15,8 @@ urlpatterns = [
         name="received_requirements",
     ),
     path("detail/<int:pk>/", views.RequirementDetailView.as_view(), name="detail"),
+    path(
+        "update-status/<int:pk>/", views.update_requirement_status, name="update_status"
+    ),
+    path("statuses/<int:pk>/", views.requirement_statuses, name="requirement_statuses"),
 ]

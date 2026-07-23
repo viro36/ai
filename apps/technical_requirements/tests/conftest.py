@@ -2,7 +2,12 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from apps.organizations.models import Organization, OrganizationType, District
-from apps.technical_requirements.models import Question, TechnicalRequirement
+from apps.technical_requirements.models import (
+    Question,
+    TechnicalRequirement,
+    RequirementStatus,
+    TechnicalRequirementUniversity,
+)
 
 User = get_user_model()
 
@@ -104,6 +109,20 @@ def another_university_user():
         first_name="Сидор",
     )
     return user
+
+
+@pytest.fixture
+def requirement_status_sent():
+    """Фикстура статуса 'Отправлено'"""
+    status, _ = RequirementStatus.objects.get_or_create(
+        code=1,
+        defaults={
+            "name": "Отправлено",
+            "color": "#17a2b8",
+            "order": 1,
+        },
+    )
+    return status
 
 
 @pytest.fixture
@@ -215,7 +234,9 @@ def question_inactive():
 
 
 @pytest.fixture
-def technical_requirement(employer_user, university_user, question_text):
+def technical_requirement(
+    employer_user, university_user, question_text, requirement_status_sent
+):
     """Фикстура технического задания"""
     answers = {
         str(question_text.id): "Тестовый ответ",
@@ -223,21 +244,29 @@ def technical_requirement(employer_user, university_user, question_text):
     requirement = TechnicalRequirement.objects.create(
         employer=employer_user,
         answers=answers,
-        status="sent",
     )
-    requirement.universities.add(university_user.organization)
+    # Создаем связь с ВУЗом
+    TechnicalRequirementUniversity.objects.create(
+        technical_requirement=requirement,
+        university=university_user.organization,
+        status=requirement_status_sent,
+    )
     return requirement
 
 
 @pytest.fixture
 def draft_requirement(employer_user, university_user):
-    """Фикстура черновика технического задания"""
+    """Фикстура черновика технического задания (без статуса)"""
     requirement = TechnicalRequirement.objects.create(
         employer=employer_user,
         answers={},
-        status="draft",
     )
-    requirement.universities.add(university_user.organization)
+    # Создаем связь с ВУЗом без статуса
+    TechnicalRequirementUniversity.objects.create(
+        technical_requirement=requirement,
+        university=university_user.organization,
+        status=None,
+    )
     return requirement
 
 

@@ -16,7 +16,7 @@
             Техническое задание #{{ requirement.id }}
         </h1>
         <div>
-            {% if user.user_type == 'employer' %}
+            {% if user.user_type == 'employer' or user.is_superuser or user.user_type == 'admin' %}
                 <a href="{% url 'technical_requirements:my_requirements' %}" class="btn btn-outline-secondary">
                     <i class="fa-solid fa-arrow-left me-1"></i> Назад
                 </a>
@@ -41,49 +41,54 @@
                     <p><strong><i class="fa-regular fa-user me-2"></i>Работодатель:</strong> {{ requirement.employer.organization.short_name }}</p>
                 </div>
                 <div class="col-md-6">
-                    <p>
-                        <strong><i class="fa-solid fa-university me-2"></i>ВУЗы-получатели:</strong>
-                        <span class="badge" style="background-color: #CCCCFF; color: #292966;">
-                            {{ requirement.universities.count }} ВУЗов
-                        </span>
-                    </p>
-                    <p>
-                        <strong><i class="fa-regular fa-circle me-2"></i>Статус:</strong>
-                        {% if requirement.status == 'draft' %}
-                            <span class="badge badge-status-draft">Черновик</span>
-                        {% elif requirement.status == 'sent' %}
-                            <span class="badge badge-status-sent">Отправлено</span>
-                        {% elif requirement.status == 'in_development' %}
-                            <span class="badge badge-status-in_development">В разработке</span>
-                        {% elif requirement.status == 'completed' %}
-                            <span class="badge badge-status-completed">Завершено</span>
-                        {% elif requirement.status == 'rejected' %}
-                            <span class="badge badge-status-rejected">Отклонено</span>
-                        {% endif %}
-                    </p>
+                    {% if user.user_type == 'employer' or user.is_superuser or user.user_type == 'admin' %}
+                        <p>
+                            <strong><i class="fa-solid fa-university me-2"></i>ВУЗы-получатели:</strong>
+                            <span class="badge" style="background-color: #CCCCFF; color: #292966;">
+                                {{ university_statuses|length }} ВУЗов
+                            </span>
+                        </p>
+                    {% endif %}
+                    {% if user.user_type == 'university' %}
+                        <p>
+                            <strong><i class="fa-regular fa-circle me-2"></i>Ваш статус:</strong>
+                            {% for uni_status in university_statuses %}
+                                {% if uni_status.university == user.organization %}
+                                    <span class="badge" style="background-color: {{ uni_status.status.color }}; color: white;">
+                                        {{ uni_status.status.name }}
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+                        </p>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Список ВУЗов -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-header" style="background-color: #f8f9fa; color: #292966;">
-            <i class="fa-solid fa-university me-2"></i>Получатели
+    <!-- Список ВУЗов (для работодателя и админа) -->
+    {% if user.user_type == 'employer' or user.is_superuser or user.user_type == 'admin' %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header" style="background-color: #f8f9fa; color: #292966;">
+                <i class="fa-solid fa-university me-2"></i>Получатели
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    {% for uni_status in university_statuses %}
+                        <li class="py-1">
+                            <i class="fa-solid fa-landmark me-2" style="color: #5C5C99;"></i>
+                            {{ uni_status.university.short_name }}
+                            <span class="badge" style="background-color: {{ uni_status.status.color }}; color: white; margin-left: 8px;">
+                                {{ uni_status.status.name }}
+                            </span>
+                        </li>
+                    {% empty %}
+                        <li class="text-muted">Нет выбранных ВУЗов</li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
-        <div class="card-body">
-            <ul class="list-unstyled mb-0">
-                {% for university in requirement.universities.all %}
-                    <li class="py-1">
-                        <i class="fa-solid fa-landmark me-2" style="color: #5C5C99;"></i>
-                        {{ university.short_name }}
-                    </li>
-                {% empty %}
-                    <li class="text-muted">Нет выбранных ВУЗов</li>
-                {% endfor %}
-            </ul>
-        </div>
-    </div>
+    {% endif %}
 
     <!-- Ответы на вопросы -->
     <div class="card shadow-sm">
@@ -107,20 +112,5 @@
             {% endfor %}
         </div>
     </div>
-
-    <!-- Кнопки действий для работодателя -->
-    {% if user.user_type == 'employer' and requirement.status == 'draft' %}
-        <div class="mt-4 d-flex gap-2">
-            <a href="{% url 'technical_requirements:edit' requirement.id %}" class="btn btn-primary">
-                <i class="fa-solid fa-pen me-2"></i>Редактировать
-            </a>
-            <a href="{% url 'technical_requirements:send' requirement.id %}" class="btn btn-success">
-                <i class="fa-solid fa-paper-plane me-2"></i>Отправить
-            </a>
-            <a href="{% url 'technical_requirements:delete' requirement.id %}" class="btn btn-danger" onclick="return confirm('Удалить это задание?')">
-                <i class="fa-solid fa-trash me-2"></i>Удалить
-            </a>
-        </div>
-    {% endif %}
 </div>
 {% endblock %}

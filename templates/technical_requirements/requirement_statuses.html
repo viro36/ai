@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Статусы ТЗ #{{ requirement.id }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/technical_requirements/requirements_list.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-file-pen me-2" style="color: #CCCCFF;"></i>
+            Статусы ТЗ id {{ requirement.id }}
+        </h1>
+        <a href="{% url 'technical_requirements:my_requirements' %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i> Назад
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <p><strong>Работодатель:</strong> {{ requirement.employer.organization.short_name }}</p>
+            <p><strong>Дата создания:</strong> {{ requirement.created_at|date:"d.m.Y H:i" }}</p>
+        </div>
+    </div>
+
+    <div class="requirements-table">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ВУЗ</th>
+                    <th>Статус</th>
+                    <th>Дата обновления</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for uni_status in university_statuses %}
+                <tr>
+                    <td>
+                        <i class="fa-solid fa-landmark me-2" style="color: #5C5C99;"></i>
+                        {{ uni_status.university.short_name }}
+                    </td>
+                    <td>
+                        {% if uni_status.status %}
+                            <span class="badge" style="background-color: {{ uni_status.status.color }}; color: white;">
+                                {{ uni_status.status.name }}
+                            </span>
+                        {% else %}
+                            <span class="badge badge-status-draft">Не указан</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ uni_status.updated_at|date:"d.m.Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" class="text-center text-muted">Нет статусов</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

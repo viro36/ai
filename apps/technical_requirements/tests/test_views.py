@@ -1,9 +1,12 @@
 import pytest
-import json
 from django.urls import reverse
 from django.contrib.messages import get_messages
 
-from apps.technical_requirements.models import TechnicalRequirement
+from apps.technical_requirements.models import (
+    TechnicalRequirement,
+    TechnicalRequirementUniversity,
+    RequirementStatus,
+)
 from apps.organizations.models import Organization
 from django.contrib.auth import get_user_model
 
@@ -51,6 +54,7 @@ class TestCreateTechnicalRequirementView:
         question_boolean,
         question_date,
         question_number,
+        requirement_status_sent,
     ):
         """Тест успешного создания ТЗ"""
         # Создаем 5 ВУЗов
@@ -94,7 +98,19 @@ class TestCreateTechnicalRequirementView:
         assert response.url == reverse("technical_requirements:my_requirements")
 
         # Проверяем, что ТЗ создано
-        assert TechnicalRequirement.objects.filter(employer=employer_user).exists()
+        requirement = TechnicalRequirement.objects.filter(
+            employer=employer_user
+        ).first()
+        assert requirement is not None
+
+        # Проверяем, что созданы связи с ВУЗами
+        university_statuses = TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=requirement
+        )
+        assert university_statuses.count() == 5
+        # Проверяем, что статус установлен "Отправлено"
+        for uni_status in university_statuses:
+            assert uni_status.status == requirement_status_sent
 
     def test_create_view_post_invalid(self, client, employer_user, university_user):
         """Тест отправки невалидной формы"""
@@ -110,106 +126,6 @@ class TestCreateTechnicalRequirementView:
         # Проверяем, что есть сообщение об ошибке
         messages = list(get_messages(response.wsgi_request))
         assert any("исправьте ошибки" in str(msg).lower() for msg in messages)
-
-
-class TestEditTechnicalRequirementView:
-    """Тесты для редактирования технического задания"""
-
-    def test_edit_view_requires_login(self, client, draft_requirement):
-        url = reverse("technical_requirements:edit", args=[draft_requirement.id])
-        response = client.get(url)
-        assert response.status_code == 302
-        assert "login" in response.url
-
-    def test_edit_view_requires_employer(
-        self, client, university_user, draft_requirement
-    ):
-        client.force_login(university_user)
-        url = reverse("technical_requirements:edit", args=[draft_requirement.id])
-        response = client.get(url)
-        assert response.status_code == 404
-
-    def test_edit_view_returns_200_for_employer(
-        self, client, employer_user, draft_requirement
-    ):
-        client.force_login(employer_user)
-        url = reverse("technical_requirements:edit", args=[draft_requirement.id])
-        response = client.get(url)
-        assert response.status_code == 200
-        assert "form" in response.context
-        assert "requirement" in response.context
-
-    def test_edit_view_cannot_edit_sent_requirement(
-        self, client, employer_user, technical_requirement
-    ):
-        """Нельзя редактировать отправленное ТЗ"""
-        client.force_login(employer_user)
-        url = reverse("technical_requirements:edit", args=[technical_requirement.id])
-        response = client.get(url)
-        assert response.status_code == 302
-        assert response.url == reverse("technical_requirements:my_requirements")
-
-    def test_edit_view_post_valid(
-        self,
-        client,
-        employer_user,
-        draft_requirement,
-        question_text,
-        question_textarea,
-        question_choice,
-        question_multiple_choice,
-        question_boolean,
-        question_date,
-        question_number,
-        question_depends_on,
-    ):
-        """Тест успешного редактирования ТЗ"""
-        # Добавляем 5 ВУЗов
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-
-        universities = list(draft_requirement.universities.all())
-        for i in range(5 - len(universities)):
-            org = Organization.objects.create(
-                inn=f"{i+1:012d}",
-                short_name=f"Тест ВУЗ {i+1}",
-                full_name=f"Тест ВУЗ полное {i+1}",
-                address_raw="г. Воронеж",
-                status="ACTIVE",
-            )
-            User.objects.create_user(
-                username=f"test_univ_{i+1}",
-                email=f"test_univ{i+1}@test.com",
-                password="test123",
-                user_type="university",
-                organization=org,
-            )
-            draft_requirement.universities.add(org)
-            universities.append(org)
-
-        client.force_login(employer_user)
-        url = reverse("technical_requirements:edit", args=[draft_requirement.id])
-
-        data = {
-            "universities": [u.id for u in universities],
-            f"q_{question_text.id}": "Обновленный ответ",
-            f"q_{question_textarea.id}": "Обновленный ответ textarea",
-            f"q_{question_choice.id}": "Внедрение ИИ",
-            f"q_{question_multiple_choice.id}": ["Docker"],
-            f"q_{question_boolean.id}": True,
-            f"q_{question_date.id}": "2024-01-01",
-            f"q_{question_number.id}": 10,
-            f"q_{question_depends_on.id}": "Тестовая площадка",
-        }
-
-        response = client.post(url, data)
-        assert response.status_code == 302
-        assert response.url == reverse("technical_requirements:my_requirements")
-
-        draft_requirement.refresh_from_db()
-        answers = json.loads(draft_requirement.answers)
-        assert answers[str(question_text.id)] == "Обновленный ответ"
 
 
 class TestMyRequirementsListView:
@@ -254,7 +170,6 @@ class TestMyRequirementsListView:
         other_requirement = TechnicalRequirement.objects.create(
             employer=other_user,
             answers={},
-            status="draft",
         )
 
         client.force_login(employer_user)
@@ -292,17 +207,24 @@ class TestReceivedRequirementsListView:
         other_requirement = TechnicalRequirement.objects.create(
             employer=technical_requirement.employer,
             answers={},
-            status="sent",
         )
-        other_requirement.universities.add(another_university_user.organization)
+        TechnicalRequirementUniversity.objects.create(
+            technical_requirement=other_requirement,
+            university=another_university_user.organization,
+        )
 
         client.force_login(university_user)
         url = reverse("technical_requirements:received_requirements")
         response = client.get(url)
         assert response.status_code == 200
         requirements = response.context["requirements"]
-        assert technical_requirement in requirements
-        assert other_requirement not in requirements
+        # Теперь requirements содержит TechnicalRequirementUniversity
+        assert any(
+            req.technical_requirement == technical_requirement for req in requirements
+        )
+        assert not any(
+            req.technical_requirement == other_requirement for req in requirements
+        )
 
 
 class TestRequirementDetailView:
@@ -323,6 +245,7 @@ class TestRequirementDetailView:
         assert response.status_code == 200
         assert "requirement" in response.context
         assert "questions" in response.context
+        assert "university_statuses" in response.context
 
     def test_detail_returns_200_for_university(
         self, client, university_user, technical_requirement
@@ -351,16 +274,6 @@ class TestDeleteTechnicalRequirementView:
         assert response.status_code == 302
         assert "login" in response.url
 
-    def test_delete_only_draft(self, client, employer_user, technical_requirement):
-        """Нельзя удалить отправленное ТЗ"""
-        client.force_login(employer_user)
-        url = reverse("technical_requirements:delete", args=[technical_requirement.id])
-        response = client.post(url, follow=True)
-        assert response.status_code == 200
-        messages = list(get_messages(response.wsgi_request))
-        assert any("Нельзя удалить" in str(msg) for msg in messages)
-        assert TechnicalRequirement.objects.filter(id=technical_requirement.id).exists()
-
     def test_delete_success(self, client, employer_user, draft_requirement):
         client.force_login(employer_user)
         url = reverse("technical_requirements:delete", args=[draft_requirement.id])
@@ -369,74 +282,121 @@ class TestDeleteTechnicalRequirementView:
         assert not TechnicalRequirement.objects.filter(id=draft_requirement.id).exists()
 
 
-class TestSendTechnicalRequirementView:
-    """Тесты для отправки ТЗ"""
+class TestUpdateRequirementStatusView:
+    """Тесты для обновления статуса ТЗ для ВУЗа"""
 
-    def test_send_requires_login(self, client, draft_requirement):
-        url = reverse("technical_requirements:send", args=[draft_requirement.id])
+    def test_update_status_requires_login(
+        self, client, technical_requirement, university_user
+    ):
+        uni_status = TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).first()
+        url = reverse("technical_requirements:update_status", args=[uni_status.id])
         response = client.post(url)
         assert response.status_code == 302
         assert "login" in response.url
 
-    def test_send_only_draft(self, client, employer_user, technical_requirement):
-        """Нельзя отправить уже отправленное ТЗ"""
+    def test_update_status_requires_university(
+        self, client, employer_user, technical_requirement, university_user
+    ):
+        """Только ВУЗ может изменять статус"""
+        uni_status = TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).first()
         client.force_login(employer_user)
-        url = reverse("technical_requirements:send", args=[technical_requirement.id])
+        url = reverse("technical_requirements:update_status", args=[uni_status.id])
+        response = client.post(url, follow=True)
+        # Проверяем что доступ запрещен (403) или редирект
+        assert response.status_code in [403, 302]
+
+    def test_update_status_success(
+        self, client, university_user, technical_requirement, requirement_status_sent
+    ):
+        """Тест успешного обновления статуса"""
+        # Создаем еще один статус
+        status_in_development = RequirementStatus.objects.create(
+            code=2,
+            name="В разработке",
+            color="#ffc107",
+            order=2,
+        )
+
+        uni_status = TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).first()
+
+        # Проверяем, что статус сейчас "Отправлено"
+        assert uni_status.status == requirement_status_sent
+
+        client.force_login(university_user)
+        url = reverse("technical_requirements:update_status", args=[uni_status.id])
+
+        # Отправляем POST запрос
+        data = {"status_id": status_in_development.id}
+        response = client.post(url, data, follow=True)
+        assert response.status_code == 200
+
+        # Проверяем сообщение об успехе
+        messages = list(get_messages(response.wsgi_request))
+        assert any("изменён" in str(msg) for msg in messages)
+
+        # Получаем объект заново из БД
+        updated_status = TechnicalRequirementUniversity.objects.get(pk=uni_status.pk)
+        assert updated_status.status == status_in_development
+
+    def test_update_status_wrong_university(
+        self, client, another_university_user, technical_requirement, university_user
+    ):
+        """ВУЗ не может изменить статус чужого ТЗ"""
+        uni_status = TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).first()
+
+        client.force_login(another_university_user)
+        url = reverse("technical_requirements:update_status", args=[uni_status.id])
         response = client.post(url, follow=True)
         assert response.status_code == 200
         messages = list(get_messages(response.wsgi_request))
-        assert any("уже отправлено" in str(msg).lower() for msg in messages)
+        assert any("нет доступа" in str(msg).lower() for msg in messages)
 
-    def test_send_requires_5_universities(
-        self, client, employer_user, draft_requirement
+
+class TestRequirementStatusesView:
+    """Тесты для просмотра статусов ТЗ по ВУЗам"""
+
+    def test_statuses_requires_login(self, client, technical_requirement):
+        url = reverse(
+            "technical_requirements:requirement_statuses",
+            args=[technical_requirement.id],
+        )
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_statuses_requires_employer(
+        self, client, university_user, technical_requirement
     ):
-        """Нельзя отправить если менее 5 ВУЗов"""
-        client.force_login(employer_user)
-        url = reverse("technical_requirements:send", args=[draft_requirement.id])
-        response = client.post(url, follow=True)
-        assert response.status_code == 200
-        messages = list(get_messages(response.wsgi_request))
-        # Проверяем что есть сообщение о необходимости 5 ВУЗов
-        assert any("5 ВУЗов" in str(msg) for msg in messages)
+        """Только работодатель может видеть статусы всех ВУЗов"""
+        client.force_login(university_user)
+        url = reverse(
+            "technical_requirements:requirement_statuses",
+            args=[technical_requirement.id],
+        )
+        response = client.get(url)
+        assert response.status_code == 404
 
-    def test_send_success(
-        self,
-        client,
-        employer_user,
-        draft_requirement,
-        university_user,
-        another_university_user,
+    def test_statuses_returns_200_for_employer(
+        self, client, employer_user, technical_requirement
     ):
-        """Тест успешной отправки ТЗ"""
-        # Добавляем 5 ВУЗов
-        universities = [
-            university_user.organization,
-            another_university_user.organization,
-        ]
-        for i in range(3, 6):
-            org = Organization.objects.create(
-                inn=f"{i:012d}",
-                short_name=f"Тест ВУЗ {i}",
-                full_name=f"Тест ВУЗ полное {i}",
-                address_raw="г. Воронеж",
-                status="ACTIVE",
-            )
-            User.objects.create_user(
-                username=f"test_univ_{i}",
-                email=f"test_univ{i}@test.com",
-                password="test123",
-                user_type="university",
-                organization=org,
-            )
-            universities.append(org)
-
-        for u in universities:
-            draft_requirement.universities.add(u)
-
         client.force_login(employer_user)
-        url = reverse("technical_requirements:send", args=[draft_requirement.id])
-        response = client.post(url, follow=True)
+        url = reverse(
+            "technical_requirements:requirement_statuses",
+            args=[technical_requirement.id],
+        )
+        response = client.get(url)
         assert response.status_code == 200
-
-        draft_requirement.refresh_from_db()
-        assert draft_requirement.status == "sent"
+        assert "requirement" in response.context
+        assert "university_statuses" in response.context

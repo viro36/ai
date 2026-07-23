@@ -1,7 +1,11 @@
 import pytest
 from django.db import IntegrityError
 
-from apps.technical_requirements.models import Question, TechnicalRequirement
+from apps.technical_requirements.models import (
+    Question,
+    TechnicalRequirement,
+    TechnicalRequirementUniversity,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -73,33 +77,33 @@ class TestQuestionModel:
         assert question_inactive.is_active is False
 
 
+class TestRequirementStatusModel:
+    """Тесты для модели RequirementStatus"""
+
+    def test_creation(self, requirement_status_sent):
+        """Тест создания статуса"""
+        assert requirement_status_sent.code == 1
+        assert requirement_status_sent.name == "Отправлено"
+        assert requirement_status_sent.color == "#17a2b8"
+        assert requirement_status_sent.is_active is True
+
+    def test_str_method(self, requirement_status_sent):
+        """Тест строкового представления"""
+        assert str(requirement_status_sent) == "Отправлено"
+
+
 class TestTechnicalRequirementModel:
     """Тесты для модели TechnicalRequirement"""
 
-    def test_creation(self, technical_requirement, employer_user, university_user):
+    def test_creation(self, technical_requirement, employer_user):
         """Тест создания технического задания"""
         assert technical_requirement.employer == employer_user
-        assert technical_requirement.status == "sent"
-        assert technical_requirement.universities.count() == 1
-        assert (
-            technical_requirement.universities.first() == university_user.organization
-        )
         assert technical_requirement.created_at is not None
 
     def test_str_method(self, technical_requirement, employer_user):
         """Тест строкового представления"""
         expected = f"ТЗ #{technical_requirement.id} от {employer_user.get_full_name()}"
         assert str(technical_requirement) == expected
-
-    def test_universities_count_property(
-        self, technical_requirement, university_user, another_university_user
-    ):
-        """Тест свойства universities_count"""
-        assert technical_requirement.universities_count == 1
-
-        # Добавляем еще один ВУЗ
-        technical_requirement.universities.add(another_university_user.organization)
-        assert technical_requirement.universities_count == 2
 
     def test_get_answer(self, technical_requirement, question_text):
         """Тест получения ответа на вопрос"""
@@ -135,37 +139,16 @@ class TestTechnicalRequirementModel:
         assert requirement.answers["3"] is True
         assert requirement.answers["4"] == 42
 
-    def test_status_choices(self, employer_user):
-        """Тест статусов"""
-        for status in ["draft", "sent", "in_development", "completed", "rejected"]:
-            requirement = TechnicalRequirement.objects.create(
-                employer=employer_user,
-                answers={},
-                status=status,
-            )
-            assert requirement.status == status
-
-    def test_default_status(self, employer_user):
-        """Тест статуса по умолчанию"""
-        requirement = TechnicalRequirement.objects.create(
-            employer=employer_user,
-            answers={},
-        )
-        assert requirement.status == "draft"
-
     def test_ordering(self, employer_user):
         """Тест сортировки (новые сверху)"""
         req1 = TechnicalRequirement.objects.create(
             employer=employer_user,
             answers={},
-            status="draft",
         )
         req2 = TechnicalRequirement.objects.create(
             employer=employer_user,
             answers={},
-            status="draft",
         )
-        # Должны быть в порядке убывания created_at
         requirements = TechnicalRequirement.objects.all()
         assert requirements[0].created_at >= requirements[1].created_at
 
@@ -174,25 +157,79 @@ class TestTechnicalRequirementModel:
         assert employer_user.technical_requirements.count() == 1
         assert employer_user.technical_requirements.first() == technical_requirement
 
-    def test_universities_many_to_many(
-        self, technical_requirement, university_user, another_university_user
-    ):
-        """Тест many-to-many связи с ВУЗами"""
-        # Добавляем второй ВУЗ
-        technical_requirement.universities.add(another_university_user.organization)
-        assert technical_requirement.universities.count() == 2
-
-        # Проверяем обратную связь
-        assert university_user.organization.received_requirements.count() == 1
-        assert another_university_user.organization.received_requirements.count() == 1
-
     def test_delete_employer_cascade(self, employer_user, technical_requirement):
         """Тест каскадного удаления при удалении работодателя"""
-        employer_id = employer_user.id
         requirement_id = technical_requirement.id
-
-        # Удаляем работодателя
         employer_user.delete()
-
-        # Техническое задание должно удалиться каскадно
         assert TechnicalRequirement.objects.filter(id=requirement_id).count() == 0
+
+
+class TestTechnicalRequirementUniversityModel:
+    """Тесты для модели TechnicalRequirementUniversity"""
+
+    def test_creation(
+        self, technical_requirement, university_user, requirement_status_sent
+    ):
+        """Тест создания связи ТЗ-ВУЗ-статус"""
+        # Удаляем существующую связь, если она есть
+        TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).delete()
+
+        uni_status = TechnicalRequirementUniversity.objects.create(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+            status=requirement_status_sent,
+        )
+        assert uni_status.technical_requirement == technical_requirement
+        assert uni_status.university == university_user.organization
+        assert uni_status.status == requirement_status_sent
+
+    def test_unique_together(self, technical_requirement, university_user):
+        """Тест уникальности пары (ТЗ, ВУЗ)"""
+        # Удаляем существующую связь
+        TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).delete()
+
+        TechnicalRequirementUniversity.objects.create(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        )
+        with pytest.raises(IntegrityError):
+            TechnicalRequirementUniversity.objects.create(
+                technical_requirement=technical_requirement,
+                university=university_user.organization,
+            )
+
+    def test_str_method(self, technical_requirement, university_user):
+        """Тест строкового представления"""
+        # Удаляем существующую связь
+        TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).delete()
+
+        uni_status = TechnicalRequirementUniversity.objects.create(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        )
+        expected = f"ТЗ #{technical_requirement.id} - {university_user.organization.short_name}: None"
+        assert str(uni_status) == expected
+
+    def test_related_names(self, technical_requirement, university_user):
+        """Тест related_names"""
+        # Удаляем существующую связь
+        TechnicalRequirementUniversity.objects.filter(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        ).delete()
+
+        uni_status = TechnicalRequirementUniversity.objects.create(
+            technical_requirement=technical_requirement,
+            university=university_user.organization,
+        )
+        assert technical_requirement.university_statuses.count() == 1
+        assert university_user.organization.requirement_statuses.count() == 1

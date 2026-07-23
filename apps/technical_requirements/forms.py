@@ -6,32 +6,29 @@ from apps.organizations.models import Organization
 class TechnicalRequirementForm(forms.ModelForm):
     """Форма создания технического задания на основе вопросов из БД"""
 
+    # Поле для выбора ВУЗов
+    universities = forms.ModelMultipleChoiceField(
+        queryset=Organization.objects.filter(users__user_type="university")
+        .distinct()
+        .order_by("short_name"),
+        widget=forms.CheckboxSelectMultiple,
+        label="Выберите ВУЗы для отправки (не менее 5)",
+        help_text="Выберите не менее 5 ВУЗов",
+    )
+
     class Meta:
         model = TechnicalRequirement
-        fields = ["universities", "answers", "status"]
+        fields = ["answers"]  # убрали status и universities
         widgets = {
-            "universities": forms.CheckboxSelectMultiple(),
             "answers": forms.HiddenInput(),
-            "status": forms.HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
 
-        # Делаем поля необязательными в форме
+        # Делаем поле необязательным в форме
         self.fields["answers"].required = False
-        self.fields["status"].required = False
-
-        # Фильтруем только ВУЗы для выбора
-        self.fields["universities"].queryset = (
-            Organization.objects.filter(users__user_type="university")
-            .distinct()
-            .order_by("short_name")
-        )
-
-        self.fields["universities"].label_from_instance = lambda obj: obj.short_name
-        self.fields["universities"].help_text = "Выберите не менее 5 ВУЗов"
 
         # Получаем все активные вопросы
         self.questions = Question.objects.filter(is_active=True).order_by("order")
@@ -270,14 +267,10 @@ class TechnicalRequirementForm(forms.ModelForm):
 
         cleaned_data["answers"] = json.dumps(answers, ensure_ascii=False, default=str)
 
-        if not cleaned_data.get("status"):
-            cleaned_data["status"] = "draft"
-
         return cleaned_data
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         if commit:
             instance.save()
-            self.save_m2m()
         return instance

@@ -1,10 +1,12 @@
 import pytest
 import json
 
+from django.contrib.auth import get_user_model
 from apps.organizations.models import Organization
 from apps.technical_requirements.forms import TechnicalRequirementForm
 from apps.technical_requirements.models import Question
 
+User = get_user_model()
 pytestmark = pytest.mark.django_db
 
 
@@ -66,13 +68,10 @@ class TestTechnicalRequirementForm:
         question_number,
     ):
         """Тест валидной формы со всеми полями"""
-        # Собираем 5 ВУЗов из фикстур
-        universities = [university_user.organization]
-        # Добавляем еще 4 ВУЗа (используем существующие фикстуры или создаем через фабрику)
-        from django.contrib.auth import get_user_model
-
         User = get_user_model()
 
+        # Собираем 5 ВУЗов
+        universities = [university_user.organization]
         for i in range(4, 8):
             org = Organization.objects.create(
                 inn=f"{i:012d}",
@@ -94,7 +93,6 @@ class TestTechnicalRequirementForm:
             "universities": [u.id for u in universities],
         }
 
-        # Добавляем ответы на все вопросы
         questions = [
             question_text,
             question_textarea,
@@ -129,9 +127,6 @@ class TestTechnicalRequirementForm:
         self, employer_user, university_user
     ):
         """Тест - ошибка если выбрано менее 5 ВУЗов"""
-        # Создаем еще один ВУЗ, чтобы было 2
-        from django.contrib.auth import get_user_model
-
         User = get_user_model()
 
         org2 = Organization.objects.create(
@@ -155,7 +150,6 @@ class TestTechnicalRequirementForm:
         form = TechnicalRequirementForm(data, user=employer_user)
         assert not form.is_valid()
         assert "universities" in form.errors
-        # Проверяем, что есть ошибка о количестве ВУЗов
         assert "Выберите не менее 5 ВУЗов" in str(form.errors["universities"])
 
     def test_form_required_fields_validation(
@@ -168,14 +162,12 @@ class TestTechnicalRequirementForm:
         assert len(form.errors) > 0
 
     def test_form_other_option_validation(
-        self, employer_user, question_choice, university_user, another_university_user
+        self, employer_user, question_choice, university_user
     ):
         """Тест валидации поля 'Свой вариант'"""
-        # Собираем 5 ВУЗов
-        from django.contrib.auth import get_user_model
-
         User = get_user_model()
 
+        # Собираем 5 ВУЗов
         universities = [university_user.organization]
         for i in range(4, 8):
             org = Organization.objects.create(
@@ -197,10 +189,9 @@ class TestTechnicalRequirementForm:
         data = {
             "universities": [u.id for u in universities],
             f"q_{question_choice.id}": "Свой вариант",
-            f"other_{question_choice.id}": "",  # Пустое поле
+            f"other_{question_choice.id}": "",
         }
 
-        # Добавляем ответы на остальные вопросы
         for question in Question.objects.filter(is_active=True).exclude(
             id=question_choice.id
         ):
@@ -235,9 +226,6 @@ class TestTechnicalRequirementForm:
         question_number,
     ):
         """Тест сохранения ответов как JSON"""
-        # Собираем 5 ВУЗов
-        from django.contrib.auth import get_user_model
-
         User = get_user_model()
 
         universities = [university_user.organization]
@@ -295,11 +283,8 @@ class TestTechnicalRequirementForm:
         requirement = form.save(commit=False)
         requirement.employer = employer_user
         requirement.save()
-        form.save_m2m()
 
-        # Проверяем, что answers - это JSON строка
         assert isinstance(requirement.answers, str)
-        # Проверяем, что можно распарсить
         answers_dict = json.loads(requirement.answers)
         assert str(question_text.id) in answers_dict
         assert answers_dict[str(question_text.id)] == "Тестовый ответ"
@@ -328,9 +313,6 @@ class TestTechnicalRequirementForm:
         question_number,
     ):
         """Тест обработки boolean поля со значением False"""
-        # Собираем 5 ВУЗов
-        from django.contrib.auth import get_user_model
-
         User = get_user_model()
 
         universities = [university_user.organization]
@@ -356,7 +338,6 @@ class TestTechnicalRequirementForm:
             f"q_{question_boolean.id}": False,
         }
 
-        # Добавляем ответы на остальные вопросы
         questions = [
             question_text,
             question_textarea,
@@ -406,9 +387,6 @@ class TestTechnicalRequirementForm:
         question_number,
     ):
         """Тест валидации поля с зависимостью"""
-        # Собираем 5 ВУЗов
-        from django.contrib.auth import get_user_model
-
         User = get_user_model()
 
         universities = [university_user.organization]
@@ -435,7 +413,6 @@ class TestTechnicalRequirementForm:
             f"q_{question_depends_on.id}": "Тестовая площадка",
         }
 
-        # Добавляем ответы на остальные вопросы
         questions = [
             question_text,
             question_textarea,

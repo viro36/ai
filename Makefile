@@ -144,3 +144,6 @@ load_goal:
 
 load_technical_requirements:
 	docker-compose exec ai python manage.py create_initial_questions
+
+load_tech_statuses:
+	docker-compose exec ai python manage.py create_initial_statuses
