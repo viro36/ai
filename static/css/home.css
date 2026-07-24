@@ -276,8 +276,8 @@
     border-radius: 20px;
 }
 
-/* Бейдж в карточке курсов (ВУЗ) */
-.action-card-courses .badge {
+/* Бейдж в карточке ВУЗа */
+.action-card-university .badge {
     background-color: #292966 !important;
     color: white;
 }

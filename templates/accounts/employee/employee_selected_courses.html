@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Выбранные курсы {{ employee.get_full_name }}{% endblock %}
+{% block title %}Выбранные курсы {{ employee.full_name }}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/recommendations/selected_courses.css' %}">
@@ -12,7 +12,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4 selected-header">
         <h1 style="color: #292966;">
             <i class="fa-solid fa-bookmark me-2" style="color: #CCCCFF;"></i>
-            Выбранные курсы: {{ employee.get_full_name }}
+            Выбранные курсы: {{ employee.full_name }}
             <span class="badge ms-2">{{ total }}</span>
         </h1>
         <a href="{% url 'accounts:employee_list' %}" class="btn btn-outline-primary">
@@ -36,10 +36,54 @@
                         <p class="card-text text-muted small">
                             <i class="fa-regular fa-calendar me-1"></i>Выбран: {{ item.created_at|date:"d.m.Y" }}
                         </p>
-                        <div class="mt-3">
+
+                        <!-- Статус одобрения -->
+                        <div class="mt-2">
+                            {% with approval=item.approval %}
+                                {% if approval %}
+                                    {% if approval.status == 'approved' %}
+                                        <span class="badge badge-status-approved">
+                                            <i class="fa-regular fa-circle-check me-1"></i>Одобрено
+                                        </span>
+                                    {% elif approval.status == 'rejected' %}
+                                        <span class="badge badge-status-rejected">
+                                            <i class="fa-regular fa-circle-xmark me-1"></i>Отклонено
+                                        </span>
+                                    {% else %}
+                                        <span class="badge badge-status-pending">
+                                            <i class="fa-regular fa-clock me-1"></i>На рассмотрении
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge badge-status-secondary">
+                                        <i class="fa-regular fa-clock me-1"></i>На рассмотрении
+                                    </span>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+
+                        <div class="mt-3 d-flex flex-wrap gap-2">
                             <a href="{% url 'courses:course_detail' item.course.id %}" class="btn btn-sm btn-outline-primary">
                                 <i class="fa-regular fa-eye me-1"></i>Подробнее
                             </a>
+
+                            <!-- Кнопки одобрения/отклонения -->
+                            <form method="post" action="{% url 'recommendations:approve_selected_course' item.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="approve">
+                                <button type="submit" class="btn btn-sm btn-success"
+                                        {% if item.approval and item.approval.status == 'approved' %}disabled{% endif %}>
+                                    <i class="fa-regular fa-circle-check me-1"></i>Одобрить
+                                </button>
+                            </form>
+                            <form method="post" action="{% url 'recommendations:approve_selected_course' item.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="reject">
+                                <button type="submit" class="btn btn-sm btn-danger"
+                                        {% if item.approval and item.approval.status == 'rejected' %}disabled{% endif %}>
+                                    <i class="fa-regular fa-circle-xmark me-1"></i>Отклонить
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>

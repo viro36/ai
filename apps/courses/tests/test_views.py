@@ -4,6 +4,7 @@ from django.contrib.messages import get_messages
 from django.utils import timezone
 from django.http import HttpResponseForbidden
 
+from apps.accounts.models import User
 from apps.courses.models import Course
 
 pytestmark = pytest.mark.django_db
@@ -529,3 +530,180 @@ class TestViewPermissions:
         url3 = reverse("courses:course_edit", kwargs={"course_id": course.id})
         response3 = client.get(url3)
         assert response3.status_code == 200
+
+
+class TestUniversitySelectedCoursesListView:
+    """Тесты для списка курсов, выбранных работниками (для ВУЗа)"""
+
+    def test_view_shows_only_own_university_courses(
+        self,
+        client,
+        authenticated_university_user,
+        organization,
+        another_organization,
+        course,
+        test_employer_user,
+    ):
+        """Тест - показываются только курсы своего ВУЗа"""
+        from apps.recommendations.models import SelectedCourse, ApprovedSelectedCourse
+        from apps.accounts.models import EmployeeProfile
+        from django.utils import timezone
+
+        # Создаем курс в другой организации
+        other_course = Course.objects.create(
+            title="Курс другой организации",
+            organization=another_organization,
+            url="https://example.com/other",
+            is_deleted=False,
+        )
+
+        # Создаем работника
+        employee = User.objects.create_user(
+            username="employee_test",
+            email="employee@test.com",
+            password="test123",
+            user_type="employee",
+            organization=organization,
+        )
+        EmployeeProfile.objects.create(
+            user=employee,
+            snils="123-456-789 01",
+            organization=organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+
+        # Выбираем курс своего ВУЗа и одобряем его
+        selected1 = SelectedCourse.objects.create(user=employee, course=course)
+        ApprovedSelectedCourse.objects.create(
+            selected_course=selected1,
+            status="approved",
+            approved_by=test_employer_user,
+            approved_at=timezone.now(),
+        )
+
+        # Выбираем курс чужого ВУЗа (без одобрения)
+        selected2 = SelectedCourse.objects.create(user=employee, course=other_course)
+        ApprovedSelectedCourse.objects.create(
+            selected_course=selected2,
+            status="approved",
+            approved_by=test_employer_user,
+            approved_at=timezone.now(),
+        )
+
+        client.force_login(authenticated_university_user)
+        url = reverse("courses:university_selected_courses")
+        response = client.get(url)
+
+        courses_with_counts = response.context["courses_with_counts"]
+        course_titles = [item["course"].title for item in courses_with_counts]
+        assert course.title in course_titles
+        assert other_course.title not in course_titles
+
+    def test_view_search_by_course_title(
+        self,
+        client,
+        authenticated_university_user,
+        organization,
+        course,
+        test_employer_user,
+    ):
+        """Тест поиска по названию курса"""
+        from apps.recommendations.models import SelectedCourse, ApprovedSelectedCourse
+        from apps.accounts.models import EmployeeProfile
+        from django.utils import timezone
+
+        employee = User.objects.create_user(
+            username="employee_search",
+            email="search@test.com",
+            password="test123",
+            user_type="employee",
+            organization=organization,
+        )
+        EmployeeProfile.objects.create(
+            user=employee,
+            snils="123-456-789 01",
+            organization=organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        selected = SelectedCourse.objects.create(user=employee, course=course)
+        ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+            status="approved",
+            approved_by=test_employer_user,
+            approved_at=timezone.now(),
+        )
+
+        client.force_login(authenticated_university_user)
+        url = reverse("courses:university_selected_courses")
+        response = client.get(url, {"search": "Python"})
+        assert response.status_code == 200
+        courses_with_counts = response.context["courses_with_counts"]
+        assert len(courses_with_counts) == 1
+
+        response = client.get(url, {"search": "несуществующий курс"})
+        assert response.status_code == 200
+        courses_with_counts = response.context["courses_with_counts"]
+        assert len(courses_with_counts) == 0
+
+
+class TestUniversitySelectedCourseEmployeesView:
+    """Тесты для списка работников, записавшихся на курс (для ВУЗа)"""
+
+    def test_view_returns_404_for_wrong_university_course(
+        self, client, authenticated_university_user, another_organization
+    ):
+        """Тест - ошибка 404 если курс не принадлежит ВУЗу"""
+        from apps.recommendations.models import SelectedCourse, ApprovedSelectedCourse
+        from apps.accounts.models import EmployeeProfile
+        from django.utils import timezone
+
+        # Создаем курс в другой организации
+        wrong_course = Course.objects.create(
+            title="Чужой курс",
+            organization=another_organization,
+            url="https://example.com/wrong",
+            is_deleted=False,
+        )
+
+        # Создаем работника
+        employee = User.objects.create_user(
+            username="employee_wrong",
+            email="wrong@test.com",
+            password="test123",
+            user_type="employee",
+            organization=another_organization,
+        )
+        EmployeeProfile.objects.create(
+            user=employee,
+            snils="123-456-789 01",
+            organization=another_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+
+        # Создаем одобренный выбор
+        selected = SelectedCourse.objects.create(user=employee, course=wrong_course)
+        # Создаем работодателя для организации
+        employer_user = User.objects.create_user(
+            username="employer_wrong",
+            email="employer_wrong@test.com",
+            password="test123",
+            user_type="employer",
+            organization=another_organization,
+        )
+        ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+            status="approved",
+            approved_by=employer_user,
+            approved_at=timezone.now(),
+        )
+
+        client.force_login(authenticated_university_user)
+        url = reverse(
+            "courses:university_selected_course_employees", args=[wrong_course.id]
+        )
+        response = client.get(url)
+        # Должен быть 404, потому что курс не принадлежит ВУЗу пользователя
+        assert response.status_code == 404

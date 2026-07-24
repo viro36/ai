@@ -1,6 +1,11 @@
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied
-from .models import CourseRecommendation, RecommendationTask, SelectedCourse
+from .models import (
+    ApprovedSelectedCourse,
+    CourseRecommendation,
+    RecommendationTask,
+    SelectedCourse,
+)
 
 
 @admin.register(CourseRecommendation)
@@ -167,3 +172,33 @@ class SelectedCourseAdmin(admin.ModelAdmin):
         ("Основное", {"fields": ("user", "course")}),
         ("Системное", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
+
+
+@admin.register(ApprovedSelectedCourse)
+class ApprovedSelectedCourseAdmin(admin.ModelAdmin):
+    list_display = ("selected_course", "status", "approved_by", "approved_at")
+    list_filter = ("status", "approved_at")
+    search_fields = (
+        "selected_course__user__username",
+        "selected_course__course__title",
+    )
+    readonly_fields = ("created_at", "updated_at")
+    list_editable = ("status",)
+
+    def _is_viewer(self, request):
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
+    def has_add_permission(self, request):
+        if self._is_viewer(request):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_delete_permission(request, obj)

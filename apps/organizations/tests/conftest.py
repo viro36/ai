@@ -2,6 +2,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from apps.organizations.models import District, OrganizationType, Organization
+from apps.courses.models import Course, Category
 
 User = get_user_model()
 
@@ -146,3 +147,89 @@ def inactive_organization(db, district, organization_type):
         address_raw="г. Москва, ул. Гоголя, д. 3",
         status="LIQUIDATED",
     )
+
+
+# ========== ДОПОЛНИТЕЛЬНЫЕ ФИКСТУРЫ ==========
+
+
+@pytest.fixture
+def category(db):
+    """Фикстура категории"""
+    return Category.objects.create(name="Искусственный интеллект")
+
+
+@pytest.fixture
+def course(db, organization, category):
+    """Фикстура курса"""
+    course = Course.objects.create(
+        title="Python для анализа данных",
+        description="Курс по анализу данных на Python",
+        organization=organization,
+        url="https://example.com/course/1",
+        is_deleted=False,
+    )
+    course.categories.add(category)
+    return course
+
+
+@pytest.fixture
+def test_employer_user(db, organization):
+    """Фикстура для пользователя-работодателя"""
+    user = User.objects.create_user(
+        username="test_employer",
+        email="employer@test.com",
+        password="testpass123",
+        user_type="employer",
+        organization=organization,
+        last_name="Иванов",
+        first_name="Иван",
+    )
+    return user
+
+
+@pytest.fixture
+def test_employee_user(db, organization):
+    """Фикстура для пользователя-работника"""
+    user = User.objects.create_user(
+        username="test_employee",
+        email="employee@test.com",
+        password="testpass123",
+        user_type="employee",
+        organization=organization,
+        last_name="Иванов",
+        first_name="Иван",
+        patronymic="Иванович",
+        snils="123-456-789 01",
+    )
+    return user
+
+
+@pytest.fixture
+def employer_user(db, organization):
+    """Фикстура для пользователя-работодателя (для ТЗ)"""
+    user = User.objects.create_user(
+        username="employer_user",
+        email="employer@test.com",
+        password="testpass123",
+        user_type="employer",
+        organization=organization,
+        last_name="Петров",
+        first_name="Петр",
+    )
+    return user
+
+
+@pytest.fixture
+def requirement_status_sent(db):
+    """Фикстура статуса 'Отправлено'"""
+    from apps.technical_requirements.models import RequirementStatus
+
+    status, _ = RequirementStatus.objects.get_or_create(
+        code=1,
+        defaults={
+            "name": "Отправлено",
+            "color": "#17a2b8",
+            "order": 1,
+        },
+    )
+    return status

@@ -102,3 +102,54 @@ class SelectedCourse(models.Model):
 
     def __str__(self):
         return f"{self.user} -> {self.course.title}"
+
+
+class ApprovedSelectedCourse(models.Model):
+    """Одобренные/неодобренные выбранные курсы работника работодателем"""
+
+    STATUS_CHOICES = [
+        ("pending", "На рассмотрении"),
+        ("approved", "Одобрено"),
+        ("rejected", "Отклонено"),
+    ]
+
+    selected_course = models.OneToOneField(
+        SelectedCourse,
+        on_delete=models.CASCADE,
+        related_name="approval",
+        verbose_name="Выбранный курс",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        verbose_name="Статус одобрения",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_courses",
+        verbose_name="Кем одобрено",
+    )
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Дата одобрения/отклонения",
+    )
+    comment = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Комментарий",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Одобрение курса"
+        verbose_name_plural = "Одобрения курсов"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.selected_course.user} -> {self.selected_course.course.title}: {self.get_status_display()}"

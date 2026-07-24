@@ -46,4 +46,15 @@ urlpatterns = [
         views.CourseDetailView.as_view(),
         name="course_detail",
     ),
+    # Для ВУЗа - список курсов с выбранными работниками
+    path(
+        "university/selected-courses/",
+        views.UniversitySelectedCoursesListView.as_view(),
+        name="university_selected_courses",
+    ),
+    path(
+        "university/selected-courses/<int:course_id>/employees/",
+        views.UniversitySelectedCourseEmployeesView.as_view(),
+        name="university_selected_course_employees",
+    ),
 ]

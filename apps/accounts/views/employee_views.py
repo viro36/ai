@@ -84,6 +84,7 @@ class EmployeeSelectedCoursesView(LoginRequiredMixin, UserPassesTestMixin, ListV
         return (
             SelectedCourse.objects.filter(user=employee)
             .select_related("course", "course__organization")
+            .prefetch_related("approval")
             .order_by("-created_at")
         )
 

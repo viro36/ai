@@ -327,3 +327,18 @@ def viewer_user_no_perms():
     user.groups.add(group)
     # Не даем никаких прав
     return user
+
+
+@pytest.fixture
+def test_employer_user(organization):
+    """Фикстура для пользователя-работодателя"""
+    user = User.objects.create_user(
+        username="test_employer",
+        email="employer@test.com",
+        password="testpass123",
+        user_type="employer",
+        organization=organization,
+        last_name="Иванов",
+        first_name="Иван",
+    )
+    return user

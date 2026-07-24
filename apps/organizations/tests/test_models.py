@@ -1,4 +1,5 @@
 import pytest
+from apps.accounts.models import User
 from apps.organizations.models import District, OrganizationType, Organization
 
 
@@ -242,3 +243,62 @@ class TestOrganizationModel:
         )
         assert bankrupt_org.status == "BANKRUPT"
         assert bankrupt_org.get_status_display() == "Банкротство"
+
+    def test_organization_selected_courses_count(
+        self, organization, test_employee_user, course, test_employer_user
+    ):
+        """Тест подсчёта одобренных курсов организации, выбранных работниками"""
+        from apps.recommendations.models import SelectedCourse, ApprovedSelectedCourse
+        from django.utils import timezone
+
+        # Создаём работника
+        employee = User.objects.create_user(
+            username="employee_count",
+            email="employee_count@test.com",
+            password="test123",
+            user_type="employee",
+            organization=organization,
+        )
+
+        # Создаём выбранный курс
+        selected = SelectedCourse.objects.create(
+            user=employee,
+            course=course,
+        )
+
+        # Сначала без одобрения
+        assert organization.selected_courses_count == 0
+
+        # Одобряем курс
+        ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+            status="approved",
+            approved_by=test_employer_user,
+            approved_at=timezone.now(),
+        )
+
+        assert organization.selected_courses_count == 1
+
+    def test_organization_received_requirements_count(
+        self, organization, employer_user, requirement_status_sent
+    ):
+        """Тест подсчёта полученных ТЗ со статусом 'Отправлено'"""
+        from apps.technical_requirements.models import (
+            TechnicalRequirement,
+            TechnicalRequirementUniversity,
+        )
+
+        # Создаём ТЗ
+        requirement = TechnicalRequirement.objects.create(
+            employer=employer_user,
+            answers={},
+        )
+
+        # Связываем с организацией
+        TechnicalRequirementUniversity.objects.create(
+            technical_requirement=requirement,
+            university=organization,
+            status=requirement_status_sent,
+        )
+
+        assert organization.received_requirements_count == 1

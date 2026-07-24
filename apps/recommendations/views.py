@@ -5,7 +5,12 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.utils import timezone
 
-from .models import CourseRecommendation, RecommendationTask, SelectedCourse
+from .models import (
+    ApprovedSelectedCourse,
+    CourseRecommendation,
+    RecommendationTask,
+    SelectedCourse,
+)
 from .tasks import generate_recommendations_for_user
 from .utils import (
     has_completed_all_surveys,
@@ -167,7 +172,11 @@ def select_course(request, course_id):
 @login_required
 def selected_courses(request):
     """Список выбранных курсов пользователя"""
-    selected = SelectedCourse.objects.filter(user=request.user).select_related("course")
+    selected = (
+        SelectedCourse.objects.filter(user=request.user)
+        .select_related("course", "course__organization")
+        .prefetch_related("approval")
+    )
 
     context = {
         "selected_courses": selected,
@@ -184,3 +193,51 @@ def remove_selected_course(request, course_id):
         SelectedCourse.objects.filter(user=request.user, course=course).delete()
         messages.success(request, f'Курс "{course.title}" удалён из выбранных.')
     return redirect("recommendations:selected_courses")
+
+
+@login_required
+def approve_selected_course(request, selected_course_id):
+    """Одобрение/отклонение выбранного курса работодателем"""
+    if request.user.user_type not in ["employer", "admin"]:
+        messages.error(request, "Доступ запрещён")
+        return redirect("home")
+
+    selected = get_object_or_404(SelectedCourse, id=selected_course_id)
+
+    # Проверяем, что работодатель имеет доступ к этому сотруднику
+    if request.user.user_type == "employer":
+        if selected.user.organization != request.user.organization:
+            messages.error(request, "У вас нет доступа к этому сотруднику")
+            return redirect("accounts:employee_list")
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        comment = request.POST.get("comment", "")
+
+        if action in ["approve", "reject"]:
+            approval, created = ApprovedSelectedCourse.objects.get_or_create(
+                selected_course=selected,
+                defaults={
+                    "status": "approved" if action == "approve" else "rejected",
+                    "approved_by": request.user,
+                    "approved_at": timezone.now(),
+                    "comment": comment,
+                },
+            )
+            if not created:
+                approval.status = "approved" if action == "approve" else "rejected"
+                approval.approved_by = request.user
+                approval.approved_at = timezone.now()
+                if comment:
+                    approval.comment = comment
+                approval.save()
+
+            status_text = "одобрен" if action == "approve" else "отклонён"
+            messages.success(
+                request,
+                f'Курс "{selected.course.title}" {status_text} для сотрудника {selected.user.get_full_name()}',
+            )
+        else:
+            messages.error(request, "Неверное действие")
+
+    return redirect("accounts:employee_selected_courses", employee_id=selected.user.id)

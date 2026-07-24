@@ -1,0 +1,76 @@
+.university-course-card {
+    border: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.university-course-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.university-course-card .card-title {
+    color: #292966;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.university-course-card .card-title i {
+    color: #CCCCFF;
+}
+
+.university-course-card .badge {
+    background: linear-gradient(135deg, #CCCCFF 0%, #A3A3CC 100%);
+    color: #292966;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.requirements-table {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.requirements-table .table {
+    margin-bottom: 0;
+}
+
+.requirements-table .table thead th {
+    background-color: #f8f8ff;
+    color: #292966;
+    font-weight: 600;
+    border-bottom: 2px solid #CCCCFF;
+    padding: 12px 15px;
+}
+
+.requirements-table .table tbody td {
+    padding: 12px 15px;
+    vertical-align: middle;
+}
+
+.requirements-table .table tbody tr:hover {
+    background-color: #f8f8ff;
+}
+
+.alert-empty {
+    background-color: #fafaff;
+    border: none;
+    border-radius: 16px;
+    padding: 40px;
+}
+
+.alert-empty i {
+    color: #CCCCFF;
+}
+
+.alert-empty h4 {
+    color: #292966;
+}
+
+.alert-empty p {
+    color: #6c757d;
+}

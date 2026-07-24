@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Работники, записавшиеся на курс{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/courses/university_selected_courses.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-users me-2" style="color: #CCCCFF;"></i>
+            Работники, записавшиеся на курс
+        </h1>
+        <a href="{% url 'courses:university_selected_courses' %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i> Назад
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h4>{{ course.title }}</h4>
+            <p class="text-muted">
+                <i class="fa-regular fa-building me-1"></i>
+                {{ course.organization.short_name }}
+            </p>
+        </div>
+    </div>
+
+    {% if selected_courses %}
+        <div class="requirements-table">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ФИО работника</th>
+                        <th>Организация</th>
+                        <th>ИНН организации</th>
+                        <th>Адрес организации</th>
+                        <th>Контактное лицо</th>
+                        <th>Телефон контактного лица</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in employees_data %}
+                    <tr>
+                        <td>
+                            <i class="fa-regular fa-user me-1"></i>
+                            {{ item.user.full_name }}
+                        </td>
+                        <td>
+                            {% if item.user.organization %}
+                                {{ item.user.organization.short_name }}
+                            {% else %}
+                                <span class="text-muted">Не указана</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.user.organization %}
+                                {{ item.user.organization.inn }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.user.organization %}
+                                {{ item.user.organization.address_raw }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.employer_profile and item.employer_profile.contact_person_full_name %}
+                                {{ item.employer_profile.contact_person_full_name }}
+                            {% else %}
+                                <span class="text-muted">Не указано</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.employer_profile and item.employer_profile.contact_person_phone %}
+                                {{ item.employer_profile.contact_person_phone }}
+                            {% else %}
+                                <span class="text-muted">Не указано</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Пагинация -->
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-empty text-center py-5">
+            <i class="fa-regular fa-circle-info fa-3x mb-3 d-block"></i>
+            <h4>Нет записей</h4>
+            <p class="mb-0">Ни один работник ещё не записался на этот курс.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

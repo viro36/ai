@@ -1,5 +1,7 @@
+from django.utils import timezone
 import pytest
 from apps.recommendations.models import (
+    ApprovedSelectedCourse,
     CourseRecommendation,
     RecommendationTask,
     SelectedCourse,
@@ -250,3 +252,111 @@ class TestSelectedCourseModel:
         # Проверяем, что сортировка по убыванию created_at
         assert selected[0].created_at >= selected[1].created_at
         assert selected[1].created_at >= selected[2].created_at
+
+
+class TestApprovedSelectedCourseModel:
+    """Тесты для модели ApprovedSelectedCourse"""
+
+    def test_creation(self, regular_user, course, admin_user):
+        """Тест создания одобрения"""
+        selected = SelectedCourse.objects.create(
+            user=regular_user,
+            course=course,
+        )
+        approved = ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+            status="approved",
+            approved_by=admin_user,
+            approved_at=timezone.now(),
+            comment="Отличный выбор!",
+        )
+        assert approved.selected_course == selected
+        assert approved.status == "approved"
+        assert approved.approved_by == admin_user
+        assert approved.comment == "Отличный выбор!"
+        assert (
+            str(approved)
+            == f"{regular_user} -> {course.title}: {approved.get_status_display()}"
+        )
+
+    def test_status_choices(self, regular_user, multiple_courses):
+        """Тест выбора статуса - используем разные курсы"""
+        for i, status in enumerate(["pending", "approved", "rejected"]):
+            selected = SelectedCourse.objects.create(
+                user=regular_user,
+                course=multiple_courses[i],  # разные курсы
+            )
+            approved = ApprovedSelectedCourse.objects.create(
+                selected_course=selected,
+                status=status,
+            )
+            assert approved.status == status
+
+    def test_default_status(self, regular_user, course):
+        """Тест статуса по умолчанию"""
+        selected = SelectedCourse.objects.create(
+            user=regular_user,
+            course=course,
+        )
+        approved = ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+        )
+        assert approved.status == "pending"
+
+    def test_one_to_one_relation(self, regular_user, course):
+        """Тест OneToOne связи с SelectedCourse"""
+        selected = SelectedCourse.objects.create(
+            user=regular_user,
+            course=course,
+        )
+        approved = ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+            status="approved",
+        )
+        assert selected.approval == approved
+        assert approved.selected_course == selected
+
+    def test_related_name_selected_course(self, regular_user, course):
+        """Тест related_name с SelectedCourse"""
+        selected = SelectedCourse.objects.create(
+            user=regular_user,
+            course=course,
+        )
+        approved = ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+        )
+        assert selected.approval == approved
+
+    def test_str_method_with_different_statuses(self, regular_user, multiple_courses):
+        """Тест строкового представления для разных статусов - используем разные курсы"""
+        for i, status in enumerate(["pending", "approved", "rejected"]):
+            selected = SelectedCourse.objects.create(
+                user=regular_user,
+                course=multiple_courses[i],  # разные курсы
+            )
+            approved = ApprovedSelectedCourse.objects.create(
+                selected_course=selected,
+                status=status,
+            )
+            assert approved.get_status_display() in str(approved)
+
+    def test_ordering(self, regular_user, multiple_courses):
+        """Тест сортировки (новые сначала) - используем разные курсы"""
+        selected1 = SelectedCourse.objects.create(
+            user=regular_user,
+            course=multiple_courses[0],
+        )
+        selected2 = SelectedCourse.objects.create(
+            user=regular_user,
+            course=multiple_courses[1],
+        )
+        approved1 = ApprovedSelectedCourse.objects.create(
+            selected_course=selected1,
+            status="pending",
+        )
+        approved2 = ApprovedSelectedCourse.objects.create(
+            selected_course=selected2,
+            status="approved",
+        )
+        approvals = ApprovedSelectedCourse.objects.all()
+        assert approvals[0].created_at >= approvals[1].created_at

@@ -242,3 +242,35 @@ class Organization(models.Model):
         return User.objects.filter(
             organization=self, user_type="employee", is_active=True
         ).count()
+
+    @property
+    def selected_courses_count(self):
+        """Количество одобренных курсов организации, выбранных работниками"""
+        from apps.recommendations.models import SelectedCourse
+
+        return (
+            SelectedCourse.objects.filter(
+                course__organization=self,
+                course__is_deleted=False,
+                approval__status="approved",
+            )
+            .values("course")
+            .distinct()
+            .count()
+        )
+
+    @property
+    def received_requirements_count(self):
+        """Количество полученных ТЗ со статусом 'Отправлено'"""
+        from apps.technical_requirements.models import (
+            TechnicalRequirementUniversity,
+            RequirementStatus,
+        )
+
+        try:
+            sent_status = RequirementStatus.objects.get(code=1)
+            return TechnicalRequirementUniversity.objects.filter(
+                university=self, status=sent_status
+            ).count()
+        except RequirementStatus.DoesNotExist:
+            return 0

@@ -19,4 +19,9 @@ urlpatterns = [
         views.remove_selected_course,
         name="remove_selected_course",
     ),
+    path(
+        "approve/<int:selected_course_id>/",
+        views.approve_selected_course,
+        name="approve_selected_course",
+    ),
 ]

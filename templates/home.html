@@ -40,7 +40,13 @@
         <div class="welcome-message">
             <h2>
                 <i class="fa-solid fa-circle-user me-2"></i>
-                Добро пожаловать, {{ user.get_full_name|default:user.username }}!
+                Добро пожаловать,
+                {% if user.user_type == 'employee' %}
+                    {{ user.full_name|default:user.username }}
+                {% else %}
+                    {{ user.username }}
+                {% endif %}
+                !
                 <br>
                 {% if user.organization %}
                     <small class="text-muted ms-2">({{ user.organization.short_name }})</small>
@@ -250,7 +256,7 @@
                 <!-- Карточка "Ваши курсы" только для ВУЗов -->
                 <div class="col-md-4">
                     <a href="{% url 'courses:organization_courses' user.organization.id %}" class="text-decoration-none">
-                        <div class="action-card action-card-courses">
+                        <div class="action-card action-card-university">
                             <div class="action-icon">
                                 <i class="fa-solid fa-graduation-cap"></i>
                             </div>
@@ -266,6 +272,23 @@
                 </div>
 
                 <div class="col-md-4">
+                    <a href="{% url 'courses:university_selected_courses' %}" class="text-decoration-none">
+                        <div class="action-card action-card-university">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-users"></i>
+                            </div>
+                            <h3 class="action-title">Выбранные курсы</h3>
+                            <p class="action-description">
+                                Курсы вашего ВУЗа, выбранные работниками
+                            </p>
+                            {% if user.organization %}
+                                <span class="badge">{{ user.organization.selected_courses_count }} курсов</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
                     <a href="{% url 'technical_requirements:received_requirements' %}" class="text-decoration-none">
                         <div class="action-card action-card-university">
                             <div class="action-icon">
@@ -275,11 +298,9 @@
                             <p class="action-description">
                                 Полученные технические задания от работодателей
                             </p>
-                            <span class="badge">
-                                {% with count=user.organization.received_requirements.count %}
-                                    {{ count }} новых
-                                {% endwith %}
-                            </span>
+                            {% if user.organization %}
+                                <span class="badge">{{ user.organization.received_requirements_count }} новых</span>
+                            {% endif %}
                         </div>
                     </a>
                 </div>

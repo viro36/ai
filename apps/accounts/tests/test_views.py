@@ -1,3 +1,4 @@
+from django.utils import timezone
 import pytest
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -605,6 +606,7 @@ class TestEmployeeSelectedCoursesView:
     ):
         """Тест отображения выбранных курсов сотрудника"""
         # Создаём выбранные курсы
+        courses = []
         for i in range(3):
             course = Course.objects.create(
                 title=f"Курс {i}",
@@ -612,10 +614,11 @@ class TestEmployeeSelectedCoursesView:
                 url=f"https://test.com/course{i}",
                 is_deleted=False,
             )
-            SelectedCourse.objects.create(
+            selected = SelectedCourse.objects.create(
                 user=test_employee_user,
                 course=course,
             )
+            courses.append((course, selected))
 
         client.login(username=test_employer_user.username, password="testpass123")
         url = reverse(
@@ -630,6 +633,106 @@ class TestEmployeeSelectedCoursesView:
         assert "Курс 2" in content
         assert "Кнопка удалить" not in content  # Проверяем, что нет кнопки удаления
 
+    def test_employee_selected_courses_shows_approval_status(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест отображения статуса одобрения курсов"""
+        from apps.recommendations.models import ApprovedSelectedCourse
+
+        # Создаём курс
+        course = Course.objects.create(
+            title="Курс с одобрением",
+            organization=test_employee_user.organization,
+            url="https://test.com/approved",
+            is_deleted=False,
+        )
+        selected = SelectedCourse.objects.create(
+            user=test_employee_user,
+            course=course,
+        )
+
+        # Создаём одобрение
+        ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+            status="approved",
+            approved_by=test_employer_user,
+            approved_at=timezone.now(),
+        )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Одобрено" in content
+
+    def test_employee_selected_courses_shows_approval_buttons(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест отображения кнопок одобрения/отклонения для работодателя"""
+        # Создаём курс
+        course = Course.objects.create(
+            title="Курс для одобрения",
+            organization=test_employee_user.organization,
+            url="https://test.com/approve",
+            is_deleted=False,
+        )
+        selected = SelectedCourse.objects.create(
+            user=test_employee_user,
+            course=course,
+        )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Одобрить" in content
+        assert "Отклонить" in content
+
+    def test_employee_selected_courses_hides_approval_buttons_for_approved(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест - кнопки одобрения/отклонения скрыты если уже одобрено"""
+        from apps.recommendations.models import ApprovedSelectedCourse
+
+        # Создаём курс
+        course = Course.objects.create(
+            title="Уже одобренный курс",
+            organization=test_employee_user.organization,
+            url="https://test.com/already_approved",
+            is_deleted=False,
+        )
+        selected = SelectedCourse.objects.create(
+            user=test_employee_user,
+            course=course,
+        )
+
+        # Создаём одобрение
+        ApprovedSelectedCourse.objects.create(
+            selected_course=selected,
+            status="approved",
+            approved_by=test_employer_user,
+            approved_at=timezone.now(),
+        )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        # Кнопка "Одобрить" должна быть disabled или скрыта
+        assert "disabled" in content or "Одобрено" in content
+
     def test_employee_selected_courses_empty(
         self, client, test_employer_user, test_employee_user
     ):
@@ -643,6 +746,43 @@ class TestEmployeeSelectedCoursesView:
         assert response.status_code == 200
         content = response.content.decode()
         assert "нет выбранных курсов" in content.lower() or "0" in content
+
+    def test_employee_selected_courses_prefetches_approval(
+        self, client, test_employer_user, test_employee_user
+    ):
+        """Тест - проверка что prefetch_related('approval') работает"""
+        from apps.recommendations.models import ApprovedSelectedCourse
+
+        # Создаём курсы и одобрения
+        for i in range(3):
+            course = Course.objects.create(
+                title=f"Курс {i}",
+                organization=test_employee_user.organization,
+                url=f"https://test.com/course{i}",
+                is_deleted=False,
+            )
+            selected = SelectedCourse.objects.create(
+                user=test_employee_user,
+                course=course,
+            )
+            ApprovedSelectedCourse.objects.create(
+                selected_course=selected,
+                status="approved" if i % 2 == 0 else "pending",
+                approved_by=test_employer_user,
+                approved_at=timezone.now(),
+            )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse(
+            "accounts:employee_selected_courses", args=[test_employee_user.id]
+        )
+        response = client.get(url)
+
+        assert response.status_code == 200
+        # Проверяем, что в контексте есть selected_courses с approval
+        selected_courses = response.context["selected_courses"]
+        for item in selected_courses:
+            assert hasattr(item, "approval")
 
 
 @pytest.mark.django_db
