@@ -215,6 +215,23 @@
                 </div>
 
                 <div class="col-md-4">
+                    <a href="{% url 'recommendations:employee_employer_recommendations' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employee">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-lightbulb"></i>
+                            </div>
+                            <h3 class="action-title">Рекомендации работодателя</h3>
+                            <p class="action-description">
+                                Курсы, рекомендованные вашим работодателем
+                            </p>
+                            <span class="badge">
+                                {{ user.employee_recommendations.count }} рекомендаций
+                            </span>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
                     <a href="{% url 'recommendations:selected_courses' %}" class="text-decoration-none">
                         <div class="action-card action-card-employee">
                             <div class="action-icon">
@@ -351,6 +368,23 @@
                                 {% with total=user.technical_requirements.count %}
                                     {{ total }} заданий
                                 {% endwith %}
+                            </span>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
+                    <a href="{% url 'recommendations:employer_recommendations' %}" class="text-decoration-none">
+                        <div class="action-card action-card-employer">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-lightbulb"></i>
+                            </div>
+                            <h3 class="action-title">Рекомендовать курсы</h3>
+                            <p class="action-description">
+                                Рекомендуйте курсы сотрудникам вашей организации
+                            </p>
+                            <span class="badge">
+                                {{ user.employer_recommendations.count }} рекомендаций
                             </span>
                         </div>
                     </a>

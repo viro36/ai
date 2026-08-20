@@ -24,4 +24,37 @@ urlpatterns = [
         views.approve_selected_course,
         name="approve_selected_course",
     ),
+    # Рекомендации от работодателя
+    path("employer/", views.employer_recommendations, name="employer_recommendations"),
+    path(
+        "employer/get-employees/",
+        views.get_employees_by_position,
+        name="get_employees_by_position",
+    ),
+    path(
+        "employer/get-courses/",
+        views.get_courses_by_category,
+        name="get_courses_by_category",
+    ),
+    path(
+        "employer/send/",
+        views.send_employer_recommendation,
+        name="send_employer_recommendation",
+    ),
+    path(
+        "employer/remove/<int:pk>/",
+        views.remove_employer_recommendation,
+        name="remove_employer_recommendation",
+    ),
+    path(
+        "employer/employee/<int:employee_id>/",
+        views.employee_recommendations_detail,
+        name="employee_recommendations_detail",
+    ),
+    # Для работника - просмотр рекомендаций от работодателя
+    path(
+        "employer-recommendations/",
+        views.employee_employer_recommendations,
+        name="employee_employer_recommendations",
+    ),
 ]

@@ -153,3 +153,44 @@ class ApprovedSelectedCourse(models.Model):
 
     def __str__(self):
         return f"{self.selected_course.user} -> {self.selected_course.course.title}: {self.get_status_display()}"
+
+
+class EmployerRecommendation(models.Model):
+    """Рекомендации курсов от работодателя работнику"""
+
+    employer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="employer_recommendations",
+        verbose_name="Работодатель",
+    )
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="employee_recommendations",
+        verbose_name="Работник",
+        limit_choices_to={"user_type": "employee"},
+    )
+    course = models.ForeignKey(
+        "courses.Course",
+        on_delete=models.CASCADE,
+        related_name="employer_recommendations",
+        verbose_name="Рекомендованный курс",
+    )
+    reason = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Причина рекомендации",
+    )
+    is_viewed = models.BooleanField(default=False, verbose_name="Просмотрено")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+
+    class Meta:
+        verbose_name = "Рекомендация от работодателя"
+        verbose_name_plural = "Рекомендации от работодателей"
+        ordering = ["-created_at"]
+        unique_together = ["employer", "employee", "course"]
+
+    def __str__(self):
+        return f"{self.employer} -> {self.employee} -> {self.course.title}"

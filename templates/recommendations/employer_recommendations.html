@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Рекомендации курсов сотрудникам{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/recommendations/employer_recommendations.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: #292966;">
+            <i class="fa-solid fa-lightbulb me-2" style="color: #CCCCFF;"></i>
+            Рекомендации курсов сотрудникам
+        </h1>
+        <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i> Назад
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fa-solid fa-circle-info me-2"></i>
+        <strong>Как это работает:</strong> Выберите категорию курсов и должность сотрудника, чтобы подобрать подходящие курсы для рекомендации.
+    </div>
+
+    <div class="row">
+        <!-- Форма рекомендации -->
+        <div class="col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-header" style="background-color: #f8f9fa; color: #292966;">
+                    <i class="fa-solid fa-plus me-2"></i>Новая рекомендация
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'recommendations:send_employer_recommendation' %}" id="recommendationForm">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="categorySelect" class="form-label">Категория курсов</label>
+                            <select id="categorySelect" class="form-select" required>
+                                <option value="">Выберите категорию...</option>
+                                {% for category in categories %}
+                                    <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="courseSelect" class="form-label">Курс</label>
+                            <select id="courseSelect" name="course_id" class="form-select" required disabled>
+                                <option value="">Сначала выберите категорию...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="positionSelect" class="form-label">Должность сотрудника</label>
+                            <select id="positionSelect" class="form-select" required>
+                                <option value="">Выберите должность...</option>
+                                {% for position in positions %}
+                                    <option value="{{ position }}">{{ position }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="employeeSelect" class="form-label">Сотрудник</label>
+                            <select id="employeeSelect" name="employee_id" class="form-select" required disabled>
+                                <option value="">Сначала выберите должность...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="reasonInput" class="form-label">Причина рекомендации (необязательно)</label>
+                            <textarea id="reasonInput" name="reason" class="form-control" rows="2" placeholder="Почему вы рекомендуете этот курс?"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" id="submitBtn" disabled>
+                            <i class="fa-solid fa-paper-plane me-2"></i>Рекомендовать курс
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Список сотрудников -->
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-header" style="background-color: #f8f9fa; color: #292966;">
+                    <i class="fa-solid fa-users me-2"></i>Сотрудники организации
+                    <span class="badge ms-2">{{ employees|length }}</span>
+                </div>
+                <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                    {% if employees %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Сотрудник</th>
+                                        <th>Должность</th>
+                                        <th>Рекомендаций</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for employee in employees %}
+                                    <tr>
+                                        <td>{{ employee.get_full_name }}</td>
+                                        <td>{{ employee.employee_profile.position|default:"—" }}</td>
+                                        <td>
+                                            <span class="badge" style="background-color: #CCCCFF; color: #292966;">
+                                                {{ employee.recommendations_count }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'recommendations:employee_recommendations_detail' employee.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fa-regular fa-eye me-1"></i>Рекомендации
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fa-regular fa-users fa-2x mb-2 d-block"></i>
+                            <p>В вашей организации нет сотрудников</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/recommendations/employer_recommendations.js' %}"></script>
+{% endblock %}

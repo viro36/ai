@@ -1,0 +1,81 @@
+.recommendation-item {
+    background-color: #f8f9fa;
+    transition: all 0.2s ease;
+}
+
+.recommendation-item:hover {
+    background-color: #f0f0ff;
+    border-color: #CCCCFF !important;
+}
+
+.recommendation-item h6 {
+    color: #292966;
+}
+
+.recommendation-item .badge {
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #5C5C99 0%, #292966 100%);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #4a4a7a 0%, #1f1f4f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 92, 153, 0.3);
+}
+
+.btn-primary:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.card-header {
+    border-bottom: 2px solid #CCCCFF;
+}
+
+.form-select:focus, .form-control:focus {
+    border-color: #5C5C99;
+    box-shadow: 0 0 0 0.2rem rgba(92, 92, 153, 0.25);
+}
+
+.alert-info {
+    background-color: #f0f0ff;
+    border: none;
+    border-left: 4px solid #5C5C99;
+    color: #292966;
+    border-radius: 12px;
+}
+
+.alert-empty {
+    background-color: #fafaff;
+    border: none;
+    border-radius: 16px;
+    padding: 40px;
+}
+
+.alert-empty i {
+    color: #CCCCFF;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    color: #292966;
+    font-weight: 600;
+    border-bottom: 2px solid #CCCCFF;
+}
+
+.table tbody tr:hover {
+    background-color: #f0f0ff;
+}
+
+.table .badge {
+    background-color: #CCCCFF !important;
+    color: #292966 !important;
+}
