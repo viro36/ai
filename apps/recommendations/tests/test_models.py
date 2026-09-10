@@ -3,6 +3,7 @@ import pytest
 from apps.recommendations.models import (
     ApprovedSelectedCourse,
     CourseRecommendation,
+    EmployerRecommendation,
     RecommendationTask,
     SelectedCourse,
 )
@@ -360,3 +361,159 @@ class TestApprovedSelectedCourseModel:
         )
         approvals = ApprovedSelectedCourse.objects.all()
         assert approvals[0].created_at >= approvals[1].created_at
+
+
+class TestEmployerRecommendationModel:
+    """Тесты для модели EmployerRecommendation"""
+
+    def test_creation(self, employer_user, regular_user, course):
+        """Тест создания рекомендации от работодателя"""
+        rec = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+            reason="Рекомендую этот курс для повышения квалификации",
+        )
+        assert rec.employer == employer_user
+        assert rec.employee == regular_user
+        assert rec.course == course
+        assert rec.reason == "Рекомендую этот курс для повышения квалификации"
+        assert rec.is_viewed is False
+        assert str(rec) == f"{employer_user} -> {regular_user} -> {course.title}"
+
+    def test_default_values(self, employer_user, regular_user, course):
+        """Тест значений по умолчанию"""
+        rec = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        assert rec.reason is None
+        assert rec.is_viewed is False
+
+    def test_ordering(self, employer_user, regular_user, multiple_courses):
+        """Тест сортировки по created_at (новые сначала)"""
+        for course in multiple_courses[:3]:
+            EmployerRecommendation.objects.create(
+                employer=employer_user,
+                employee=regular_user,
+                course=course,
+            )
+
+        recs = EmployerRecommendation.objects.filter(
+            employer=employer_user, employee=regular_user
+        )
+        assert recs.count() == 3
+        # Проверяем, что сортировка по убыванию created_at
+        assert recs[0].created_at >= recs[1].created_at
+        assert recs[1].created_at >= recs[2].created_at
+
+    def test_unique_together(self, employer_user, regular_user, course):
+        """Тест уникальности пары employer + employee + course"""
+        EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        with pytest.raises(IntegrityError):
+            EmployerRecommendation.objects.create(
+                employer=employer_user,
+                employee=regular_user,
+                course=course,
+            )
+
+    def test_related_name_employer(self, employer_user, regular_user, course):
+        """Тест related_name для работодателя"""
+        rec = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        assert employer_user.employer_recommendations.count() == 1
+        assert employer_user.employer_recommendations.first() == rec
+
+    def test_related_name_employee(self, employer_user, regular_user, course):
+        """Тест related_name для работника"""
+        rec = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        assert regular_user.employee_recommendations.count() == 1
+        assert regular_user.employee_recommendations.first() == rec
+
+    def test_related_name_course(self, employer_user, regular_user, course):
+        """Тест related_name для курса"""
+        rec = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        assert course.employer_recommendations.count() == 1
+        assert course.employer_recommendations.first() == rec
+
+    def test_str_method(self, employer_user, regular_user, course):
+        """Тест строкового представления"""
+        rec = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        expected = f"{employer_user} -> {regular_user} -> {course.title}"
+        assert str(rec) == expected
+
+    def test_is_viewed_update(self, employer_user, regular_user, course):
+        """Тест обновления статуса просмотра"""
+        rec = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        assert rec.is_viewed is False
+
+        rec.is_viewed = True
+        rec.save()
+        rec.refresh_from_db()
+        assert rec.is_viewed is True
+
+    def test_multiple_employees(
+        self, employer_user, regular_user, test_employee_user2, course
+    ):
+        """Тест рекомендаций нескольким сотрудникам"""
+        rec1 = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=regular_user,
+            course=course,
+        )
+        rec2 = EmployerRecommendation.objects.create(
+            employer=employer_user,
+            employee=test_employee_user2,
+            course=course,
+        )
+
+        assert EmployerRecommendation.objects.filter(employee=regular_user).count() == 1
+        assert (
+            EmployerRecommendation.objects.filter(employee=test_employee_user2).count()
+            == 1
+        )
+        assert (
+            EmployerRecommendation.objects.filter(employer=employer_user).count() == 2
+        )
+
+    def test_multiple_courses_for_employee(
+        self, employer_user, regular_user, multiple_courses
+    ):
+        """Тест нескольких курсов для одного сотрудника"""
+        for course in multiple_courses[:3]:
+            EmployerRecommendation.objects.create(
+                employer=employer_user,
+                employee=regular_user,
+                course=course,
+            )
+
+        assert (
+            EmployerRecommendation.objects.filter(
+                employer=employer_user, employee=regular_user
+            ).count()
+            == 3
+        )

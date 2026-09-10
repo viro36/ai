@@ -12,7 +12,9 @@ from apps.courses.models import Course, Category
 from apps.organizations.models import Organization
 from apps.surveys.models import SurveyCategory
 from apps.recommendations.models import (
+    ApprovedSelectedCourse,
     CourseRecommendation,
+    EmployerRecommendation,
     RecommendationTask,
     SelectedCourse,
 )
@@ -512,8 +514,13 @@ def viewer_user():
     group, _ = Group.objects.get_or_create(name="Просмотрщик")
     user.groups.add(group)
 
-    # Даем права на просмотр моделей recommendations
-    for model in [CourseRecommendation, RecommendationTask, SelectedCourse]:
+    for model in [
+        CourseRecommendation,
+        RecommendationTask,
+        SelectedCourse,
+        ApprovedSelectedCourse,
+        EmployerRecommendation,
+    ]:
         ct = ContentType.objects.get_for_model(model)
         view_perm, _ = Permission.objects.get_or_create(
             content_type=ct,
@@ -630,3 +637,88 @@ def test_question_inactive():
         is_active=False,
         order=999,
     )
+
+
+@pytest.fixture
+def test_employer_user(organization):
+    """Фикстура для пользователя-работодателя"""
+    user = User.objects.create_user(
+        username="test_employer",
+        email="employer@test.com",
+        password="testpass123",
+        user_type="employer",
+        organization=organization,
+        last_name="Иванов",
+        first_name="Иван",
+    )
+    return user
+
+
+@pytest.fixture
+def employer_user(organization):
+    """Фикстура для пользователя-работодателя (для тестов моделей)"""
+    user = User.objects.create_user(
+        username="employer_user",
+        email="employer_user@test.com",
+        password="testpass123",
+        user_type="employer",
+        organization=organization,
+        last_name="Петров",
+        first_name="Петр",
+    )
+    return user
+
+
+@pytest.fixture
+def test_employee_user(organization):
+    """Фикстура для пользователя-работника"""
+    user = User.objects.create_user(
+        username="test_employee",
+        email="employee@test.com",
+        password="testpass123",
+        user_type="employee",
+        organization=organization,
+        last_name="Иванов",
+        first_name="Иван",
+        patronymic="Иванович",
+        snils="123-456-789 01",
+    )
+    # Создаём профиль работника
+    EmployeeProfile.objects.create(
+        user=user,
+        snils="123-456-789 01",
+        organization=organization,
+        position="Начальник цеха",
+        position_level="middle",
+    )
+    return user
+
+
+@pytest.fixture
+def employer_recommendation(test_employer_user, test_employee_user, course):
+    """Фикстура рекомендации от работодателя"""
+    from apps.recommendations.models import EmployerRecommendation
+
+    return EmployerRecommendation.objects.create(
+        employer=test_employer_user,
+        employee=test_employee_user,
+        course=course,
+        reason="Тестовая рекомендация",
+    )
+
+
+@pytest.fixture
+def test_employee_user2(organization):
+    """Фикстура для второго пользователя-работника"""
+    user = User.objects.create_user(
+        username="test_employee2",
+        email="employee2@test.com",
+        password="testpass123",
+        user_type="employee",
+        organization=organization,
+        last_name="Петров",
+        first_name="Петр",
+        patronymic="Петрович",
+        snils="987-654-321 01",
+    )
+    return user

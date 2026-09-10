@@ -5,6 +5,7 @@ from .models import (
     CourseRecommendation,
     RecommendationTask,
     SelectedCourse,
+    EmployerRecommendation,
 )
 
 
@@ -202,3 +203,63 @@ class ApprovedSelectedCourseAdmin(admin.ModelAdmin):
         if self._is_viewer(request):
             return False
         return super().has_delete_permission(request, obj)
+
+
+@admin.register(EmployerRecommendation)
+class EmployerRecommendationAdmin(admin.ModelAdmin):
+    """Админка для рекомендаций от работодателя"""
+
+    list_display = (
+        "id",
+        "employer",
+        "employee",
+        "course",
+        "is_viewed",
+        "created_at",
+    )
+    list_filter = ("is_viewed", "created_at", "updated_at")
+    search_fields = (
+        "employer__username",
+        "employer__email",
+        "employer__last_name",
+        "employer__first_name",
+        "employee__username",
+        "employee__email",
+        "employee__last_name",
+        "employee__first_name",
+        "course__title",
+    )
+    readonly_fields = ("created_at", "updated_at")
+    list_editable = ("is_viewed",)
+
+    def _is_viewer(self, request):
+        return request.user.groups.filter(name="Просмотрщик").exists()
+
+    def has_add_permission(self, request):
+        if self._is_viewer(request):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if self._is_viewer(request):
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        if self._is_viewer(request):
+            return {}
+        return super().get_actions(request)
+
+    fieldsets = (
+        ("Основное", {"fields": ("employer", "employee", "course")}),
+        ("Дополнительно", {"fields": ("reason", "is_viewed")}),
+        (
+            "Системное",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )

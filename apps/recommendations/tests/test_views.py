@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch
 from django.urls import reverse
+from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
 from datetime import datetime
 
@@ -14,6 +15,8 @@ from apps.courses.models import Course
 from apps.goal_setting.models import Question, GoalSettingResponse
 
 pytestmark = pytest.mark.django_db
+
+User = get_user_model()
 
 
 class TestMyRecommendationsView:
@@ -488,3 +491,339 @@ class TestRemoveSelectedCourseView:
         assert response.status_code == 200
         # Просто проверяем, что ошибки нет
         assert "Курс" in str(list(get_messages(response.wsgi_request))[0])
+
+
+class TestEmployerRecommendationsView:
+    """Тесты для страницы рекомендаций курсов работодателем"""
+
+    def test_employer_recommendations_requires_login(self, client):
+        url = reverse("recommendations:employer_recommendations")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_employer_recommendations_requires_employer(self, client, regular_user):
+        client.force_login(regular_user)
+        url = reverse("recommendations:employer_recommendations")
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_employer_recommendations_returns_200_for_employer(
+        self, client, test_employer_user
+    ):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:employer_recommendations")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "categories" in response.context
+        assert "positions" in response.context
+        assert "employees" in response.context
+
+    def test_employer_recommendations_search_by_name(
+        self, client, test_employer_user, test_employee_user
+    ):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:employer_recommendations")
+        response = client.get(url, {"search": "Иван"})
+        assert response.status_code == 200
+        employees = response.context["employees"]
+        assert test_employee_user in employees
+
+    def test_employer_recommendations_search_by_position(
+        self, client, test_employer_user, test_employee_user
+    ):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:employer_recommendations")
+        response = client.get(url, {"search": "Начальник"})
+        assert response.status_code == 200
+        employees = response.context["employees"]
+        assert test_employee_user in employees
+
+
+class TestGetEmployeesByPositionView:
+    """Тесты для AJAX получения работников по должности"""
+
+    def test_get_employees_by_position_requires_login(self, client):
+        url = reverse("recommendations:get_employees_by_position")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_get_employees_by_position_requires_employer(self, client, regular_user):
+        client.force_login(regular_user)
+        url = reverse("recommendations:get_employees_by_position")
+        response = client.get(url)
+        assert response.status_code == 403
+
+    def test_get_employees_by_position_success(
+        self, client, test_employer_user, test_employee_user
+    ):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:get_employees_by_position")
+        response = client.get(url, {"position": "Начальник цеха"})
+        assert response.status_code == 200
+        data = response.json()
+        assert "employees" in data
+        assert len(data["employees"]) == 1
+        assert data["employees"][0]["id"] == test_employee_user.id
+
+    def test_get_employees_by_position_empty(self, client, test_employer_user):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:get_employees_by_position")
+        response = client.get(url, {"position": "Несуществующая должность"})
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["employees"]) == 0
+
+
+class TestGetCoursesByCategoryView:
+    """Тесты для AJAX получения курсов по категории"""
+
+    def test_get_courses_by_category_requires_login(self, client):
+        url = reverse("recommendations:get_courses_by_category")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_get_courses_by_category_requires_employer(self, client, regular_user):
+        client.force_login(regular_user)
+        url = reverse("recommendations:get_courses_by_category")
+        response = client.get(url)
+        assert response.status_code == 403
+
+    def test_get_courses_by_category_success(
+        self, client, test_employer_user, course, category
+    ):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:get_courses_by_category")
+        response = client.get(url, {"category_id": category.id})
+        assert response.status_code == 200
+        data = response.json()
+        assert "courses" in data
+        assert len(data["courses"]) == 1
+        assert data["courses"][0]["title"] == course.title
+
+    def test_get_courses_by_category_empty(self, client, test_employer_user):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:get_courses_by_category")
+        response = client.get(url, {"category_id": 999})
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["courses"]) == 0
+
+
+class TestSendEmployerRecommendationView:
+    """Тесты для отправки рекомендации работодателем"""
+
+    def test_send_recommendation_requires_login(self, client):
+        url = reverse("recommendations:send_employer_recommendation")
+        response = client.post(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_send_recommendation_requires_employer(self, client, regular_user):
+        client.force_login(regular_user)
+        url = reverse("recommendations:send_employer_recommendation")
+        response = client.post(url, {})
+        assert response.status_code == 302
+
+    def test_send_recommendation_success(
+        self, client, test_employer_user, test_employee_user, course
+    ):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:send_employer_recommendation")
+        data = {
+            "employee_id": test_employee_user.id,
+            "course_id": course.id,
+            "reason": "Хороший курс для развития",
+        }
+        response = client.post(url, data, follow=True)
+        assert response.status_code == 200
+
+        from apps.recommendations.models import EmployerRecommendation
+
+        assert EmployerRecommendation.objects.filter(
+            employer=test_employer_user,
+            employee=test_employee_user,
+            course=course,
+        ).exists()
+
+        messages = list(get_messages(response.wsgi_request))
+        assert any("рекомендован" in str(msg).lower() for msg in messages)
+
+    def test_send_recommendation_wrong_employee(
+        self, client, test_employer_user, another_organization, course
+    ):
+        # Создаём сотрудника в другой организации
+        other_employee = User.objects.create_user(
+            username="other_employee",
+            email="other@test.com",
+            password="pass123",
+            user_type="employee",
+            organization=another_organization,
+        )
+
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:send_employer_recommendation")
+        data = {
+            "employee_id": other_employee.id,
+            "course_id": course.id,
+        }
+        response = client.post(url, data, follow=True)
+        messages = list(get_messages(response.wsgi_request))
+        assert any("не принадлежит" in str(msg).lower() for msg in messages)
+
+
+class TestEmployeeEmployerRecommendationsView:
+    """Тесты для просмотра рекомендаций от работодателя работником"""
+
+    def test_employee_employer_recommendations_requires_login(self, client):
+        url = reverse("recommendations:employee_employer_recommendations")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_employee_employer_recommendations_requires_employee(
+        self, client, test_employer_user
+    ):
+        client.force_login(test_employer_user)
+        url = reverse("recommendations:employee_employer_recommendations")
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_employee_employer_recommendations_returns_200(
+        self, client, test_employee_user, employer_recommendation
+    ):
+        client.force_login(test_employee_user)
+        url = reverse("recommendations:employee_employer_recommendations")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "recommendations" in response.context
+        assert "total" in response.context
+        assert "selected_course_ids" in response.context
+
+    def test_employee_employer_recommendations_marks_viewed(
+        self, client, test_employee_user, employer_recommendation
+    ):
+        client.force_login(test_employee_user)
+        url = reverse("recommendations:employee_employer_recommendations")
+        response = client.get(url)
+        assert response.status_code == 200
+        employer_recommendation.refresh_from_db()
+        assert employer_recommendation.is_viewed is True
+
+
+class TestRemoveEmployerRecommendationView:
+    """Тесты для удаления рекомендации работодателем"""
+
+    def test_remove_recommendation_requires_login(self, client):
+        url = reverse("recommendations:remove_employer_recommendation", args=[1])
+        response = client.post(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_remove_recommendation_success(
+        self, client, test_employer_user, employer_recommendation
+    ):
+        client.force_login(test_employer_user)
+        url = reverse(
+            "recommendations:remove_employer_recommendation",
+            args=[employer_recommendation.id],
+        )
+        response = client.post(url, follow=True)
+        assert response.status_code == 200
+
+        from apps.recommendations.models import EmployerRecommendation
+
+        assert not EmployerRecommendation.objects.filter(
+            id=employer_recommendation.id
+        ).exists()
+
+        messages = list(get_messages(response.wsgi_request))
+        assert any("удалена" in str(msg).lower() for msg in messages)
+
+
+class TestEmployeeRecommendationsDetailView:
+    """Тесты для детального просмотра рекомендаций сотрудника"""
+
+    def test_employee_recommendations_detail_requires_login(self, client):
+        url = reverse("recommendations:employee_recommendations_detail", args=[1])
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_employee_recommendations_detail_requires_employer(
+        self, client, regular_user, test_employee_user
+    ):
+        client.force_login(regular_user)
+        url = reverse(
+            "recommendations:employee_recommendations_detail",
+            args=[test_employee_user.id],
+        )
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_employee_recommendations_detail_returns_200(
+        self, client, test_employer_user, test_employee_user, employer_recommendation
+    ):
+        client.force_login(test_employer_user)
+        url = reverse(
+            "recommendations:employee_recommendations_detail",
+            args=[test_employee_user.id],
+        )
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "employee" in response.context
+        assert "recommendations" in response.context
+        assert "total" in response.context
+        assert response.context["employee"] == test_employee_user
+
+    def test_employee_recommendations_detail_404_for_wrong_employee(
+        self, client, test_employer_user, another_organization
+    ):
+        # Создаём сотрудника в другой организации
+        other_employee = User.objects.create_user(
+            username="other_employee",
+            email="other@test.com",
+            password="pass123",
+            user_type="employee",
+            organization=another_organization,
+        )
+
+        client.force_login(test_employer_user)
+        url = reverse(
+            "recommendations:employee_recommendations_detail", args=[other_employee.id]
+        )
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_employee_recommendations_detail_shows_only_own_recommendations(
+        self, client, test_employer_user, test_employee_user, employer_recommendation
+    ):
+        # Создаём другого работодателя
+        other_employer = User.objects.create_user(
+            username="other_employer",
+            email="other_emp@test.com",
+            password="pass123",
+            user_type="employer",
+            organization=test_employer_user.organization,
+        )
+
+        # Создаём рекомендацию от другого работодателя
+        from apps.recommendations.models import EmployerRecommendation
+
+        EmployerRecommendation.objects.create(
+            employer=other_employer,
+            employee=test_employee_user,
+            course=employer_recommendation.course,
+        )
+
+        client.force_login(test_employer_user)
+        url = reverse(
+            "recommendations:employee_recommendations_detail",
+            args=[test_employee_user.id],
+        )
+        response = client.get(url)
+        assert response.status_code == 200
+        # Должна быть только одна рекомендация (от test_employer_user)
+        assert response.context["total"] == 1

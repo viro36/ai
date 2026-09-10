@@ -259,6 +259,7 @@ def employer_recommendations(request):
         return redirect("home")
 
     organization = request.user.organization
+    search_query = request.GET.get("search", "").strip()
 
     # Получаем все категории
     categories = Category.objects.all().order_by("name")
@@ -292,10 +293,20 @@ def employer_recommendations(request):
         .order_by("last_name", "first_name")
     )
 
+    # Поиск по сотруднику или должности
+    if search_query:
+        employees = employees.filter(
+            Q(last_name__icontains=search_query)
+            | Q(first_name__icontains=search_query)
+            | Q(patronymic__icontains=search_query)
+            | Q(employee_profile__position__icontains=search_query)
+        )
+
     context = {
         "categories": categories,
         "positions": positions,
         "employees": employees,
+        "search_query": search_query,
     }
     return render(request, "recommendations/employer_recommendations.html", context)
 
