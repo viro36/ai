@@ -1,9 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // ========== Фильтрация организаций ==========
-    const districtSelect = document.getElementById('id_district');
-    const orgTypeSelect = document.getElementById('id_organization_type');
-    const organizationSelect = document.getElementById('id_organization');
+    // ========== Получаем элементы ==========
+    const districtSelect = document.getElementById('district-select');
+    const orgTypeSelect = document.getElementById('org-type-select');
+    const organizationSelect = document.getElementById('organization-select');
 
+    const isUnemployed = document.getElementById('id_is_unemployed');
+    const organizationBlock = document.getElementById('organizationBlock');
+    const positionField = document.getElementById('id_position');
+    const positionLevelField = document.getElementById('id_position_level');
+
+    // ========== Фильтрация организаций ==========
     function updateOrganizations() {
         if (!organizationSelect) return;
 
@@ -15,8 +21,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (orgTypeId) params.append('org_type_id', orgTypeId);
 
         fetch('/accounts/get-organizations-ajax/?' + params.toString())
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
             .then(data => {
+                // Сохраняем текущее выбранное значение (если есть)
+                const currentValue = organizationSelect.value;
+
                 organizationSelect.innerHTML = '<option value="">---------</option>';
                 data.organizations.forEach(org => {
                     const option = document.createElement('option');
@@ -24,6 +36,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     option.textContent = org.text;
                     organizationSelect.appendChild(option);
                 });
+
+                // Восстанавливаем выбор, если он ещё доступен
+                if (currentValue) {
+                    organizationSelect.value = currentValue;
+                }
             })
             .catch(error => {
                 console.error('Ошибка загрузки организаций:', error);
@@ -33,48 +50,34 @@ document.addEventListener('DOMContentLoaded', function() {
     if (districtSelect) districtSelect.addEventListener('change', updateOrganizations);
     if (orgTypeSelect) orgTypeSelect.addEventListener('change', updateOrganizations);
 
-    // Загружаем все организации при загрузке страницы
-    updateOrganizations();
-
     // ========== Скрытие блока организации для безработных ==========
-    const isUnemployed = document.getElementById('id_is_unemployed');
-    const organizationBlock = document.getElementById('organizationBlock');
-    const positionField = document.getElementById('id_position');
-    const positionLevelField = document.getElementById('id_position_level');
-
+    // ВАЖНО: не используем disabled — отключённые поля не отправляются на сервер.
+    // Вместо этого очищаем значения и скрываем блок.
     function toggleUnemployedFields() {
         if (!isUnemployed || !organizationBlock) return;
 
         if (isUnemployed.checked) {
             organizationBlock.style.display = 'none';
 
-            if (organizationSelect) {
-                organizationSelect.value = '';
-                organizationSelect.disabled = true;
-            }
-            if (districtSelect) districtSelect.disabled = true;
-            if (orgTypeSelect) orgTypeSelect.disabled = true;
-            if (positionField) {
-                positionField.value = '';
-                positionField.disabled = true;
-            }
-            if (positionLevelField) {
-                positionLevelField.value = '';
-                positionLevelField.disabled = true;
-            }
+            // Очищаем значения, но НЕ отключаем поля
+            if (organizationSelect) organizationSelect.value = '';
+            if (districtSelect) districtSelect.value = '';
+            if (orgTypeSelect) orgTypeSelect.value = '';
+            if (positionField) positionField.value = '';
+            if (positionLevelField) positionLevelField.value = '';
         } else {
             organizationBlock.style.display = 'block';
-
-            if (organizationSelect) organizationSelect.disabled = false;
-            if (districtSelect) districtSelect.disabled = false;
-            if (orgTypeSelect) orgTypeSelect.disabled = false;
-            if (positionField) positionField.disabled = false;
-            if (positionLevelField) positionLevelField.disabled = false;
         }
     }
 
     if (isUnemployed) {
         isUnemployed.addEventListener('change', toggleUnemployedFields);
         toggleUnemployedFields();
+    }
+
+    // ========== Загружаем организации при загрузке страницы ==========
+    // Не загружаем, если пользователь уже отметил "Безработный"
+    if (!isUnemployed || !isUnemployed.checked) {
+        updateOrganizations();
     }
 });
