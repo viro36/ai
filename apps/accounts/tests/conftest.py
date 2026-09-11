@@ -16,6 +16,9 @@ from apps.recommendations.models import CourseRecommendation, SelectedCourse
 User = get_user_model()
 
 
+# ========== ОСНОВНЫЕ ФИКСТУРЫ ==========
+
+
 @pytest.fixture
 def test_district():
     """Фикстура для района"""
@@ -68,7 +71,7 @@ def admin_user(db):
 @pytest.fixture
 def test_employer_user(test_organization):
     """Фикстура для пользователя-работодателя"""
-    user = User.objects.create_user(
+    return User.objects.create_user(
         username="test_employer",
         email="employer@test.com",
         password="testpass123",
@@ -77,13 +80,12 @@ def test_employer_user(test_organization):
         last_name="Иванов",
         first_name="Иван",
     )
-    return user
 
 
 @pytest.fixture
 def test_university_user(test_organization):
     """Фикстура для пользователя-ВУЗа"""
-    user = User.objects.create_user(
+    return User.objects.create_user(
         username="test_university",
         email="university@test.com",
         password="testpass123",
@@ -92,13 +94,12 @@ def test_university_user(test_organization):
         last_name="Петров",
         first_name="Петр",
     )
-    return user
 
 
 @pytest.fixture
 def test_employee_user(test_organization):
     """Фикстура для пользователя-работника"""
-    user = User.objects.create_user(
+    return User.objects.create_user(
         username="test_employee",
         email="employee@test.com",
         password="testpass123",
@@ -109,13 +110,12 @@ def test_employee_user(test_organization):
         patronymic="Иванович",
         snils="123-456-789 01",
     )
-    return user
 
 
 @pytest.fixture
 def test_employee_user2(test_organization):
     """Фикстура для второго пользователя-работника"""
-    user = User.objects.create_user(
+    return User.objects.create_user(
         username="test_employee2",
         email="employee2@test.com",
         password="testpass123",
@@ -126,7 +126,22 @@ def test_employee_user2(test_organization):
         patronymic="Петрович",
         snils="987-654-321 01",
     )
-    return user
+
+
+@pytest.fixture
+def test_employee_unemployed_user():
+    """Фикстура для безработного пользователя (без организации)"""
+    return User.objects.create_user(
+        username="unemployed_user",
+        email="unemployed@test.com",
+        password="testpass123",
+        user_type="employee",
+        organization=None,
+        last_name="Сидоров",
+        first_name="Сидор",
+        patronymic="Сидорович",
+        snils="555-666-777 88",
+    )
 
 
 @pytest.fixture
@@ -143,10 +158,27 @@ def test_employee_user_with_profile(test_employee_user, test_organization):
 
 
 @pytest.fixture
+def test_unemployed_profile(test_employee_unemployed_user):
+    """Фикстура для безработного с профилем"""
+    EmployeeProfile.objects.create(
+        user=test_employee_unemployed_user,
+        snils="555-666-777 88",
+        organization=None,
+        position="Безработный",
+        position_level=None,
+        is_unemployed=True,
+    )
+    return test_employee_unemployed_user
+
+
+@pytest.fixture
 def admin_client(client, admin_user):
     """Фикстура для админ-клиента"""
     client.login(username=admin_user.username, password="admin123")
     return client
+
+
+# ========== ФИКСТУРЫ КУРСОВ ==========
 
 
 @pytest.fixture
@@ -160,6 +192,9 @@ def test_course(test_organization):
     )
 
 
+# ========== ФИКСТУРЫ ВОПРОСОВ ==========
+
+
 @pytest.fixture
 def test_question_choice():
     """Фикстура вопроса типа choice"""
@@ -169,24 +204,14 @@ def test_question_choice():
         is_active=True,
         order=1,
     )
-    # Создаём варианты ответов
     QuestionOption.objects.create(
-        question=question,
-        value="python",
-        label="Python",
-        order=1,
+        question=question, value="python", label="Python", order=1
     )
     QuestionOption.objects.create(
-        question=question,
-        value="javascript",
-        label="JavaScript",
-        order=2,
+        question=question, value="javascript", label="JavaScript", order=2
     )
     QuestionOption.objects.create(
-        question=question,
-        value="java",
-        label="Java",
-        order=3,
+        question=question, value="java", label="Java", order=3
     )
     return question
 
@@ -213,24 +238,14 @@ def test_question_multiple_choice():
         order=3,
         is_multiple=True,
     )
-    # Создаём варианты ответов
     QuestionOption.objects.create(
-        question=question,
-        value="docker",
-        label="Docker",
-        order=1,
+        question=question, value="docker", label="Docker", order=1
     )
     QuestionOption.objects.create(
-        question=question,
-        value="kubernetes",
-        label="Kubernetes",
-        order=2,
+        question=question, value="kubernetes", label="Kubernetes", order=2
     )
     QuestionOption.objects.create(
-        question=question,
-        value="terraform",
-        label="Terraform",
-        order=3,
+        question=question, value="terraform", label="Terraform", order=3
     )
     return question
 
@@ -257,10 +272,12 @@ def test_question_inactive():
     )
 
 
+# ========== ФИКСТУРЫ РЕКОМЕНДАЦИЙ ==========
+
+
 @pytest.fixture
 def test_employee_user_with_selected_courses(test_employee_user, test_organization):
     """Фикстура для работника с выбранными курсами"""
-    courses = []
     for i in range(3):
         course = Course.objects.create(
             title=f"Выбранный курс {i}",
@@ -268,11 +285,7 @@ def test_employee_user_with_selected_courses(test_employee_user, test_organizati
             url=f"https://test.com/selected{i}",
             is_deleted=False,
         )
-        SelectedCourse.objects.create(
-            user=test_employee_user,
-            course=course,
-        )
-        courses.append(course)
+        SelectedCourse.objects.create(user=test_employee_user, course=course)
     return test_employee_user
 
 
@@ -290,6 +303,9 @@ def test_employee_user_with_recommendations(test_employee_user, test_course):
     return test_employee_user
 
 
+# ========== ФИКСТУРЫ ПРОСМОТРЩИКА ==========
+
+
 @pytest.fixture
 def viewer_user(db):
     """Фикстура пользователя-просмотрщика с правами на просмотр в accounts"""
@@ -304,11 +320,9 @@ def viewer_user(db):
         last_name="Просмотрщиков",
     )
 
-    # Создаем группу
     group, _ = Group.objects.get_or_create(name="Просмотрщик")
     user.groups.add(group)
 
-    # Даем права на просмотр моделей accounts
     for model in [EmployerRegistrationRequest, EmployerProfile, EmployeeProfile]:
         ct = ContentType.objects.get_for_model(model)
         view_perm, _ = Permission.objects.get_or_create(

@@ -547,3 +547,120 @@ class TestEmployeeProfileModel:
         )
 
         assert profile.is_goal_setting_complete() is False
+
+
+@pytest.mark.django_db
+class TestEmployeeProfileUnemployed:
+    """Тесты для полей is_unemployed и is_svo_participant"""
+
+    def test_create_unemployed_profile(self, test_employee_user):
+        """Безработный: организация=None, position='Безработный', position_level=None"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+        assert profile.is_unemployed is True
+        assert profile.is_svo_participant is False
+        assert profile.organization is None
+        assert profile.position == "Безработный"
+        assert profile.position_level is None
+
+    def test_create_working_svo_profile(self, test_employee_user, test_organization):
+        """Работающий участник СВО: СВО независим от безработного"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+            is_svo_participant=True,
+        )
+        assert profile.is_unemployed is False
+        assert profile.is_svo_participant is True
+
+    def test_default_flags(self, test_employee_user, test_organization):
+        """По умолчанию оба флага False"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        assert profile.is_unemployed is False
+        assert profile.is_svo_participant is False
+
+    def test_str_method_without_organization(self, test_employee_user):
+        """__str__ не падает без организации"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+        assert test_employee_user.get_full_name() in str(profile)
+
+
+@pytest.mark.django_db
+class TestIsProfileCompleteUnemployed:
+    """is_profile_complete() для безработных"""
+
+    def _make_complete_profile(self, user, organization, is_unemployed):
+        """Хелпер: полный профиль (работающий или безработный)"""
+        user.last_name = "Иванов"
+        user.first_name = "Иван"
+        user.birthday = "1990-01-01"
+        user.save()
+
+        return EmployeeProfile.objects.create(
+            user=user,
+            snils="123-456-789 01",
+            organization=organization,
+            position="Безработный" if is_unemployed else "Инженер",
+            position_level=None if is_unemployed else "specialist",
+            is_unemployed=is_unemployed,
+            gender="M",
+            citizenship="Россия",
+            education_level="higher",
+            graduation_year=2015,
+            education_institution="ВГУ",
+            specialty="Программная инженерия",
+            locality="Воронеж",
+            municipality="Городской округ",
+        )
+
+    def test_complete_unemployed(self, test_employee_user):
+        """Полный профиль безработного → True"""
+        profile = self._make_complete_profile(
+            test_employee_user, organization=None, is_unemployed=True
+        )
+        assert profile.is_profile_complete() is True
+
+    def test_complete_working(self, test_employee_user, test_organization):
+        """Полный профиль работающего → True"""
+        profile = self._make_complete_profile(
+            test_employee_user, organization=test_organization, is_unemployed=False
+        )
+        assert profile.is_profile_complete() is True
+
+    def test_working_without_organization(self, test_employee_user):
+        """Работающий без организации → False"""
+        profile = self._make_complete_profile(
+            test_employee_user, organization=None, is_unemployed=False
+        )
+        assert profile.is_profile_complete() is False
+
+    def test_unemployed_without_required_field(self, test_employee_user):
+        """Безработный без обязательного поля → False"""
+        profile = self._make_complete_profile(
+            test_employee_user, organization=None, is_unemployed=True
+        )
+        profile.gender = ""
+        profile.save()
+        assert profile.is_profile_complete() is False

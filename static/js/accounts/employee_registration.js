@@ -1,75 +1,80 @@
-$(document).ready(function() {
-    // Пытаемся найти поля разными способами
-    var districtSelect = $('#id_district');
-    if (!districtSelect.length) {
-        districtSelect = $('#district');
-    }
-    if (!districtSelect.length) {
-        districtSelect = $('select[name="district"]');
-    }
+document.addEventListener('DOMContentLoaded', function() {
+    // ========== Фильтрация организаций ==========
+    const districtSelect = document.getElementById('id_district');
+    const orgTypeSelect = document.getElementById('id_organization_type');
+    const organizationSelect = document.getElementById('id_organization');
 
-    var orgTypeSelect = $('#id_organization_type');
-    if (!orgTypeSelect.length) {
-        orgTypeSelect = $('#organization_type');
-    }
-    if (!orgTypeSelect.length) {
-        orgTypeSelect = $('select[name="organization_type"]');
-    }
-
-    var organizationSelect = $('#id_organization');
-    if (!organizationSelect.length) {
-        organizationSelect = $('#organization');
-    }
-    if (!organizationSelect.length) {
-        organizationSelect = $('select[name="organization"]');
-    }
-
-    // Функция обновления списка организаций
     function updateOrganizations() {
-        var districtId = districtSelect.val();
-        var orgTypeId = orgTypeSelect.val();
+        if (!organizationSelect) return;
 
-        console.log('Фильтрация: район=' + districtId + ', тип=' + orgTypeId);
+        const districtId = districtSelect ? districtSelect.value : '';
+        const orgTypeId = orgTypeSelect ? orgTypeSelect.value : '';
 
-        var url = '/accounts/get-organizations-ajax/';
-        var params = {};
+        const params = new URLSearchParams();
+        if (districtId) params.append('district_id', districtId);
+        if (orgTypeId) params.append('org_type_id', orgTypeId);
 
-        if (districtId && districtId !== '') {
-            params.district_id = districtId;
-        }
-        if (orgTypeId && orgTypeId !== '') {
-            params.org_type_id = orgTypeId;
-        }
-
-        $.ajax({
-            url: url,
-            data: params,
-            dataType: 'json',
-            success: function(data) {
-                console.log('Получено организаций:', data.organizations.length);
-                organizationSelect.empty();
-                organizationSelect.append('<option value="">---------</option>');
-                $.each(data.organizations, function(index, org) {
-                    organizationSelect.append('<option value="' + org.id + '">' + org.text + '</option>');
+        fetch('/accounts/get-organizations-ajax/?' + params.toString())
+            .then(response => response.json())
+            .then(data => {
+                organizationSelect.innerHTML = '<option value="">---------</option>';
+                data.organizations.forEach(org => {
+                    const option = document.createElement('option');
+                    option.value = org.id;
+                    option.textContent = org.text;
+                    organizationSelect.appendChild(option);
                 });
-            },
-            error: function(xhr, status, error) {
+            })
+            .catch(error => {
                 console.error('Ошибка загрузки организаций:', error);
-            }
-        });
+            });
     }
 
-    // Обновляем при изменении района или типа организации
-    districtSelect.on('change', function() {
-        console.log('Район изменён');
-        updateOrganizations();
-    });
-
-    orgTypeSelect.on('change', function() {
-        console.log('Тип организации изменён');
-        updateOrganizations();
-    });
+    if (districtSelect) districtSelect.addEventListener('change', updateOrganizations);
+    if (orgTypeSelect) orgTypeSelect.addEventListener('change', updateOrganizations);
 
     // Загружаем все организации при загрузке страницы
     updateOrganizations();
+
+    // ========== Скрытие блока организации для безработных ==========
+    const isUnemployed = document.getElementById('id_is_unemployed');
+    const organizationBlock = document.getElementById('organizationBlock');
+    const positionField = document.getElementById('id_position');
+    const positionLevelField = document.getElementById('id_position_level');
+
+    function toggleUnemployedFields() {
+        if (!isUnemployed || !organizationBlock) return;
+
+        if (isUnemployed.checked) {
+            organizationBlock.style.display = 'none';
+
+            if (organizationSelect) {
+                organizationSelect.value = '';
+                organizationSelect.disabled = true;
+            }
+            if (districtSelect) districtSelect.disabled = true;
+            if (orgTypeSelect) orgTypeSelect.disabled = true;
+            if (positionField) {
+                positionField.value = '';
+                positionField.disabled = true;
+            }
+            if (positionLevelField) {
+                positionLevelField.value = '';
+                positionLevelField.disabled = true;
+            }
+        } else {
+            organizationBlock.style.display = 'block';
+
+            if (organizationSelect) organizationSelect.disabled = false;
+            if (districtSelect) districtSelect.disabled = false;
+            if (orgTypeSelect) orgTypeSelect.disabled = false;
+            if (positionField) positionField.disabled = false;
+            if (positionLevelField) positionLevelField.disabled = false;
+        }
+    }
+
+    if (isUnemployed) {
+        isUnemployed.addEventListener('change', toggleUnemployedFields);
+        toggleUnemployedFields();
+    }
 });

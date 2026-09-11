@@ -178,12 +178,16 @@ class EmployeeProfile(models.Model):
         "organizations.Organization",
         on_delete=models.CASCADE,
         verbose_name="Организация",
+        null=True,
+        blank=True,
     )
     position = models.CharField(max_length=255, verbose_name="Должность")
     position_level = models.CharField(
         max_length=20,
         choices=POSITION_LEVEL_CHOICES,
         verbose_name="Категория должности",
+        blank=True,
+        null=True,
     )
 
     # 1. Персональные данные
@@ -219,6 +223,14 @@ class EmployeeProfile(models.Model):
     )
     work_experience_years = models.PositiveIntegerField(
         blank=True, null=True, verbose_name="Стаж работы (лет)"
+    )
+    is_unemployed = models.BooleanField(
+        default=False,
+        verbose_name="Безработный",
+    )
+    is_svo_participant = models.BooleanField(
+        default=False,
+        verbose_name="Участник СВО",
     )
 
     # 4. Образование
@@ -277,23 +289,18 @@ class EmployeeProfile(models.Model):
         verbose_name_plural = "Профили работников"
 
     def __str__(self):
-        return f"{self.user.get_full_name()} - {self.organization.short_name}"
+        if self.organization:
+            return f"{self.user.get_full_name()} - {self.organization.short_name}"
+        return f"{self.user.get_full_name()} - Безработный"
 
     def is_profile_complete(self):
-        """
-        Проверяет, заполнена ли анкета полностью.
-        """
-        # Проверяем ФИО и дату рождения у пользователя
         user = self.user
         if not user.last_name or not user.first_name or not user.birthday:
             return False
 
-        # Проверяем поля профиля (используем organization_id вместо organization)
+        # Обязательные поля (без организации, должности и категории)
         required_fields = {
             "СНИЛС": self.snils,
-            "organization_id": self.organization_id,
-            "Должность": self.position,
-            "Категория должности": self.position_level,
             "Пол": self.gender,
             "Гражданство": self.citizenship,
             "Уровень образования": self.education_level,
@@ -303,6 +310,15 @@ class EmployeeProfile(models.Model):
             "Населённый пункт": self.locality,
             "Муниципалитет": self.municipality,
         }
+
+        # Организация, должность и категория обязательны только для работающих
+        if not self.is_unemployed:
+            if not self.organization_id:
+                return False
+            if not self.position:
+                return False
+            if not self.position_level:
+                return False
 
         for field_name, value in required_fields.items():
             if not value:

@@ -149,6 +149,8 @@ class DeepSeekRecommendationService:
                 "desired_organization_type": None,
                 "desired_organization": None,
                 "desired_position": None,
+                "is_unemployed": False,
+                "is_svo_participant": False,
             },
             "survey_results": {},
             "survey_interpretations": {},
@@ -158,6 +160,11 @@ class DeepSeekRecommendationService:
         # ========== Информация из профиля работника ==========
         if hasattr(self.user, "employee_profile"):
             emp_profile = self.user.employee_profile
+
+            # Статус занятости
+            profile["user_info"]["is_unemployed"] = emp_profile.is_unemployed
+            profile["user_info"]["is_svo_participant"] = emp_profile.is_svo_participant
+
             profile["user_info"]["position"] = emp_profile.position
             profile["user_info"][
                 "position_level"
@@ -172,7 +179,6 @@ class DeepSeekRecommendationService:
                         "organization_industry"
                     ] = emp_profile.organization.organization_type.name
 
-            # ========== НОВЫЕ ПОЛЯ ИЗ ПРОФИЛЯ ==========
             # Образование
             profile["user_info"]["education_level"] = (
                 emp_profile.get_education_level_display()
@@ -331,8 +337,34 @@ class DeepSeekRecommendationService:
         )
 
         has_surveys = user_profile.get("has_surveys", False)
+        is_unemployed = user_profile["user_info"].get("is_unemployed", False)
+        is_svo = user_profile["user_info"].get("is_svo_participant", False)
 
-        # Формируем секцию с дополнительной информацией из профиля
+        # ========== Формируем блок статуса занятости ==========
+        if is_unemployed:
+            employment_status_text = "Безработный"
+            if is_svo:
+                employment_status_text += " (участник СВО)"
+            position_text = "Безработный"
+            position_level_text = "—"
+            organization_text = "Безработный (нет организации)"
+            industry_text = "—"
+        else:
+            employment_status_text = "Работающий"
+            if is_svo:
+                employment_status_text += " (участник СВО)"
+            position_text = user_profile["user_info"]["position"] or "Не указана"
+            position_level_text = (
+                user_profile["user_info"]["position_level"] or "Не указан"
+            )
+            organization_text = (
+                user_profile["user_info"]["organization_name"] or "Не указана"
+            )
+            industry_text = (
+                user_profile["user_info"]["organization_industry"] or "Не указана"
+            )
+
+        # ========== Формируем секцию с дополнительной информацией ==========
         extra_info = ""
         if user_profile["user_info"].get("education_level"):
             extra_info += (
@@ -358,7 +390,7 @@ class DeepSeekRecommendationService:
         if extra_info:
             extra_info = f"\n## ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ ИЗ ПРОФИЛЯ\n{extra_info}"
 
-        # Формируем секцию с целеполаганием
+        # ========== Секция целеполагания ==========
         goal_section = ""
         if goal_data:
             goal_text = ""
@@ -368,6 +400,7 @@ class DeepSeekRecommendationService:
 ## ЦЕЛЕПОЛАГАНИЕ (ответы пользователя)
 {goal_text}"""
 
+        # ========== Секция результатов тестов ==========
         surveys_section = ""
         if has_surveys:
             surveys_section = f"""
@@ -402,6 +435,19 @@ class DeepSeekRecommendationService:
 ## РЕЗУЛЬТАТЫ ТЕСТОВ
 Пользователь ещё не проходил опросы. Используй только информацию из профиля для подбора курсов."""
 
+        # ========== Формируем секцию особенностей для безработных ==========
+        if is_unemployed:
+            unemployed_section = """
+**ОСОБЕННОСТИ ДЛЯ БЕЗРАБОТНЫХ:**
+- **Учитывай** желаемую сферу, желаемую организацию и желаемую должность (они есть в профиле).
+- **Учитывай** уровень образования, специальность и год окончания.
+- **Учитывай** целеполагание — для безработных это ОСОБЕННО ВАЖНО, так как именно цели определяют, какие курсы помогут найти работу.
+- Если пользователь участник СВО — учитывай это как дополнительный контекст (возможно, есть специфические программы поддержки).
+"""
+        else:
+            unemployed_section = ""
+
+        # ========== Формируем промпт ==========
         prompt = f"""
 Ты - эксперт по подбору образовательных курсов.
 
@@ -411,10 +457,11 @@ class DeepSeekRecommendationService:
 ## ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
 
 Тип: {user_profile['user_info']['user_type']}
-Должность: {user_profile['user_info']['position'] or 'Не указана'}
-Уровень должности: {user_profile['user_info']['position_level'] or 'Не указан'}
-Организация: {user_profile['user_info']['organization_name'] or 'Не указана'}
-Сфера деятельности: {user_profile['user_info']['organization_industry'] or 'Не указана'}
+Статус занятости: {employment_status_text}
+Должность: {position_text}
+Уровень должности: {position_level_text}
+Организация: {organization_text}
+Сфера деятельности: {industry_text}
 {extra_info}
 {goal_section}
 {surveys_section}
@@ -425,6 +472,7 @@ class DeepSeekRecommendationService:
 ## ЗАДАНИЕ
 На основе профиля пользователя (обязательно), целеполагания (обязательно) и результатов тестов (если есть), выбери ВСЕ подходящие курсы с оценкой 50% и выше.
 
+{unemployed_section}
 **ВАЖНОЕ ПРАВИЛО ПО ДАТАМ:**
 - У каждого курса может быть указана дата начала (поле start_dates)
 - Если дата начала указана, проверь: не начался ли уже курс
@@ -444,13 +492,13 @@ class DeepSeekRecommendationService:
 - 50-64: Удовлетворительное
 
 **ВАЖНО:**
-- Учитывай должность, уровень, организацию пользователя
+- Учитывай должность, уровень, организацию пользователя (если он работающий)
 - **ОБЯЗАТЕЛЬНО** учитывай целеполагание пользователя (причины обучения, желаемые результаты, ключевые слова)
 - Если есть результаты тестов, используй их для более точного подбора
 - Если тестов нет, подбирай курсы на основе профиля и целеполагания
 - **ОБЯЗАТЕЛЬНО** проверяй даты начала курсов и исключай те, которые уже начались
 - Учитывай образование пользователя (если указано)
-- Учитывай желаемую сферу/организацию/должность (если указаны)
+- Учитывай желаемую сферу/организацию/должность (если указаны) — **для безработных это ключевой критерий**
 
 **ОГРАНИЧЕНИЯ:**
 - Максимальное количество рекомендаций: НЕ БОЛЕЕ 90 курсов.
@@ -461,8 +509,7 @@ class DeepSeekRecommendationService:
 **ФОРМАТ ПРИЧИНЫ РЕКОМЕНДАЦИИ:**
 - НЕ ПОВТОРЯЙ название курса в причине.
 - Начинай причину со слов: "Этот курс..." или "Программа..." или сразу с описания пользы.
-
-НО КАЖДУЮ ПРИЧИНУ ДЕЛАЙ КРАТКОЙ (1-2 предложения), не более 50 слов.
+- КАЖДУЮ ПРИЧИНУ ДЕЛАЙ КРАТКОЙ (1-2 предложения), не более 50 слов.
 
 Для каждого курса укажи:
 1. ID курса
@@ -474,8 +521,6 @@ class DeepSeekRecommendationService:
 
 ЕСЛИ НЕТ ПОДХОДЯЩИХ КУРСОВ, верни {{"recommendations": []}} (пустой массив).
 """
-
-        # logger.info(f"Промпт: {prompt}")
 
         return prompt
 
@@ -513,10 +558,6 @@ class DeepSeekRecommendationService:
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
-            # logger.info(f"DeepSeek ответ (первые 500 символов): {content[:500]}...")
-            # logger.info(f"Длина ответа: {len(content)} символов")
-            # logger.info(f"Последние 200 символов ответа: {content[-200:]}...")
-
             # Пытаемся извлечь JSON
             recommendations_data = self._extract_json_from_response(content)
 
@@ -527,7 +568,6 @@ class DeepSeekRecommendationService:
                 return []
 
             recommendations = recommendations_data.get("recommendations", [])
-            # logger.info(f"Успешно извлечено {len(recommendations)} рекомендаций")
 
             # AI возвращает оценку 0-100, оставляем как есть
             for rec in recommendations:
@@ -572,12 +612,9 @@ class DeepSeekRecommendationService:
         except json.JSONDecodeError as e:
             logger.debug(f"Прямой парсинг не удался: {e}")
 
-        # 2. Ищем JSON с помощью регулярного выражения (более точное)
-        # Ищем что-то похожее на JSON: { ... } с ключом "recommendations"
-        # Позволяем пробелы и переносы строк
+        # 2. Ищем JSON с помощью регулярного выражения
         json_pattern = r'\{[^{}]*"recommendations"[^{}]*\{[^{}]*\}[^{}]*\}'
 
-        # Если не нашли, ищем любой JSON объект
         if not re.search(json_pattern, content, re.DOTALL):
             json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
 
@@ -585,7 +622,6 @@ class DeepSeekRecommendationService:
 
         for match in matches:
             try:
-                # Очищаем от trailing commas
                 cleaned = re.sub(r",\s*}", "}", match)
                 cleaned = re.sub(r",\s*]", "]", cleaned)
                 data = json.loads(cleaned)
@@ -595,13 +631,12 @@ class DeepSeekRecommendationService:
             except json.JSONDecodeError:
                 continue
 
-        # 3. Пробуем найти по ключевым словам (самый широкий поиск)
+        # 3. Пробуем найти по ключевым словам
         start = content.find("{")
         end = content.rfind("}")
         if start != -1 and end != -1 and start < end:
             json_str = content[start : end + 1]
             try:
-                # Удаляем trailing commas
                 json_str = re.sub(r",\s*}", "}", json_str)
                 json_str = re.sub(r",\s*]", "]", json_str)
                 data = json.loads(json_str)
@@ -611,10 +646,8 @@ class DeepSeekRecommendationService:
             except json.JSONDecodeError as e:
                 logger.debug(f"Парсинг с очисткой не удался: {e}")
 
-        # 4. Пробуем разбить на части и найти кусок с "recommendations"
-        # Иногда AI добавляет текст после JSON
+        # 4. Пробуем разбить на части
         try:
-            # Ищем строку, которая начинается с {"recommendations"
             pattern = r'(\{"recommendations":\s*\[.*?\])'
             match = re.search(pattern, content, re.DOTALL)
             if match:
@@ -626,7 +659,7 @@ class DeepSeekRecommendationService:
         except (json.JSONDecodeError, AttributeError):
             pass
 
-        # 5. Если ничего не помогло, сохраняем для отладки
+        # 5. Если ничего не помогло
         logger.error("Не удалось извлечь JSON из ответа")
         logger.debug(f"Содержимое ответа (первые 1000 символов): {content[:1000]}...")
         logger.debug(f"Содержимое ответа (последние 500 символов): {content[-500:]}...")

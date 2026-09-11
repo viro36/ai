@@ -336,6 +336,7 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
         "user_link",
         "organization_link",
         "position_level_display",
+        "is_unemployed",
         "employment_status",
         "education_level",
         "created_at",
@@ -343,6 +344,7 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
     list_filter = (
         "position_level",
         "organization",
+        "is_unemployed",
         "employment_status",
         "education_level",
         "created_at",
@@ -441,10 +443,12 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
 
     def organization_link(self, obj):
         """Ссылка на организацию"""
-        url = reverse(
-            "admin:organizations_organization_change", args=[obj.organization.id]
-        )
-        return mark_safe(f'<a href="{url}">{obj.organization.short_name}</a>')
+        if obj.organization:
+            url = reverse(
+                "admin:organizations_organization_change", args=[obj.organization.id]
+            )
+            return mark_safe(f'<a href="{url}">{obj.organization.short_name}</a>')
+        return mark_safe('<span class="text-muted">Безработный</span>')
 
     organization_link.short_description = "Организация"
     organization_link.admin_order_field = "organization__short_name"

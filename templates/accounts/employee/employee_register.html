@@ -130,55 +130,79 @@
                     </div>
                 </div>
 
-                <!-- Организация -->
-                <h5 class="mt-4"><i class="fa-solid fa-building"></i> Организация</h5>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>{{ form.district.label }}</label>
-                            {{ form.district }}
-                            <div class="help-text">Необязательно (для фильтрации организаций)</div>
+                <!-- Статус занятости -->
+                <h5 class="mt-4"><i class="fa-solid fa-user-tag"></i> Статус занятости</h5>
+                <div class="form-group">
+                    <div class="form-check">
+                        {{ form.is_unemployed }}
+                        <label class="form-check-label" for="id_is_unemployed">
+                            {{ form.is_unemployed.label }}
+                        </label>
+                        <div class="help-text">{{ form.is_unemployed.help_text }}</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-check">
+                        {{ form.is_svo_participant }}
+                        <label class="form-check-label" for="id_is_svo_participant">
+                            {{ form.is_svo_participant.label }}
+                        </label>
+                        <div class="help-text">{{ form.is_svo_participant.help_text }}</div>
+                    </div>
+                </div>
+
+                <!-- Организация + Должность (скрываются если отмечен "Безработный") -->
+                <div id="organizationBlock">
+                    <h5 class="mt-4"><i class="fa-solid fa-building"></i> Организация</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>{{ form.district.label }}</label>
+                                {{ form.district }}
+                                <div class="help-text">Необязательно (для фильтрации организаций)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>{{ form.organization_type.label }}</label>
+                                {{ form.organization_type }}
+                                <div class="help-text">Необязательно (для фильтрации организаций)</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>{{ form.organization_type.label }}</label>
-                            {{ form.organization_type }}
-                            <div class="help-text">Необязательно (для фильтрации организаций)</div>
+
+                    <div class="form-group">
+                        <label>{{ form.organization.label }} *</label>
+                        {{ form.organization }}
+                        {% if form.organization.errors %}
+                            <div class="text-danger">{{ form.organization.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Должность -->
+                    <h5 class="mt-4"><i class="fa-solid fa-briefcase"></i> Должность</h5>
+                    <div class="form-group">
+                        <label>{{ form.position.label }} *</label>
+                        {{ form.position }}
+                        {% if form.position.errors %}
+                            <div class="text-danger">{{ form.position.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label>{{ form.position_level.label }} *</label>
+                        {{ form.position_level }}
+                        <div class="help-text">
+                            <strong>Руководители:</strong> высшего звена, среднего звена, низового звена<br>
+                            <strong>Специалисты:</strong> инженер, экономист, бухгалтер, юрист и др.<br>
+                            <strong>Служащие:</strong> делопроизводитель, секретарь, учётчик<br>
+                            <strong>Рабочие:</strong> оператор станка, сварщик, грузчик
                         </div>
+                        {% if form.position_level.errors %}
+                            <div class="text-danger">{{ form.position_level.errors }}</div>
+                        {% endif %}
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label>{{ form.organization.label }} *</label>
-                    {{ form.organization }}
-                    {% if form.organization.errors %}
-                        <div class="text-danger">{{ form.organization.errors }}</div>
-                    {% endif %}
-                </div>
-
-                <!-- Должность -->
-                <h5 class="mt-4"><i class="fa-solid fa-briefcase"></i> Должность</h5>
-                <div class="form-group">
-                    <label>{{ form.position.label }} *</label>
-                    {{ form.position }}
-                    {% if form.position.errors %}
-                        <div class="text-danger">{{ form.position.errors }}</div>
-                    {% endif %}
-                </div>
-
-                <div class="form-group">
-                    <label>{{ form.position_level.label }} *</label>
-                    {{ form.position_level }}
-                    <div class="help-text">
-                        <strong>Руководители:</strong> высшего звена, среднего звена, низового звена<br>
-                        <strong>Специалисты:</strong> инженер, экономист, бухгалтер, юрист и др.<br>
-                        <strong>Служащие:</strong> делопроизводитель, секретарь, учётчик<br>
-                        <strong>Рабочие:</strong> оператор станка, сварщик, грузчик
-                    </div>
-                    {% if form.position_level.errors %}
-                        <div class="text-danger">{{ form.position_level.errors }}</div>
-                    {% endif %}
                 </div>
 
                 <button type="submit" class="btn btn-submit">

@@ -5,6 +5,7 @@ from apps.accounts.forms import (
     EmployeeRegistrationForm,
     EmployeeProfileForm,
 )
+from apps.accounts.models import EmployeeProfile
 
 
 @pytest.mark.django_db
@@ -327,3 +328,194 @@ class TestEmployeeProfileForm:
         form = EmployeeProfileForm(data=form_data)
         assert form.is_valid()
         assert form.cleaned_data["education_level"] == "higher"
+
+
+@pytest.mark.django_db
+class TestEmployeeRegistrationFormUnemployed:
+    """Тесты формы регистрации безработного"""
+
+    def _base_data(self, **overrides):
+        """Базовые данные формы"""
+        data = {
+            "username": "unemployed_user",
+            "email": "unemployed@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "snils": "123-456-789 01",
+        }
+        data.update(overrides)
+        return data
+
+    def test_valid_unemployed(self):
+        """Безработный: organization/position/position_level не нужны"""
+        form = EmployeeRegistrationForm(data=self._base_data(is_unemployed=True))
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["organization"] is None
+        assert form.cleaned_data["position"] == "Безработный"
+        assert form.cleaned_data["position_level"] is None
+
+    def test_valid_unemployed_svo(self):
+        """Безработный + СВО"""
+        form = EmployeeRegistrationForm(
+            data=self._base_data(
+                username="unemployed_svo",
+                email="unemployed_svo@test.com",
+                is_unemployed=True,
+                is_svo_participant=True,
+            )
+        )
+        assert form.is_valid(), form.errors
+
+    def test_valid_working_svo(self, test_organization):
+        """Работающий + СВО (СВО независим от безработного)"""
+        form = EmployeeRegistrationForm(
+            data=self._base_data(
+                username="working_svo",
+                email="working_svo@test.com",
+                organization=test_organization.id,
+                position="Инженер",
+                position_level="specialist",
+                is_svo_participant=True,
+            )
+        )
+        assert form.is_valid(), form.errors
+
+
+@pytest.mark.django_db
+class TestEmployeeRegistrationFormSave:
+    """Сохранение формы регистрации"""
+
+    def _base_data(self, **overrides):
+        data = {
+            "username": "save_user",
+            "email": "save@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "snils": "123-456-789 01",
+        }
+        data.update(overrides)
+        return data
+
+    def test_save_unemployed(self):
+        """save(): безработный → organization=None, position='Безработный'"""
+        form = EmployeeRegistrationForm(
+            data=self._base_data(
+                username="save_unemployed",
+                email="save_unemployed@test.com",
+                is_unemployed=True,
+            )
+        )
+        assert form.is_valid(), form.errors
+
+        profile = form.save(commit=False)
+        assert profile.organization is None
+        assert profile.position == "Безработный"
+        assert profile.position_level is None
+        assert profile.is_unemployed is True
+        assert profile.is_svo_participant is False
+
+    def test_save_unemployed_svo(self):
+        """save(): безработный + СВО"""
+        form = EmployeeRegistrationForm(
+            data=self._base_data(
+                username="save_unemployed_svo",
+                email="save_unemployed_svo@test.com",
+                is_unemployed=True,
+                is_svo_participant=True,
+            )
+        )
+        assert form.is_valid(), form.errors
+
+        profile = form.save(commit=False)
+        assert profile.organization is None
+        assert profile.is_unemployed is True
+        assert profile.is_svo_participant is True
+
+    def test_save_working_svo(self, test_organization):
+        """save(): работающий + СВО → реальная организация + флаг"""
+        form = EmployeeRegistrationForm(
+            data=self._base_data(
+                username="save_working_svo",
+                email="save_working_svo@test.com",
+                organization=test_organization.id,
+                position="Инженер",
+                position_level="specialist",
+                is_svo_participant=True,
+            )
+        )
+        assert form.is_valid(), form.errors
+
+        profile = form.save(commit=False)
+        assert profile.organization == test_organization
+        assert profile.position == "Инженер"
+        assert profile.position_level == "specialist"
+        assert profile.is_unemployed is False
+        assert profile.is_svo_participant is True
+
+
+@pytest.mark.django_db
+class TestEmployeeProfileFormUnemployed:
+    """Тесты формы профиля работника"""
+
+    def _base_data(self, **overrides):
+        data = {
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "patronymic": "Иванович",
+            "snils": "123-456-789 01",
+            "email": "test@test.com",
+            "position": "Инженер",
+            "position_level": "specialist",
+        }
+        data.update(overrides)
+        return data
+
+    def _make_profile(self, test_employee_user, test_organization, **kwargs):
+        defaults = {
+            "snils": "123-456-789 01",
+            "organization": test_organization,
+            "position": "Инженер",
+            "position_level": "specialist",
+        }
+        defaults.update(kwargs)
+        return EmployeeProfile.objects.create(user=test_employee_user, **defaults)
+
+    def test_save_unemployed_sets_defaults(self, test_employee_user, test_organization):
+        """save(): безработный → organization=None, position='Безработный'"""
+        profile = self._make_profile(test_employee_user, test_organization)
+        form = EmployeeProfileForm(
+            data=self._base_data(is_unemployed=True),
+            instance=profile,
+        )
+        assert form.is_valid(), form.errors
+
+        saved = form.save(commit=False)
+        assert saved.organization is None
+        assert saved.position == "Безработный"
+        assert saved.position_level is None
+        assert saved.is_unemployed is True
+
+    def test_save_working_restores_fields(self, test_employee_user, test_organization):
+        """save(): снятие галочки → восстановление position и position_level"""
+        profile = self._make_profile(
+            test_employee_user,
+            test_organization,
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+        form = EmployeeProfileForm(
+            data=self._base_data(organization=test_organization.id),
+            instance=profile,
+        )
+        assert form.is_valid(), form.errors
+
+        saved = form.save(commit=False)
+        assert saved.position == "Инженер"
+        assert saved.position_level == "specialist"
+        assert saved.is_unemployed is False

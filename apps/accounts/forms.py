@@ -99,7 +99,8 @@ class EmployerRegistrationForm(forms.ModelForm):
         # Проверка существования организации
         if Organization.objects.filter(inn=inn).exists():
             org = Organization.objects.get(inn=inn)
-            # Не блокируем, а предупреждаем — организация уже есть, но пользователь может к ней привязаться
+            # Не блокируем, а предупреждаем — организация уже есть,
+            # но пользователь может к ней привязаться
             self.cleaned_data["existing_organization"] = org
             return inn
 
@@ -256,45 +257,33 @@ class EmployeeRegistrationForm(forms.ModelForm):
         widget=forms.Select(attrs={"class": "form-control"}),
     )
 
+    is_unemployed = forms.BooleanField(
+        required=False,
+        label="Безработный",
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_is_unemployed"}
+        ),
+        help_text="Отметьте, если вы в данный момент не трудоустроены",
+    )
+
+    is_svo_participant = forms.BooleanField(
+        required=False,
+        label="Участник СВО",
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_is_svo_participant"}
+        ),
+        help_text="Отметьте, если вы являетесь участником СВО",
+    )
+
     class Meta:
         model = EmployeeProfile
-        fields = ["position", "position_level"]
+        fields = ["position", "position_level", "is_unemployed", "is_svo_participant"]
 
-    def clean_snils(self):
-        snils = self.cleaned_data.get("snils")
-        snils_clean = snils.replace("-", "").replace(" ", "")
-        if not snils_clean.isdigit() or len(snils_clean) != 11:
-            raise forms.ValidationError("СНИЛС должен содержать 11 цифр")
-        if EmployeeProfile.objects.filter(snils=snils_clean).exists():
-            raise forms.ValidationError(
-                "Пользователь с таким СНИЛС уже зарегистрирован"
-            )
-        return snils_clean
-
-    def clean_username(self):
-        username = self.cleaned_data.get("username")
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-        if User.objects.filter(username=username).exists():
-            raise forms.ValidationError("Пользователь с таким именем уже существует")
-        return username
-
-    def clean_email(self):
-        email = self.cleaned_data.get("email")
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-        if User.objects.filter(email=email).exists():
-            raise forms.ValidationError("Пользователь с таким email уже существует")
-        return email
-
-    def clean_password_confirm(self):
-        password = self.cleaned_data.get("password")
-        password_confirm = self.cleaned_data.get("password_confirm")
-        if password and password_confirm and password != password_confirm:
-            raise forms.ValidationError("Пароли не совпадают")
-        return password_confirm
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["organization"].required = False
+        self.fields["position"].required = False
+        self.fields["position_level"].required = False
 
     def clean_snils(self):
         snils = self.cleaned_data.get("snils")
@@ -303,9 +292,6 @@ class EmployeeRegistrationForm(forms.ModelForm):
             raise forms.ValidationError("СНИЛС должен содержать 11 цифр")
 
         # Проверяем в CustomUser
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
         if User.objects.filter(snils=snils_clean).exists():
             raise forms.ValidationError(
                 "Пользователь с таким СНИЛС уже зарегистрирован"
@@ -318,6 +304,65 @@ class EmployeeRegistrationForm(forms.ModelForm):
             )
 
         return snils_clean
+
+    def clean_username(self):
+        username = self.cleaned_data.get("username")
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Пользователь с таким именем уже существует")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get("email")
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError("Пользователь с таким email уже существует")
+        return email
+
+    def clean_password_confirm(self):
+        password = self.cleaned_data.get("password")
+        password_confirm = self.cleaned_data.get("password_confirm")
+        if password and password_confirm and password != password_confirm:
+            raise forms.ValidationError("Пароли не совпадают")
+        return password_confirm
+
+    def clean(self):
+        cleaned_data = super().clean()
+        is_unemployed = cleaned_data.get("is_unemployed")
+
+        if is_unemployed:
+            cleaned_data["organization"] = None
+            cleaned_data["position"] = "Безработный"
+            cleaned_data["position_level"] = None
+        else:
+            if not cleaned_data.get("organization"):
+                self.add_error("organization", "Выберите организацию")
+            if not cleaned_data.get("position"):
+                self.add_error("position", "Укажите должность")
+            if not cleaned_data.get("position_level"):
+                self.add_error("position_level", "Выберите категорию должности")
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+
+        is_unemployed = self.cleaned_data.get("is_unemployed")
+
+        if is_unemployed:
+            profile.organization = None
+            profile.position = "Безработный"
+            profile.position_level = None
+        else:
+            profile.organization = self.cleaned_data.get("organization")
+            profile.position = self.cleaned_data.get("position")
+            profile.position_level = self.cleaned_data.get("position_level")
+
+        profile.is_unemployed = is_unemployed
+        profile.is_svo_participant = self.cleaned_data.get("is_svo_participant", False)
+
+        if commit:
+            profile.save()
+
+        return profile
 
 
 class EmployeeProfileForm(forms.ModelForm):
@@ -359,6 +404,7 @@ class EmployeeProfileForm(forms.ModelForm):
     position = forms.CharField(
         max_length=255,
         label="Должность",
+        required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
 
@@ -378,7 +424,9 @@ class EmployeeProfileForm(forms.ModelForm):
             "education_institution",  # Учебное заведение
             "graduation_year",  # Год окончания
             "specialty",  # Специальность
-            "organization",  # Организация (скрытое поле)
+            # "organization",  # Организация
+            "is_unemployed",  # Безработный
+            "is_svo_participant",  # Участник СВО
             "desired_organization_type",
             "desired_organization",
             "desired_position",
@@ -402,8 +450,14 @@ class EmployeeProfileForm(forms.ModelForm):
             ),
             "specialty": forms.TextInput(attrs={"class": "form-control"}),
             "position_level": forms.Select(attrs={"class": "form-control"}),
-            "organization": forms.Select(
-                attrs={"class": "form-control", "id": "organization-select"}
+            # "organization": forms.Select(
+            #     attrs={"class": "form-control", "id": "organization-select"}
+            # ),
+            "is_unemployed": forms.CheckboxInput(
+                attrs={"class": "form-check-input", "id": "id_is_unemployed"}
+            ),
+            "is_svo_participant": forms.CheckboxInput(
+                attrs={"class": "form-check-input", "id": "id_is_svo_participant"}
             ),
             "desired_organization_type": forms.Select(attrs={"class": "form-control"}),
             "desired_organization": forms.TextInput(
@@ -436,9 +490,41 @@ class EmployeeProfileForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["organization"].required = False
+        self.fields["position"].required = False
+        self.fields["position_level"].required = False
         self.fields["district"].required = False
         self.fields["organization_type"].required = False
         self.fields["desired_organization_type"].required = False
         self.fields["desired_organization"].required = False
         self.fields["desired_position"].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        is_unemployed = cleaned_data.get("is_unemployed")
+
+        if is_unemployed:
+            cleaned_data["position"] = "Безработный"
+            cleaned_data["position_level"] = None
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+
+        is_unemployed = self.cleaned_data.get("is_unemployed")
+
+        if is_unemployed:
+            profile.organization = None
+            profile.position = "Безработный"
+            profile.position_level = None
+        else:
+            profile.position = self.cleaned_data.get("position")
+            profile.position_level = self.cleaned_data.get("position_level")
+
+        profile.is_unemployed = is_unemployed
+        profile.is_svo_participant = self.cleaned_data.get("is_svo_participant", False)
+
+        if commit:
+            profile.save()
+
+        return profile

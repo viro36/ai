@@ -232,6 +232,7 @@ class TestEmployeeProfileAdmin:
         assert "user_link" in admin.list_display
         assert "organization_link" in admin.list_display
         assert "position_level_display" in admin.list_display
+        assert "is_unemployed" in admin.list_display
         assert "employment_status" in admin.list_display
         assert "education_level" in admin.list_display
         assert "created_at" in admin.list_display
@@ -283,6 +284,25 @@ class TestEmployeeProfileAdmin:
             in result
         )
 
+    def test_organization_link_unemployed(self, test_employee_user):
+        """Тест ссылки на организацию для безработного"""
+        site = AdminSite()
+        admin = EmployeeProfileAdmin(EmployeeProfile, site)
+
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+        result = admin.organization_link(profile)
+
+        # Не должно упасть с AttributeError
+        assert "Безработный" in result
+        assert "/admin/organizations/organization/" not in result
+
     def test_position_level_display(self, test_employee_user, test_organization):
         """Тест отображения категории должности"""
         site = AdminSite()
@@ -298,6 +318,36 @@ class TestEmployeeProfileAdmin:
         result = admin.position_level_display(profile)
 
         assert result == "Специалист"
+
+    def test_filter_by_is_unemployed(
+        self, test_employee_user, test_employee_user2, test_organization
+    ):
+        """Тест фильтрации по флагу 'Безработный'"""
+        # Работающий
+        EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        # Безработный
+        EmployeeProfile.objects.create(
+            user=test_employee_user2,
+            snils="987-654-321 01",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+
+        site = AdminSite()
+        admin = EmployeeProfileAdmin(EmployeeProfile, site)
+
+        # Фильтр по безработным
+        qs = admin.get_queryset(None).filter(is_unemployed=True)
+        assert qs.count() == 1
+        assert qs.first().user == test_employee_user2
 
 
 @pytest.mark.django_db
@@ -427,3 +477,22 @@ class TestViewerPermissions:
         response = admin_client.get(url)
         content = response.content.decode()
         assert "Действия" in content or "action" in content.lower()
+
+    def test_viewer_can_view_unemployed_profiles(
+        self, viewer_client, test_employee_user
+    ):
+        """Просмотрщик может видеть безработных в списке"""
+        EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+        url = reverse("admin:accounts_employeeprofile_changelist")
+        response = viewer_client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # Просмотрщик видит безработного
+        assert "Безработный" in content or test_employee_user.last_name in content

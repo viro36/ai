@@ -183,14 +183,14 @@ def employer_profile(request):
 
 
 def employee_register(request):
-    """Регистрация работника (сразу создаёт пользователя)"""
     if request.user.is_authenticated:
         return redirect("home")
 
     if request.method == "POST":
         form = EmployeeRegistrationForm(request.POST)
         if form.is_valid():
-            # Создаём пользователя с заполнением всех полей
+            profile = form.save(commit=False)
+
             user = User.objects.create_user(
                 username=form.cleaned_data["username"],
                 email=form.cleaned_data["email"],
@@ -198,37 +198,33 @@ def employee_register(request):
                 first_name=form.cleaned_data["first_name"],
                 last_name=form.cleaned_data["last_name"],
                 patronymic=form.cleaned_data["patronymic"],
-                snils=form.cleaned_data["snils"],  # СНИЛС сохраняется в пользователе
-                organization=form.cleaned_data[
-                    "organization"
-                ],  # Организация в пользователе
+                snils=form.cleaned_data["snils"],
+                organization=profile.organization,  # может быть None
                 user_type="employee",
             )
 
-            # Создаём профиль работника (должность и категория)
-            employee_profile = EmployeeProfile.objects.create(
-                user=user,
-                snils=form.cleaned_data["snils"],  # дублируем для удобства
-                organization=form.cleaned_data[
-                    "organization"
-                ],  # дублируем для удобства
-                position=form.cleaned_data["position"],
-                position_level=form.cleaned_data["position_level"],
-            )
+            profile.user = user
+            profile.snils = form.cleaned_data["snils"]
+            profile.save()
 
-            # Автоматически входим
             login(request, user)
 
-            # Сообщение об успехе
-            position_display = dict(EmployeeProfile.POSITION_LEVEL_CHOICES).get(
-                form.cleaned_data["position_level"], form.cleaned_data["position"]
-            )
-            messages.success(
-                request,
-                f"Добро пожаловать, {user.get_full_name()}! "
-                f"Вы зарегистрированы как {position_display} "
-                f'в организации "{user.organization.short_name}".',
-            )
+            if form.cleaned_data.get("is_unemployed"):
+                messages.success(
+                    request,
+                    f"Добро пожаловать, {user.get_full_name()}! "
+                    f"Вы зарегистрированы как безработный.",
+                )
+            else:
+                position_display = dict(EmployeeProfile.POSITION_LEVEL_CHOICES).get(
+                    form.cleaned_data["position_level"], form.cleaned_data["position"]
+                )
+                messages.success(
+                    request,
+                    f"Добро пожаловать, {user.get_full_name()}! "
+                    f"Вы зарегистрированы как {position_display} "
+                    f'в организации "{profile.organization.short_name}".',
+                )
             return redirect("home")
     else:
         form = EmployeeRegistrationForm()
@@ -273,7 +269,6 @@ def get_organizations_ajax(request):
 
 @login_required
 def employee_profile(request):
-    """Редактирование профиля работника"""
     if request.user.user_type != "employee":
         messages.error(request, "Доступ запрещён. Только для работников.")
         return redirect("home")
@@ -284,7 +279,7 @@ def employee_profile(request):
     if request.method == "POST":
         form = EmployeeProfileForm(request.POST, instance=profile)
         if form.is_valid():
-            # Обновляем поля пользователя из данных формы
+            # Обновляем user
             user.last_name = form.cleaned_data["last_name"]
             user.first_name = form.cleaned_data["first_name"]
             user.patronymic = form.cleaned_data["patronymic"]
@@ -293,23 +288,22 @@ def employee_profile(request):
             user.email = form.cleaned_data["email"]
             user.save()
 
-            # Сохраняем профиль (включая position_level)
             profile = form.save(commit=False)
-            profile.position = form.cleaned_data["position"]
-            profile.position_level = form.cleaned_data["position_level"]
 
-            # Обновляем организацию из скрытого поля
-            organization_id = request.POST.get("organization_id")
-            if organization_id:
-                from apps.organizations.models import Organization
-
-                try:
-                    profile.organization = Organization.objects.get(id=organization_id)
-                except Organization.DoesNotExist:
-                    pass
+            # Организация — из organization_id
+            if profile.is_unemployed:
+                profile.organization = None
+            else:
+                organization_id = request.POST.get("organization_id")
+                if organization_id:
+                    try:
+                        profile.organization = Organization.objects.get(
+                            id=organization_id
+                        )
+                    except Organization.DoesNotExist:
+                        pass
 
             profile.save()
-            form.save_m2m()
 
             messages.success(request, "Профиль успешно обновлён!")
             return redirect("accounts:employee_profile")
@@ -335,6 +329,8 @@ def employee_profile(request):
             "graduation_year": profile.graduation_year,
             "specialty": profile.specialty,
             "organization": profile.organization_id if profile.organization else None,
+            "is_unemployed": profile.is_unemployed,
+            "is_svo_participant": profile.is_svo_participant,
             "desired_organization_type": profile.desired_organization_type_id,
             "desired_organization": profile.desired_organization,
             "desired_position": profile.desired_position,

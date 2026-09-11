@@ -859,3 +859,234 @@ class TestOrganizationActiveCoursesCountProperty:
             is_deleted=True,
         )
         assert test_organization.active_courses_count == 1
+
+
+@pytest.mark.django_db
+class TestEmployeeRegisterUnemployedView:
+    """Тесты регистрации безработного"""
+
+    def test_register_unemployed_success(self, client):
+        """Тест успешной регистрации безработного"""
+        url = reverse("accounts:employee_register")
+        data = {
+            "username": "unemployed_new",
+            "email": "unemployed_new@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "last_name": "Сидоров",
+            "first_name": "Сидор",
+            "patronymic": "Сидорович",
+            "snils": "111-222-333 44",
+            "is_unemployed": "on",
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+        assert response.url == reverse("home")
+
+        user = User.objects.get(username="unemployed_new")
+        assert user.organization is None
+
+        profile = user.employee_profile
+        assert profile.is_unemployed is True
+        assert profile.organization is None
+        assert profile.position == "Безработный"
+        assert profile.position_level is None
+
+    def test_register_unemployed_svo_success(self, client):
+        """Тест регистрации безработного участника СВО"""
+        url = reverse("accounts:employee_register")
+        data = {
+            "username": "unemployed_svo_new",
+            "email": "unemployed_svo_new@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "last_name": "Петров",
+            "first_name": "Петр",
+            "snils": "222-333-444 55",
+            "is_unemployed": "on",
+            "is_svo_participant": "on",
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+        user = User.objects.get(username="unemployed_svo_new")
+        profile = user.employee_profile
+        assert profile.is_unemployed is True
+        assert profile.is_svo_participant is True
+        assert profile.organization is None
+
+    def test_register_working_svo_success(self, client, test_organization):
+        """Тест регистрации работающего участника СВО"""
+        url = reverse("accounts:employee_register")
+        data = {
+            "username": "working_svo_new",
+            "email": "working_svo_new@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "snils": "333-444-555 66",
+            "organization": test_organization.id,
+            "position": "Инженер",
+            "position_level": "specialist",
+            "is_svo_participant": "on",
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+        user = User.objects.get(username="working_svo_new")
+        profile = user.employee_profile
+        assert profile.is_unemployed is False
+        assert profile.is_svo_participant is True
+        assert profile.organization == test_organization
+
+
+@pytest.mark.django_db
+class TestEmployeeProfileUnemployedView:
+    """Тесты редактирования профиля безработного"""
+
+    def test_set_unemployed_via_profile(
+        self, client, test_employee_user, test_organization
+    ):
+        """Тест: работник становится безработным"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employee_profile")
+        data = {
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "patronymic": "Иванович",
+            "birthday": "1990-01-01",
+            "snils": "123-456-789 01",
+            "email": "test@test.com",
+            "is_unemployed": "on",
+            "position": "Инженер",
+            "position_level": "specialist",
+            "organization_id": test_organization.id,
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+        profile.refresh_from_db()
+        assert profile.is_unemployed is True
+        assert profile.organization is None
+        assert profile.position == "Безработный"
+        assert profile.position_level is None
+
+    def test_unset_unemployed_via_profile(
+        self, client, test_employee_user, test_organization
+    ):
+        """Тест: работник снова становится работающим"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employee_profile")
+        data = {
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "patronymic": "Иванович",
+            "birthday": "1990-01-01",
+            "snils": "123-456-789 01",
+            "email": "test@test.com",
+            "position": "Инженер",
+            "position_level": "specialist",
+            "organization_id": test_organization.id,
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+        profile.refresh_from_db()
+        assert profile.is_unemployed is False
+        assert profile.organization == test_organization
+        assert profile.position == "Инженер"
+
+    def test_toggle_svo_via_profile(
+        self, client, test_employee_user, test_organization
+    ):
+        """Тест переключения флага СВО"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+        )
+        client.login(username=test_employee_user.username, password="testpass123")
+        url = reverse("accounts:employee_profile")
+        data = {
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "patronymic": "Иванович",
+            "birthday": "1990-01-01",
+            "snils": "123-456-789 01",
+            "email": "test@test.com",
+            "position": "Инженер",
+            "position_level": "specialist",
+            "organization_id": test_organization.id,
+            "is_svo_participant": "on",
+        }
+        response = client.post(url, data)
+        assert response.status_code == 302
+
+        profile.refresh_from_db()
+        assert profile.is_svo_participant is True
+        assert profile.is_unemployed is False
+
+
+@pytest.mark.django_db
+class TestEmployeeListUnemployedFilter:
+    """Тесты: безработные не попадают в список сотрудников организации"""
+
+    def test_unemployed_not_in_employee_list(
+        self, client, test_employer_user, test_employee_unemployed_user
+    ):
+        """Безработный (organization=None) не должен быть в списке"""
+        EmployeeProfile.objects.create(
+            user=test_employee_unemployed_user,
+            snils="555-666-777 88",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+
+        client.login(username=test_employer_user.username, password="testpass123")
+        url = reverse("accounts:employee_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        employees = response.context["employees"]
+        employee_ids = [emp.id for emp in employees]
+        assert test_employee_unemployed_user.id not in employee_ids
+
+
+@pytest.mark.django_db
+class TestOrganizationEmployeeCountUnemployed:
+    """Тесты: безработные не считаются в employee_count организации"""
+
+    def test_unemployed_not_counted(
+        self, test_organization, test_employee_unemployed_user
+    ):
+        """Безработный не входит в employee_count"""
+        EmployeeProfile.objects.create(
+            user=test_employee_unemployed_user,
+            snils="555-666-777 88",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+        # Никаких сотрудников в организации
+        assert test_organization.employee_count == 0

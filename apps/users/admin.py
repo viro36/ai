@@ -213,7 +213,7 @@ class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
                 "admin:organizations_organization_change", args=[obj.organization.id]
             )
             return mark_safe(f'<a href="{url}">{obj.organization.short_name}</a>')
-        return "-"
+        return mark_safe('<span class="text-muted">Безработный</span>')
 
     organization_link.short_description = "Организация"
     organization_link.admin_order_field = "organization__short_name"
