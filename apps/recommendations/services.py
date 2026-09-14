@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from apps.courses.models import Course
-from apps.surveys.models import SurveyInterpretation
+from apps.surveys.models import RiasecCodeInterpretation, SurveyInterpretation
 from apps.goal_setting.models import GoalSettingResponse
 
 User = get_user_model()
@@ -24,6 +24,10 @@ class DeepSeekRecommendationService:
     def __init__(self, user):
         self.user = user
         self.api_key = settings.DEEPSEEK_API_KEY
+
+    # ==================================================================
+    # ПОЛУЧЕНИЕ СЕССИЙ И ИНТЕРПРЕТАЦИЙ
+    # ==================================================================
 
     def get_latest_completed_session(self, category_name_keyword):
         """Получает последнюю завершённую сессию по ключевому слову в названии категории"""
@@ -110,6 +114,10 @@ class DeepSeekRecommendationService:
 
         return None
 
+    # ==================================================================
+    # ЦЕЛЕПОЛАГАНИЕ
+    # ==================================================================
+
     def get_goal_setting_data(self):
         """Получает данные целеполагания пользователя"""
         responses = GoalSettingResponse.objects.filter(user=self.user).select_related(
@@ -132,6 +140,10 @@ class DeepSeekRecommendationService:
                 )
 
         return goal_data
+
+    # ==================================================================
+    # ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
+    # ==================================================================
 
     def get_user_profile(self):
         """Собирает полный профиль пользователя из ВСЕХ опросов (берёт последние попытки)"""
@@ -207,7 +219,7 @@ class DeepSeekRecommendationService:
             r = riasec_session.riasac_result
             profile["has_surveys"] = True
 
-            profile["survey_results"]["riasec"] = {
+            riasec_data = {
                 "career_code": r.career_code,
                 "scores": {
                     "Реалистичный (R)": r.r_score,
@@ -218,6 +230,24 @@ class DeepSeekRecommendationService:
                     "Конвенциональный (C)": r.c_score,
                 },
             }
+
+            # Добавляем интерпретацию кода из RiasecCodeInterpretation
+            if r.career_code:
+                try:
+                    code_interp = RiasecCodeInterpretation.objects.get(
+                        code=r.career_code.upper(), is_active=True
+                    )
+                    riasec_data["code_description"] = code_interp.description
+                    riasec_data["professions"] = code_interp.get_professions_list()
+                    riasec_data["dominant"] = code_interp.get_dominant_display()
+                    riasec_data["secondary"] = code_interp.get_secondary_display()
+                    riasec_data["tertiary"] = code_interp.get_tertiary_display()
+                except RiasecCodeInterpretation.DoesNotExist:
+                    logger.warning(
+                        f"RiasecCodeInterpretation не найден для кода {r.career_code}"
+                    )
+
+            profile["survey_results"]["riasec"] = riasec_data
 
             interpretation = self._get_category_interpretation(riasec_session)
             if interpretation:
@@ -288,45 +318,73 @@ class DeepSeekRecommendationService:
 
         return profile
 
+    # ==================================================================
+    # КУРСЫ
+    # ==================================================================
+
     def get_courses_for_ai(self):
         """Получает ВСЕ активные курсы для отправки в AI"""
         return Course.objects.filter(is_deleted=False).distinct()
 
-    def prepare_prompt(self):
-        """Подготавливает промпт для DeepSeek"""
-        user_profile = self.get_user_profile()
-        courses = self.get_courses_for_ai()
-        goal_data = self.get_goal_setting_data()
+    def _build_courses_list(self, courses):
+        """Формирует список курсов для промпта с сокращёнными полями."""
+        courses_list = []
+        for course in courses:
+            categories = ", ".join([cat.name for cat in course.categories.all()])
+
+            # Сокращаем description до 150 символов
+            desc = course.description or ""
+            if len(desc) > 150:
+                desc = desc[:150] + "..."
+
+            # Сокращаем target_audience до 80 символов
+            audience = course.target_audience or ""
+            if len(audience) > 80:
+                audience = audience[:80] + "..."
+
+            courses_list.append(
+                {
+                    "id": course.id,
+                    "title": course.title,
+                    "description": desc,
+                    "categories": categories,
+                    "program_type": course.program_type,
+                    "duration_hours": course.duration_hours,
+                    "format": course.format,
+                    "target_audience": audience,
+                    "start_dates": course.start_dates or "Не указана",
+                }
+            )
+        return courses_list
+
+    # ==================================================================
+    # ПОДГОТОВКА ПРОМПТА
+    # ==================================================================
+
+    def prepare_prompt(
+        self, user_profile, goal_data, courses_batch=None, batch_info=None
+    ):
+        """
+        Подготавливает промпт для DeepSeek.
+
+        Args:
+            user_profile: готовый профиль пользователя (из get_user_profile).
+            goal_data: готовые данные целеполагания (из get_goal_setting_data).
+            courses_batch: список курсов для этой партии (если None — берутся все).
+            batch_info: dict с ключами "current" и "total" — номер партии и всего партий.
+        """
+        if courses_batch is None:
+            courses_batch = list(self.get_courses_for_ai())
 
         # Получаем сегодняшнюю дату
         today = date.today()
         today_str = today.strftime("%d.%m.%Y")
 
-        courses_list = []
-        for course in courses:
-            categories = ", ".join([cat.name for cat in course.categories.all()])
-            courses_list.append(
-                {
-                    "id": course.id,
-                    "title": course.title,
-                    "description": (
-                        course.description[:500] if course.description else ""
-                    ),
-                    "categories": categories,
-                    "program_type": course.program_type,
-                    "duration_hours": course.duration_hours,
-                    "study_mode": course.study_mode,
-                    "format": course.format,
-                    "target_audience": (
-                        course.target_audience[:200] if course.target_audience else ""
-                    ),
-                    "document_type": course.document_type,
-                    "price": course.price,
-                    "start_dates": course.start_dates or "Не указана",
-                }
-            )
+        # Формируем список курсов с сокращёнными полями
+        courses_list = self._build_courses_list(courses_batch)
 
         # Формируем интерпретации для промпта
+        riasec = user_profile.get("survey_results", {}).get("riasec", {})
         riasec_interp = user_profile.get("survey_interpretations", {}).get("riasec", {})
         digcomp_interp = user_profile.get("survey_interpretations", {}).get(
             "digcomp", {}
@@ -340,7 +398,7 @@ class DeepSeekRecommendationService:
         is_unemployed = user_profile["user_info"].get("is_unemployed", False)
         is_svo = user_profile["user_info"].get("is_svo_participant", False)
 
-        # ========== Формируем блок статуса занятости ==========
+        # ========== Блок статуса занятости ==========
         if is_unemployed:
             employment_status_text = "Безработный"
             if is_svo:
@@ -364,7 +422,7 @@ class DeepSeekRecommendationService:
                 user_profile["user_info"]["organization_industry"] or "Не указана"
             )
 
-        # ========== Формируем секцию с дополнительной информацией ==========
+        # ========== Дополнительная информация из профиля ==========
         extra_info = ""
         if user_profile["user_info"].get("education_level"):
             extra_info += (
@@ -407,8 +465,19 @@ class DeepSeekRecommendationService:
 ## РЕЗУЛЬТАТЫ ТЕСТОВ
 
 ### RIASEC / Холланд (профессиональные склонности)
-Карьерный код: {user_profile['survey_results'].get('riasec', {}).get('career_code', 'Не определен')}
-Баллы: {json.dumps(user_profile['survey_results'].get('riasec', {}).get('scores', {}), ensure_ascii=False)}
+Карьерный код: {riasec.get('career_code', 'Не определен')}
+Баллы: {json.dumps(riasec.get('scores', {}), ensure_ascii=False)}
+
+**Расшифровка кода:**
+{riasec.get('code_description', 'Нет описания')}
+
+**Доминирующие типы:**
+- Ведущий: {riasec.get('dominant', '—')}
+- Дополнительный: {riasec.get('secondary', '—')}
+- Поддерживающий: {riasec.get('tertiary', '—')}
+
+**Подходящие профессии:**
+{', '.join(riasec.get('professions') or []) or 'Не указаны'}
 
 **Интерпретация:**
 {riasec_interp.get('description', 'Нет описания')}
@@ -435,7 +504,7 @@ class DeepSeekRecommendationService:
 ## РЕЗУЛЬТАТЫ ТЕСТОВ
 Пользователь ещё не проходил опросы. Используй только информацию из профиля для подбора курсов."""
 
-        # ========== Формируем секцию особенностей для безработных ==========
+        # ========== Секция для безработных ==========
         if is_unemployed:
             unemployed_section = """
 **ОСОБЕННОСТИ ДЛЯ БЕЗРАБОТНЫХ:**
@@ -446,6 +515,17 @@ class DeepSeekRecommendationService:
 """
         else:
             unemployed_section = ""
+
+        # ========== Секция батча (если это часть) ==========
+        batch_section = ""
+        if batch_info:
+            current = batch_info.get("current", 1)
+            total = batch_info.get("total", 1)
+            batch_section = f"""
+**ВАЖНО: ЭТО ПАРТИЯ {current} ИЗ {total}.**
+Ты видишь только часть курсов. Оценивай только те курсы, которые есть в этой партии.
+Не пытайся угадать курсы из других партий.
+"""
 
         # ========== Формируем промпт ==========
         prompt = f"""
@@ -468,7 +548,7 @@ class DeepSeekRecommendationService:
 
 ## ДОСТУПНЫЕ КУРСЫ
 {json.dumps(courses_list, ensure_ascii=False, indent=2)}
-
+{batch_section}
 ## ЗАДАНИЕ
 На основе профиля пользователя (обязательно), целеполагания (обязательно) и результатов тестов (если есть), выбери ВСЕ подходящие курсы с оценкой 50% и выше.
 
@@ -496,6 +576,7 @@ class DeepSeekRecommendationService:
 - **ОБЯЗАТЕЛЬНО** учитывай целеполагание пользователя (причины обучения, желаемые результаты, ключевые слова)
 - Если есть результаты тестов, используй их для более точного подбора
 - Если тестов нет, подбирай курсы на основе профиля и целеполагания
+- **ОБЯЗАТЕЛЬНО** учитывай расшифровку карьерного кода RIASEC и список подходящих профессий при подборе курсов, если есть
 - **ОБЯЗАТЕЛЬНО** проверяй даты начала курсов и исключай те, которые уже начались
 - Учитывай образование пользователя (если указано)
 - Учитывай желаемую сферу/организацию/должность (если указаны) — **для безработных это ключевой критерий**
@@ -522,15 +603,125 @@ class DeepSeekRecommendationService:
 ЕСЛИ НЕТ ПОДХОДЯЩИХ КУРСОВ, верни {{"recommendations": []}} (пустой массив).
 """
 
+        # Логирование размера промпта
+        prompt_length = len(prompt)
+        estimated_tokens = prompt_length // 2.5
+        batch_str = (
+            f" (партия {batch_info['current']}/{batch_info['total']})"
+            if batch_info
+            else ""
+        )
+        logger.info(
+            f"Промпт{batch_str}: {prompt_length} символов, "
+            f"~{estimated_tokens:.0f} токенов, курсов: {len(courses_list)}"
+        )
+
         return prompt
 
+    # ==================================================================
+    # ПОЛУЧЕНИЕ РЕКОМЕНДАЦИЙ (батчами)
+    # ==================================================================
+
     def get_recommendations(self):
-        """Получает рекомендации от DeepSeek API"""
+        """Получает рекомендации от DeepSeek API, разбивая курсы на батчи."""
         if not self.api_key:
             raise ValueError("DEEPSEEK_API_KEY не настроен")
 
-        prompt = self.prepare_prompt()
+        all_courses = list(self.get_courses_for_ai())
+        total_courses = len(all_courses)
 
+        if total_courses == 0:
+            logger.warning("Нет активных курсов для рекомендаций")
+            return []
+
+        # Размер батча — подбираем так, чтобы промпт укладывался в лимит токенов.
+        # ~150 курсов дают ~35-40K токенов — с запасом до 64K.
+        BATCH_SIZE = 150
+        batches = [
+            all_courses[i : i + BATCH_SIZE] for i in range(0, total_courses, BATCH_SIZE)
+        ]
+        total_batches = len(batches)
+
+        logger.info(
+            f"Рекомендации: {total_courses} курсов, разбито на {total_batches} "
+            f"батчей по {BATCH_SIZE}"
+        )
+
+        # Собираем профиль и целеполагание ОДИН РАЗ (а не для каждого батча)
+        user_profile = self.get_user_profile()
+        goal_data = self.get_goal_setting_data()
+
+        # Множество валидных ID курсов — для проверки ответа AI
+        valid_course_ids = {c.id for c in all_courses}
+
+        all_recommendations = []
+
+        for idx, batch in enumerate(batches, 1):
+            batch_info = {"current": idx, "total": total_batches}
+            logger.info(f"Обработка батча {idx}/{total_batches} ({len(batch)} курсов)")
+
+            try:
+                prompt = self.prepare_prompt(
+                    user_profile=user_profile,
+                    goal_data=goal_data,
+                    courses_batch=batch,
+                    batch_info=batch_info,
+                )
+                recommendations = self._call_deepseek_api(prompt)
+                all_recommendations.extend(recommendations)
+                logger.info(
+                    f"Батч {idx}/{total_batches}: получено "
+                    f"{len(recommendations)} рекомендаций"
+                )
+            except Exception as e:
+                logger.error(f"Ошибка при обработке батча {idx}/{total_batches}: {e}")
+                # Продолжаем со следующим батчем, не роняя всю задачу
+                continue
+
+        # Дедупликация по course_id + валидация
+        seen_ids = set()
+        unique_recommendations = []
+        invalid_count = 0
+        for rec in all_recommendations:
+            course_id = rec.get("course_id")
+            if course_id is None:
+                continue
+            # Проверяем, что курс существует
+            if course_id not in valid_course_ids:
+                invalid_count += 1
+                logger.warning(f"AI вернул несуществующий course_id: {course_id}")
+                continue
+            if course_id in seen_ids:
+                continue
+            seen_ids.add(course_id)
+            unique_recommendations.append(rec)
+
+        if invalid_count:
+            logger.warning(f"Отброшено невалидных course_id: {invalid_count}")
+
+        # Сортировка по релевантности (по убыванию)
+        unique_recommendations.sort(
+            key=lambda r: r.get("relevance_score", 0), reverse=True
+        )
+
+        # Ограничиваем 90 курсами
+        MAX_RECOMMENDATIONS = 90
+        if len(unique_recommendations) > MAX_RECOMMENDATIONS:
+            unique_recommendations = unique_recommendations[:MAX_RECOMMENDATIONS]
+
+        logger.info(
+            f"Итого рекомендаций: {len(unique_recommendations)} "
+            f"(из {len(all_recommendations)} до дедупликации)"
+        )
+
+        return unique_recommendations
+
+    # ==================================================================
+    # ВЫЗОВ DEEPSEEK API
+    # ==================================================================
+
+    def _call_deepseek_api(self, prompt):
+        """Отправляет промпт в DeepSeek и возвращает список рекомендаций."""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -541,7 +732,13 @@ class DeepSeekRecommendationService:
             "messages": [
                 {
                     "role": "system",
-                    "content": "Ты эксперт по подбору образовательных курсов. Отвечай ТОЛЬКО в формате JSON, без дополнительного текста, пояснений или форматирования. Не используй markdown, не добавляй комментарии. Ответ должен начинаться с { и заканчиваться }.",
+                    "content": (
+                        "Ты эксперт по подбору образовательных курсов. "
+                        "Отвечай ТОЛЬКО в формате JSON, без дополнительного текста, "
+                        "пояснений или форматирования. Не используй markdown, "
+                        "не добавляй комментарии. Ответ должен начинаться с { "
+                        "и заканчиваться }."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -549,16 +746,16 @@ class DeepSeekRecommendationService:
             "max_tokens": 64000,
         }
 
+        content = ""
         try:
             response = requests.post(
-                self.API_URL, headers=headers, json=data, timeout=120
+                self.API_URL, headers=headers, json=data, timeout=180
             )
             response.raise_for_status()
 
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
-            # Пытаемся извлечь JSON
             recommendations_data = self._extract_json_from_response(content)
 
             if not recommendations_data or not recommendations_data.get(
@@ -569,7 +766,7 @@ class DeepSeekRecommendationService:
 
             recommendations = recommendations_data.get("recommendations", [])
 
-            # AI возвращает оценку 0-100, оставляем как есть
+            # Нормализация оценки
             for rec in recommendations:
                 score = rec.get("relevance_score", 0)
                 if isinstance(score, (int, float)):
@@ -594,6 +791,10 @@ class DeepSeekRecommendationService:
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             raise
+
+    # ==================================================================
+    # ИЗВЛЕЧЕНИЕ JSON ИЗ ОТВЕТА AI
+    # ==================================================================
 
     def _extract_json_from_response(self, content):
         """
