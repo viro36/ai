@@ -147,3 +147,9 @@ load_technical_requirements:
 
 load_tech_statuses:
 	docker-compose exec ai python manage.py create_initial_statuses
+
+load_riasec_codes:
+	docker-compose exec ai python manage.py load_riasec_codes
+
+load_standards_otf:
+	docker-compose exec ai python manage.py load_standards_otf

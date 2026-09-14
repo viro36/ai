@@ -482,3 +482,231 @@ class GardnerResult(models.Model):
 
     def __str__(self):
         return f"{self.session.user} - Gardner"
+
+
+class RiasecCodeInterpretation(models.Model):
+    """Интерпретация трёхбуквенного кода RIASEC (120 комбинаций)"""
+
+    RIASEC_LETTERS = [
+        ("R", "Реалистичный"),
+        ("I", "Исследовательский"),
+        ("A", "Артистический"),
+        ("S", "Социальный"),
+        ("E", "Предприимчивый"),
+        ("C", "Конвенциональный"),
+    ]
+
+    code = models.CharField(
+        max_length=3,
+        unique=True,
+        db_index=True,
+        verbose_name="Трёхбуквенный код",
+        help_text="Например: RIA, SEC, AIC",
+    )
+
+    dominant = models.CharField(
+        max_length=1,
+        choices=RIASEC_LETTERS,
+        verbose_name="Доминирующий тип",
+        db_index=True,
+    )
+    secondary = models.CharField(
+        max_length=1,
+        choices=RIASEC_LETTERS,
+        verbose_name="Дополнительный тип",
+    )
+    tertiary = models.CharField(
+        max_length=1,
+        choices=RIASEC_LETTERS,
+        verbose_name="Поддерживающий тип",
+    )
+
+    description = models.TextField(
+        verbose_name="Описание склонностей",
+        help_text="Например: «склонность к практической, технической работе...»",
+    )
+    professions = models.TextField(
+        verbose_name="Подходящие профессии",
+        help_text="Через запятую или по одной на строку",
+    )
+
+    is_active = models.BooleanField(default=True, verbose_name="Активен")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Интерпретация кода RIASEC"
+        verbose_name_plural = "Интерпретации кодов RIASEC"
+        ordering = ["code"]
+        indexes = [
+            models.Index(fields=["code"]),
+            models.Index(fields=["dominant"]),
+        ]
+
+    def __str__(self):
+        return f"{self.code} — {self.description[:60]}"
+
+    def get_professions_list(self):
+        """Возвращает список профессий"""
+        if not self.professions:
+            return []
+        # поддерживаем и запятые, и переводы строк
+        text = self.professions.replace("\n", ",")
+        return [p.strip() for p in text.split(",") if p.strip()]
+
+
+class ProfessionalStandard(models.Model):
+    """Профстандарт"""
+
+    EDUCATION_LEVELS = [
+        ("VO", "Высшее образование"),
+        ("SPO", "Среднее профессиональное образование"),
+    ]
+
+    code = models.CharField(
+        max_length=50,
+        db_index=True,
+        verbose_name="Код ПС",
+        help_text="Например: 10.028",
+    )
+    name = models.TextField(
+        verbose_name="Наименование ПС",
+    )
+    education_level = models.CharField(
+        max_length=5,
+        choices=EDUCATION_LEVELS,
+        verbose_name="Уровень образования",
+        db_index=True,
+    )
+
+    riasec_codes = models.ManyToManyField(
+        "RiasecCodeInterpretation",
+        related_name="professional_standards",
+        blank=True,
+        verbose_name="Коды Холланда",
+    )
+
+    is_active = models.BooleanField(default=True, verbose_name="Активен")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Профстандарт"
+        verbose_name_plural = "Профстандарты"
+        ordering = ["education_level", "code"]
+        unique_together = ["code", "education_level"]
+        indexes = [
+            models.Index(fields=["code"]),
+            models.Index(fields=["education_level"]),
+        ]
+
+    def __str__(self):
+        return f"{self.code} - {self.name[:80]}"
+
+
+class GeneralizedLaborFunction(models.Model):
+    """
+    Обобщённая трудовая функция (ОТФ) внутри профстандарта.
+    """
+
+    professional_standard = models.ForeignKey(
+        ProfessionalStandard,
+        on_delete=models.CASCADE,
+        related_name="labor_functions",
+        verbose_name="Профстандарт",
+    )
+    code = models.CharField(
+        max_length=50,
+        verbose_name="Код ОТФ",
+        help_text="Например: A, B, C или A/01.6",
+    )
+    name = models.TextField(
+        verbose_name="Наименование ОТФ",
+    )
+    qualification_level = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="Уровень квалификации",
+        help_text="1-9, если указан",
+    )
+    order = models.PositiveSmallIntegerField(default=1, verbose_name="Порядок")
+
+    is_active = models.BooleanField(default=True, verbose_name="Активна")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Обобщённая трудовая функция"
+        verbose_name_plural = "Обобщённые трудовые функции"
+        ordering = ["professional_standard", "order", "code"]
+        unique_together = ["professional_standard", "code"]
+
+    def __str__(self):
+        return f"{self.professional_standard.code} - {self.code}. {self.name[:60]}"
+
+
+class EducationProgram(models.Model):
+    """ФГОС ВО или ФГОС СПО (направление подготовки / специальность)"""
+
+    education_level = models.CharField(
+        max_length=5,
+        choices=ProfessionalStandard.EDUCATION_LEVELS,
+        verbose_name="Уровень образования",
+        db_index=True,
+    )
+    code = models.CharField(
+        max_length=50,
+        db_index=True,
+        verbose_name="Код ФГОС",
+        help_text="Например: 07.03.03, 39.03.02",
+    )
+    name = models.TextField(
+        verbose_name="Наименование ФГОС",
+    )
+
+    is_active = models.BooleanField(default=True, verbose_name="Активен")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "ФГОС (направление, специальность)"
+        verbose_name_plural = "ФГОС (направления, специальности)"
+        ordering = ["education_level", "code"]
+        unique_together = ["code", "name", "education_level"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name[:80]}"
+
+
+class ProfessionalStandardProgram(models.Model):
+    """
+    Связь профстандарта и ФГОС.
+    Дополнительно хранит порядковый номер (1-5) из Excel.
+    """
+
+    professional_standard = models.ForeignKey(
+        ProfessionalStandard,
+        on_delete=models.CASCADE,
+        related_name="program_links",
+        verbose_name="Профстандарт",
+    )
+    education_program = models.ForeignKey(
+        EducationProgram,
+        on_delete=models.CASCADE,
+        related_name="standard_links",
+        verbose_name="ФГОС",
+    )
+    order = models.PositiveSmallIntegerField(
+        default=1,
+        verbose_name="Порядок",
+        help_text="1-5, как в исходной таблице",
+    )
+
+    class Meta:
+        verbose_name = "Связь профстандарта и ФГОС"
+        verbose_name_plural = "Связи профстандартов и ФГОС"
+        ordering = ["professional_standard", "order"]
+        unique_together = ["professional_standard", "education_program"]
+
+    def __str__(self):
+        return f"{self.professional_standard.code} - {self.education_program.code} (#{self.order})"

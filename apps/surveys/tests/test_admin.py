@@ -3,6 +3,9 @@ from django.urls import reverse
 from django.contrib.admin.sites import AdminSite
 
 from apps.surveys.admin import (
+    EducationProgramAdmin,
+    GeneralizedLaborFunctionAdmin,
+    ProfessionalStandardProgramAdmin,
     SurveyCategoryAdmin,
     SurveyBlockAdmin,
     SurveyQuestionAdmin,
@@ -12,6 +15,9 @@ from apps.surveys.admin import (
     GardnerResultAdmin,
 )
 from apps.surveys.models import (
+    EducationProgram,
+    GeneralizedLaborFunction,
+    ProfessionalStandardProgram,
     SurveyCategory,
     SurveyBlock,
     SurveyQuestion,
@@ -336,3 +342,291 @@ class TestExcelImport:
         response = admin_client.post(url, {})
         assert response.status_code == 200
         assert "Обязательное поле" in response.content.decode()
+
+
+# ============================================================
+# Тесты для RiasecCodeInterpretationAdmin
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestRiasecCodeInterpretationAdmin:
+    """Тесты для админки RiasecCodeInterpretation"""
+
+    def test_list_display(self, admin_client, riasec_code):
+        """Список отображается"""
+        url = reverse("admin:surveys_riaseccodeinterpretation_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        assert "RIA" in response.content.decode()
+
+    def test_create(self, admin_client):
+        """Форма создания доступна"""
+        url = reverse("admin:surveys_riaseccodeinterpretation_add")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_edit(self, admin_client, riasec_code):
+        """Форма редактирования доступна"""
+        url = reverse(
+            "admin:surveys_riaseccodeinterpretation_change",
+            args=[riasec_code.id],
+        )
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_filter_by_dominant(self, admin_client, riasec_code):
+        """Фильтр по доминирующему типу работает"""
+        url = reverse("admin:surveys_riaseccodeinterpretation_changelist")
+        response = admin_client.get(url, {"dominant": "R"})
+        assert response.status_code == 200
+
+    def test_search_by_professions(self, admin_client, riasec_code):
+        """Поиск по профессиям работает"""
+        url = reverse("admin:surveys_riaseccodeinterpretation_changelist")
+        response = admin_client.get(url, {"q": "Инженер"})
+        assert response.status_code == 200
+
+
+# ============================================================
+# Тесты для ProfessionalStandardAdmin
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestProfessionalStandardAdmin:
+    """Тесты для админки ProfessionalStandard"""
+
+    def test_list_display(self, admin_client, professional_standard):
+        """Список отображается"""
+        url = reverse("admin:surveys_professionalstandard_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        assert "10.028" in response.content.decode()
+
+    def test_create_form(self, admin_client):
+        """Форма создания доступна"""
+        url = reverse("admin:surveys_professionalstandard_add")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_edit_form(self, admin_client, professional_standard):
+        """Форма редактирования доступна"""
+        url = reverse(
+            "admin:surveys_professionalstandard_change",
+            args=[professional_standard.id],
+        )
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_filter_by_education_level(self, admin_client, professional_standard):
+        """Фильтр по уровню образования работает"""
+        url = reverse("admin:surveys_professionalstandard_changelist")
+        response = admin_client.get(url, {"education_level": "VO"})
+        assert response.status_code == 200
+
+    def test_search_by_code(self, admin_client, professional_standard):
+        """Поиск по коду работает"""
+        url = reverse("admin:surveys_professionalstandard_changelist")
+        response = admin_client.get(url, {"q": "10.028"})
+        assert response.status_code == 200
+
+    def test_riasec_codes_field_present(self, admin_client, professional_standard):
+        """Поле riasec_codes присутствует в форме"""
+        url = reverse(
+            "admin:surveys_professionalstandard_change",
+            args=[professional_standard.id],
+        )
+        response = admin_client.get(url)
+        assert "riasec_codes" in response.content.decode()
+
+    def test_otf_inline_present(self, admin_client, professional_standard):
+        """Inline ОТФ присутствует в форме ПС"""
+        url = reverse(
+            "admin:surveys_professionalstandard_change",
+            args=[professional_standard.id],
+        )
+        response = admin_client.get(url)
+        content = response.content.decode()
+        assert "labor_functions" in content or "Обобщённые трудовые функции" in content
+
+    def test_program_inline_present(self, admin_client, professional_standard):
+        """Inline связей с ФГОС присутствует в форме ПС"""
+        url = reverse(
+            "admin:surveys_professionalstandard_change",
+            args=[professional_standard.id],
+        )
+        response = admin_client.get(url)
+        content = response.content.decode()
+        assert "program_links" in content or "education_program" in content
+
+
+# ============================================================
+# Тесты для GeneralizedLaborFunctionAdmin
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestGeneralizedLaborFunctionAdmin:
+    """Тесты для админки GeneralizedLaborFunction"""
+
+    def test_list_display(self, admin_client, professional_standard):
+        """Список отображается"""
+        otf = GeneralizedLaborFunction.objects.create(
+            professional_standard=professional_standard,
+            code="A",
+            name="Разработка проектной документации",
+            order=1,
+        )
+        url = reverse("admin:surveys_generalizedlaborfunction_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        assert "A" in response.content.decode()
+
+    def test_create_form(self, admin_client):
+        """Форма создания доступна"""
+        url = reverse("admin:surveys_generalizedlaborfunction_add")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_edit_form(self, admin_client, professional_standard):
+        """Форма редактирования доступна"""
+        otf = GeneralizedLaborFunction.objects.create(
+            professional_standard=professional_standard,
+            code="A",
+            name="Разработка",
+            order=1,
+        )
+        url = reverse(
+            "admin:surveys_generalizedlaborfunction_change",
+            args=[otf.id],
+        )
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_list_editable_order_and_is_active(
+        self, admin_client, professional_standard
+    ):
+        """Поля order и is_active редактируются прямо в списке"""
+        admin = GeneralizedLaborFunctionAdmin(GeneralizedLaborFunction, AdminSite())
+        assert "order" in admin.list_editable
+        assert "is_active" in admin.list_editable
+
+    def test_filter_by_education_level(self, admin_client, professional_standard):
+        """Фильтр по уровню образования ПС работает"""
+        GeneralizedLaborFunction.objects.create(
+            professional_standard=professional_standard,
+            code="A",
+            name="Разработка",
+            order=1,
+        )
+        url = reverse("admin:surveys_generalizedlaborfunction_changelist")
+        response = admin_client.get(
+            url, {"professional_standard__education_level": "VO"}
+        )
+        assert response.status_code == 200
+
+
+# ============================================================
+# Тесты для EducationProgramAdmin
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestEducationProgramAdmin:
+    """Тесты для админки EducationProgram"""
+
+    def test_list_display(self, admin_client, education_program):
+        """Список отображается"""
+        url = reverse("admin:surveys_educationprogram_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        assert "07.03.03" in response.content.decode()
+
+    def test_create_form(self, admin_client):
+        """Форма создания доступна"""
+        url = reverse("admin:surveys_educationprogram_add")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_edit_form(self, admin_client, education_program):
+        """Форма редактирования доступна"""
+        url = reverse(
+            "admin:surveys_educationprogram_change",
+            args=[education_program.id],
+        )
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_filter_by_education_level(self, admin_client, education_program):
+        """Фильтр по уровню образования работает"""
+        url = reverse("admin:surveys_educationprogram_changelist")
+        response = admin_client.get(url, {"education_level": "VO"})
+        assert response.status_code == 200
+
+    def test_search_by_code(self, admin_client, education_program):
+        """Поиск по коду работает"""
+        url = reverse("admin:surveys_educationprogram_changelist")
+        response = admin_client.get(url, {"q": "07.03.03"})
+        assert response.status_code == 200
+
+    def test_list_editable_is_active(self):
+        """Поле is_active редактируется прямо в списке"""
+        admin = EducationProgramAdmin(EducationProgram, AdminSite())
+        assert "is_active" in admin.list_editable
+
+
+# ============================================================
+# Тесты для ProfessionalStandardProgramAdmin
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestProfessionalStandardProgramAdmin:
+    """Тесты для админки ProfessionalStandardProgram"""
+
+    def test_list_display(self, admin_client, professional_standard, education_program):
+        """Список отображается"""
+        ProfessionalStandardProgram.objects.create(
+            professional_standard=professional_standard,
+            education_program=education_program,
+            order=1,
+        )
+        url = reverse("admin:surveys_professionalstandardprogram_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_create_form(self, admin_client):
+        """Форма создания доступна"""
+        url = reverse("admin:surveys_professionalstandardprogram_add")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_edit_form(self, admin_client, professional_standard, education_program):
+        """Форма редактирования доступна"""
+        link = ProfessionalStandardProgram.objects.create(
+            professional_standard=professional_standard,
+            education_program=education_program,
+            order=1,
+        )
+        url = reverse(
+            "admin:surveys_professionalstandardprogram_change",
+            args=[link.id],
+        )
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_autocomplete_fields(self):
+        """Поля autocomplete настроены"""
+        admin = ProfessionalStandardProgramAdmin(
+            ProfessionalStandardProgram, AdminSite()
+        )
+        assert "professional_standard" in admin.autocomplete_fields
+        assert "education_program" in admin.autocomplete_fields
+
+    def test_list_editable_order(self):
+        """Поле order редактируется прямо в списке"""
+        admin = ProfessionalStandardProgramAdmin(
+            ProfessionalStandardProgram, AdminSite()
+        )
+        assert "order" in admin.list_editable

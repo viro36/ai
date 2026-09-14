@@ -7,6 +7,11 @@ import tempfile
 
 from .management.commands.import_survey_from_excel import Command
 from .models import (
+    EducationProgram,
+    GeneralizedLaborFunction,
+    ProfessionalStandard,
+    ProfessionalStandardProgram,
+    RiasecCodeInterpretation,
     SurveyCategory,
     SurveyBlock,
     ScaleLabel,
@@ -19,6 +24,10 @@ from .models import (
     Big5Result,
     GardnerResult,
 )
+
+# ---------------------------------------------------------------------------
+# Опросы: категории, блоки, вопросы, шкалы
+# ---------------------------------------------------------------------------
 
 
 class SurveyQuestionInline(admin.TabularInline):
@@ -61,7 +70,11 @@ class SurveyCategoryAdmin(admin.ModelAdmin):
             {
                 "fields": ("instruction_text", "result_description"),
                 "classes": ("collapse",),
-                "description": "Инструкция отображается под каждым вопросом. Описание результатов отображается в результатах после графика (поддерживает HTML).",
+                "description": (
+                    "Инструкция отображается под каждым вопросом. "
+                    "Описание результатов отображается в результатах после графика "
+                    "(поддерживает HTML)."
+                ),
             },
         ),
         ("Системное", {"fields": ("created_at",), "classes": ("collapse",)}),
@@ -112,11 +125,15 @@ class SurveyCategoryAdmin(admin.ModelAdmin):
                 try:
                     command.handle(file_path=tmp_path, force=True, quiet=True)
                     self.message_user(
-                        request, "Опрос успешно импортирован!", messages.SUCCESS
+                        request,
+                        "Опрос успешно импортирован!",
+                        messages.SUCCESS,
                     )
                 except Exception as e:
                     self.message_user(
-                        request, f"Ошибка импорта: {str(e)}", messages.ERROR
+                        request,
+                        f"Ошибка импорта: {str(e)}",
+                        messages.ERROR,
                     )
 
                 return redirect("admin:surveys_surveycategory_changelist")
@@ -171,6 +188,11 @@ class SurveyQuestionAdmin(admin.ModelAdmin):
         return obj.responses.count()
 
     responses_count.short_description = "Ответов"
+
+
+# ---------------------------------------------------------------------------
+# Интерпретации и результаты опросов
+# ---------------------------------------------------------------------------
 
 
 @admin.register(SurveyInterpretation)
@@ -322,3 +344,134 @@ class GardnerResultAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+# ---------------------------------------------------------------------------
+# RIASEC-коды
+# ---------------------------------------------------------------------------
+
+
+@admin.register(RiasecCodeInterpretation)
+class RiasecCodeInterpretationAdmin(admin.ModelAdmin):
+    list_display = (
+        "code",
+        "dominant",
+        "secondary",
+        "tertiary",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("dominant", "is_active")
+    search_fields = ("code", "description", "professions")
+    ordering = ("code",)
+    readonly_fields = ("created_at", "updated_at")
+
+
+# ---------------------------------------------------------------------------
+# Профстандарты, ОТФ, ФГОС
+# ---------------------------------------------------------------------------
+
+
+class GeneralizedLaborFunctionInline(admin.TabularInline):
+    model = GeneralizedLaborFunction
+    extra = 1
+    fields = ("code", "name", "qualification_level", "order", "is_active")
+    ordering = ("order",)
+    show_change_link = True
+
+
+class ProfessionalStandardProgramInline(admin.TabularInline):
+    model = ProfessionalStandardProgram
+    extra = 1
+    fields = ("education_program", "order")
+    autocomplete_fields = ("education_program",)
+    ordering = ("order",)
+
+
+@admin.register(ProfessionalStandard)
+class ProfessionalStandardAdmin(admin.ModelAdmin):
+    list_display = (
+        "code",
+        "name",
+        "education_level",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("education_level", "is_active")
+    search_fields = ("code", "name")
+    filter_horizontal = ("riasec_codes",)
+    inlines = (GeneralizedLaborFunctionInline, ProfessionalStandardProgramInline)
+    ordering = ("education_level", "code")
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        (
+            "Основная информация",
+            {
+                "fields": (
+                    "code",
+                    "name",
+                    "education_level",
+                    "is_active",
+                )
+            },
+        ),
+        (
+            "Коды Холланда",
+            {
+                "fields": ("riasec_codes",),
+                "description": "Выберите коды RIASEC, которым соответствует этот профстандарт.",
+            },
+        ),
+        (
+            "Системное",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+
+@admin.register(GeneralizedLaborFunction)
+class GeneralizedLaborFunctionAdmin(admin.ModelAdmin):
+    list_display = (
+        "professional_standard",
+        "code",
+        "name",
+        "qualification_level",
+        "order",
+        "is_active",
+    )
+    list_filter = (
+        "professional_standard__education_level",
+        "is_active",
+    )
+    search_fields = ("code", "name", "professional_standard__code")
+    autocomplete_fields = ("professional_standard",)
+    ordering = ("professional_standard", "order", "code")
+    list_editable = ("order", "is_active")
+
+
+@admin.register(EducationProgram)
+class EducationProgramAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "education_level", "is_active", "updated_at")
+    list_filter = ("education_level", "is_active")
+    search_fields = ("code", "name")
+    ordering = ("education_level", "code")
+    list_editable = ("is_active",)
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(ProfessionalStandardProgram)
+class ProfessionalStandardProgramAdmin(admin.ModelAdmin):
+    list_display = ("professional_standard", "education_program", "order")
+    list_filter = ("professional_standard__education_level",)
+    search_fields = (
+        "professional_standard__code",
+        "professional_standard__name",
+        "education_program__code",
+        "education_program__name",
+    )
+    autocomplete_fields = ("professional_standard", "education_program")
+    ordering = ("professional_standard", "order")
+    list_editable = ("order",)

@@ -1,0 +1,134 @@
+{% load survey_extras %}
+
+{# ============== Карьерный код RIASEC ============== #}
+{% if survey_config.type == 'riasec' and career_code_info %}
+<div class="card mb-4 shadow">
+    <div class="card-header bg-dark text-white">
+        <h5 class="mb-0">
+            <i class="fa-solid fa-briefcase me-2"></i>
+            Ваш карьерный код:
+            <span class="badge bg-light text-dark fs-6 ms-2">{{ career_code_info.code }}</span>
+        </h5>
+    </div>
+    <div class="card-body">
+        <p class="lead mb-3">{{ career_code_info.description|capfirst }}</p>
+
+        {% if career_code_info.professions_list %}
+            <h6 class="mt-3 mb-2">
+                <i class="fa-solid fa-list-check me-1 text-primary"></i>
+                Подходящие профессии:
+            </h6>
+            <div class="d-flex flex-wrap gap-2">
+                {% for prof in career_code_info.professions_list %}
+                    <span class="badge bg-primary">{{ prof }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="row mt-3 text-muted small">
+            <div class="col-md-4">
+                <strong>Ведущий:</strong> {{ career_code_info.dominant_display }}
+            </div>
+            <div class="col-md-4">
+                <strong>Дополнительный:</strong> {{ career_code_info.secondary_display }}
+            </div>
+            <div class="col-md-4">
+                <strong>Поддерживающий:</strong> {{ career_code_info.tertiary_display }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ============== RIASEC: подбор ФГОС и профстандартов ============== #}
+{% if survey_config.type == 'riasec' and career_guidance %}
+
+    {# --- ФГОС: порядок зависит от уровня пользователя --- #}
+    {% if career_guidance.programs_order.0 == 'vo' %}
+        {% include "surveys/components/_programs_vo.html" %}
+        {% include "surveys/components/_programs_spo.html" %}
+    {% else %}
+        {% include "surveys/components/_programs_spo.html" %}
+        {% include "surveys/components/_programs_vo.html" %}
+    {% endif %}
+
+    {# ============== Профстандарты ============== #}
+    {% if career_guidance.standards %}
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fa-solid fa-briefcase me-2"></i>
+                Профстандарты — {{ career_guidance.standards_count }}
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="accordion" id="psAccordion">
+                {% for ps in career_guidance.standards %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#ps-{{ forloop.counter }}">
+                                <span class="badge bg-primary me-2">{{ ps.code }}</span>
+                                <span class="badge bg-light text-dark me-2">{{ ps.education_level_display }}</span>
+                                {{ ps.name }}
+                            </button>
+                        </h2>
+                        <div id="ps-{{ forloop.counter }}"
+                             class="accordion-collapse collapse"
+                             data-bs-parent="#psAccordion">
+                            <div class="accordion-body">
+
+                                <p class="small text-muted mb-2">
+                                    <strong>Коды Холланда:</strong>
+                                    {% for c in ps.riasec_codes %}
+                                        <span class="badge bg-dark">{{ c }}</span>
+                                    {% endfor %}
+                                </p>
+
+                                {% if ps.labor_functions %}
+                                    <h6 class="mt-3">
+                                        <i class="fa-solid fa-list-check me-1"></i>
+                                        Обобщённые трудовые функции ({{ ps.labor_functions|length }}):
+                                    </h6>
+                                    <ul class="small">
+                                        {% for otf in ps.labor_functions %}
+                                            <li>
+                                                <span class="badge bg-info text-dark">{{ otf.code }}</span>
+                                                {{ otf.name }}
+                                                {% if otf.qualification_level %}
+                                                    <span class="text-muted">(уровень {{ otf.qualification_level }})</span>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+
+                                {% if ps.programs %}
+                                    <h6 class="mt-3">
+                                        <i class="fa-solid fa-graduation-cap me-1"></i>
+                                        ФГОС, связанные с этим ПС:
+                                    </h6>
+                                    <ol class="small mb-0">
+                                        {% for p in ps.programs %}
+                                            <li>
+                                                <span class="badge bg-secondary">{{ p.code }}</span>
+                                                <span class="badge {% if p.education_level == 'VO' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                                    {{ p.education_level_display }}
+                                                </span>
+                                                {{ p.name }}
+                                            </li>
+                                        {% endfor %}
+                                    </ol>
+                                {% endif %}
+
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+{% endif %}

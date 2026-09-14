@@ -1,6 +1,7 @@
 import pytest
 from django.contrib.auth import get_user_model
 
+from apps.accounts.models import EmployeeProfile
 from apps.surveys.services.survey_handlers.unified_handler import UnifiedSurveyHandler
 from apps.surveys.models import (
     SurveyCategory,
@@ -462,3 +463,364 @@ class TestCanHandle:
     def test_can_handle_any_survey(self, survey_category):
         """Тест: обрабатывает любые опросы"""
         assert UnifiedSurveyHandler.can_handle(survey_category) is True
+
+
+# ============================================================
+# Тесты для _get_user_education_level
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestGetUserEducationLevel:
+    """Тесты определения уровня образования пользователя"""
+
+    def test_no_profile(self, user, digcomp_category):
+        """Нет профиля — возвращает None"""
+        session = SurveySession.objects.create(
+            user=user, category=digcomp_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(digcomp_category, session)
+        assert handler._get_user_education_level() is None
+
+    def test_profile_without_education(self, user, digcomp_category):
+        """Профиль без education_level — возвращает None"""
+        EmployeeProfile.objects.create(user=user, education_level="")
+
+        session = SurveySession.objects.create(
+            user=user, category=digcomp_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(digcomp_category, session)
+        assert handler._get_user_education_level() is None
+
+    def test_higher_education(self, user, digcomp_category):
+        """higher — VO"""
+        EmployeeProfile.objects.create(user=user, education_level="higher")
+
+        session = SurveySession.objects.create(
+            user=user, category=digcomp_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(digcomp_category, session)
+        assert handler._get_user_education_level() == "VO"
+
+    def test_academic_degree(self, user, digcomp_category):
+        """academic_degree — VO"""
+        EmployeeProfile.objects.create(user=user, education_level="academic_degree")
+
+        session = SurveySession.objects.create(
+            user=user, category=digcomp_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(digcomp_category, session)
+        assert handler._get_user_education_level() == "VO"
+
+    def test_secondary_special(self, user, digcomp_category):
+        """secondary_special — SPO"""
+        EmployeeProfile.objects.create(user=user, education_level="secondary_special")
+
+        session = SurveySession.objects.create(
+            user=user, category=digcomp_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(digcomp_category, session)
+        assert handler._get_user_education_level() == "SPO"
+
+    def test_unknown_education(self, user, digcomp_category):
+        """Неизвестный уровень — None"""
+        EmployeeProfile.objects.create(user=user, education_level="unknown_level")
+
+        session = SurveySession.objects.create(
+            user=user, category=digcomp_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(digcomp_category, session)
+        assert handler._get_user_education_level() is None
+
+
+# ============================================================
+# Тесты для get_riasec_code_interpretation
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestGetRiasecCodeInterpretation:
+    """Тесты получения интерпретации кода RIASEC"""
+
+    def test_valid_code(self, user, riasec_category, riasec_code):
+        """Существующий код — возвращает данные"""
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_riasec_code_interpretation("RIA")
+        assert result is not None
+        assert result["code"] == "RIA"
+        assert "description" in result
+        assert "professions_list" in result
+        assert result["professions_list"] == ["Инженер", "Техник", "Механик"]
+
+    def test_code_lowercase(self, user, riasec_category, riasec_code):
+        """Код в нижнем регистре — работает"""
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_riasec_code_interpretation("ria")
+        assert result is not None
+        assert result["code"] == "RIA"
+
+    def test_nonexistent_code(self, user, riasec_category):
+        """Несуществующий код — None"""
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_riasec_code_interpretation("XYZ")
+        assert result is None
+
+    def test_empty_code(self, user, riasec_category):
+        """Пустой код — None"""
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        assert handler.get_riasec_code_interpretation("") is None
+        assert handler.get_riasec_code_interpretation(None) is None
+
+    def test_wrong_length_code(self, user, riasec_category):
+        """Код не из 3 букв — None"""
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        assert handler.get_riasec_code_interpretation("RI") is None
+        assert handler.get_riasec_code_interpretation("RIAS") is None
+
+
+# ============================================================
+# Тесты для get_career_guidance
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestGetCareerGuidance:
+    """Тесты подбора ФГОС и профстандартов по коду RIASEC"""
+
+    def test_empty_code(self, user, riasec_category):
+        """Пустой код — None"""
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        assert handler.get_career_guidance("") is None
+        assert handler.get_career_guidance(None) is None
+        assert handler.get_career_guidance("RI") is None
+
+    def test_no_matching_standards(self, user, riasec_category, riasec_code):
+        """Нет ПС с таким кодом — пустой результат"""
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_career_guidance("RIA")
+        assert result is not None
+        assert result["standards"] == []
+        assert result["vo_programs"] == []
+        assert result["spo_programs"] == []
+        assert result["standards_count"] == 0
+
+    def test_vo_and_spo_programs_split(
+        self,
+        user,
+        riasec_category,
+        riasec_code,
+        professional_standard,
+        professional_standard_spo,
+        education_program,
+        education_program_spo,
+        ps_program_link,
+        ps_program_link_spo,
+    ):
+        """ФГОС разделены на ВО и СПО"""
+        professional_standard.riasec_codes.add(riasec_code)
+        professional_standard_spo.riasec_codes.add(riasec_code)
+
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_career_guidance("RIA")
+        assert result["vo_programs_count"] == 1
+        assert result["spo_programs_count"] == 1
+        assert result["standards_count"] == 2
+
+        vo_codes = [p["code"] for p in result["vo_programs"]]
+        spo_codes = [p["code"] for p in result["spo_programs"]]
+        assert "07.03.03" in vo_codes
+        assert "12.02.10" in spo_codes
+
+    def test_programs_order_default_vo_first(
+        self,
+        user,
+        riasec_category,
+        riasec_code,
+        professional_standard,
+        professional_standard_spo,
+        education_program,
+        education_program_spo,
+        ps_program_link,
+        ps_program_link_spo,
+    ):
+        """Без education_level — порядок ВО, потом СПО"""
+        professional_standard.riasec_codes.add(riasec_code)
+        professional_standard_spo.riasec_codes.add(riasec_code)
+
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_career_guidance("RIA", education_level=None)
+        assert result["programs_order"] == ["vo", "spo"]
+
+    def test_programs_order_spo_first_for_spo_user(
+        self,
+        user,
+        riasec_category,
+        riasec_code,
+        professional_standard,
+        professional_standard_spo,
+        education_program,
+        education_program_spo,
+        ps_program_link,
+        ps_program_link_spo,
+    ):
+        """Для СПО-пользователя порядок СПО, потом ВО"""
+        professional_standard.riasec_codes.add(riasec_code)
+        professional_standard_spo.riasec_codes.add(riasec_code)
+
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_career_guidance("RIA", education_level="SPO")
+        assert result["programs_order"] == ["spo", "vo"]
+
+    def test_programs_order_vo_first_for_vo_user(
+        self,
+        user,
+        riasec_category,
+        riasec_code,
+        professional_standard,
+        professional_standard_spo,
+        education_program,
+        education_program_spo,
+        ps_program_link,
+        ps_program_link_spo,
+    ):
+        """Для ВО-пользователя порядок ВО, потом СПО"""
+        professional_standard.riasec_codes.add(riasec_code)
+        professional_standard_spo.riasec_codes.add(riasec_code)
+
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_career_guidance("RIA", education_level="VO")
+        assert result["programs_order"] == ["vo", "spo"]
+
+    def test_standards_include_both_levels(
+        self,
+        user,
+        riasec_category,
+        riasec_code,
+        professional_standard,
+        professional_standard_spo,
+        education_program,
+        education_program_spo,
+        ps_program_link,
+        ps_program_link_spo,
+    ):
+        """ПС обоих уровней попадают в результат (не фильтруются)"""
+        professional_standard.riasec_codes.add(riasec_code)
+        professional_standard_spo.riasec_codes.add(riasec_code)
+
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_career_guidance("RIA", education_level="VO")
+        levels = {ps["education_level"] for ps in result["standards"]}
+        assert "VO" in levels
+        assert "SPO" in levels
+
+    def test_otf_included(
+        self,
+        user,
+        riasec_category,
+        riasec_code,
+        professional_standard,
+        education_program,
+        ps_program_link,
+    ):
+        """ОТФ попадают в результат"""
+        from apps.surveys.models import GeneralizedLaborFunction
+
+        professional_standard.riasec_codes.add(riasec_code)
+        GeneralizedLaborFunction.objects.create(
+            professional_standard=professional_standard,
+            code="A",
+            name="Разработка проектной документации",
+            order=1,
+            is_active=True,
+        )
+
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        result = handler.get_career_guidance("RIA")
+        assert len(result["standards"]) == 1
+        ps = result["standards"][0]
+        assert len(ps["labor_functions"]) == 1
+        assert ps["labor_functions"][0]["code"] == "A"
+
+    def test_ordered_programs_combined(
+        self,
+        user,
+        riasec_category,
+        riasec_code,
+        professional_standard,
+        professional_standard_spo,
+        education_program,
+        education_program_spo,
+        ps_program_link,
+        ps_program_link_spo,
+    ):
+        """ordered_programs содержит все ФГОС в нужном порядке"""
+        professional_standard.riasec_codes.add(riasec_code)
+        professional_standard_spo.riasec_codes.add(riasec_code)
+
+        session = SurveySession.objects.create(
+            user=user, category=riasec_category, attempt=1
+        )
+        handler = UnifiedSurveyHandler(riasec_category, session)
+
+        # Для СПО-пользователя
+        result = handler.get_career_guidance("RIA", education_level="SPO")
+        assert len(result["ordered_programs"]) == 2
+        assert result["ordered_programs"][0]["education_level"] == "SPO"
+        assert result["ordered_programs"][1]["education_level"] == "VO"
+
+        # Для ВО-пользователя
+        result = handler.get_career_guidance("RIA", education_level="VO")
+        assert result["ordered_programs"][0]["education_level"] == "VO"
+        assert result["ordered_programs"][1]["education_level"] == "SPO"

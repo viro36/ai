@@ -1,0 +1,23 @@
+{% if career_guidance.spo_programs %}
+<div class="card mb-4 shadow">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">
+            <i class="fa-solid fa-graduation-cap me-2"></i>
+            Специальности СПО (ФГОС СПО) — {{ career_guidance.spo_programs_count }}
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for p in career_guidance.spo_programs %}
+                <div class="col-md-6 mb-2">
+                    <div class="border rounded p-2 h-100">
+                        <span class="badge bg-secondary me-1">{{ p.code }}</span>
+                        <span class="badge bg-warning text-dark">{{ p.education_level_display }}</span>
+                        <div class="small mt-1">{{ p.name }}</div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}

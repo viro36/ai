@@ -3,6 +3,11 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from apps.surveys.models import (
+    EducationProgram,
+    GeneralizedLaborFunction,
+    ProfessionalStandard,
+    ProfessionalStandardProgram,
+    RiasecCodeInterpretation,
     SurveyCategory,
     SurveyBlock,
     SurveyQuestion,
@@ -470,4 +475,175 @@ def gardner_result(completed_session):
         interpersonal_score=48,
         intrapersonal_score=38,
         naturalistic_score=25,
+    )
+
+
+# ============================================================
+# RIASEC-коды (справочник)
+# ============================================================
+
+
+@pytest.fixture
+def riasec_code():
+    """Создание одного RIASEC-кода"""
+    return RiasecCodeInterpretation.objects.create(
+        code="RIA",
+        dominant="R",
+        secondary="I",
+        tertiary="A",
+        description="Технический специалист, склонный к практической работе",
+        professions="Инженер, Техник, Механик",
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def riasec_codes_all():
+    """Создание нескольких RIASEC-кодов"""
+    codes_data = [
+        ("RIA", "R", "I", "A", "Технический специалист", "Инженер, Техник"),
+        ("SEC", "S", "E", "C", "Организатор", "Менеджер, Администратор"),
+        ("AIS", "A", "I", "S", "Творческий специалист", "Художник, Дизайнер"),
+        ("CIE", "C", "I", "E", "Аналитик", "Бухгалтер, Аудитор"),
+    ]
+    result = []
+    for code, dom, sec, ter, desc, prof in codes_data:
+        obj = RiasecCodeInterpretation.objects.create(
+            code=code,
+            dominant=dom,
+            secondary=sec,
+            tertiary=ter,
+            description=desc,
+            professions=prof,
+            is_active=True,
+        )
+        result.append(obj)
+    return result
+
+
+# ============================================================
+# Профстандарты
+# ============================================================
+
+
+@pytest.fixture
+def professional_standard():
+    """Создание одного профстандарта (ВО)"""
+    return ProfessionalStandard.objects.create(
+        code="10.028",
+        name="Архитектор-дизайнер",
+        education_level="VO",
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def professional_standard_spo():
+    """Создание одного профстандарта (СПО)"""
+    return ProfessionalStandard.objects.create(
+        code="12.001",
+        name="Специалист по монтажу",
+        education_level="SPO",
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def professional_standard_with_riasec(professional_standard, riasec_code):
+    """Профстандарт с привязанным RIASEC-кодом"""
+    professional_standard.riasec_codes.add(riasec_code)
+    return professional_standard
+
+
+@pytest.fixture
+def professional_standard_with_otf(professional_standard):
+    """Профстандарт с ОТФ"""
+    GeneralizedLaborFunction.objects.create(
+        professional_standard=professional_standard,
+        code="A",
+        name="Разработка проектной документации",
+        order=1,
+        is_active=True,
+    )
+    GeneralizedLaborFunction.objects.create(
+        professional_standard=professional_standard,
+        code="B",
+        name="Управление проектом",
+        order=2,
+        is_active=True,
+    )
+    return professional_standard
+
+
+# ============================================================
+# ФГОС (направления подготовки / специальности)
+# ============================================================
+
+
+@pytest.fixture
+def education_program():
+    """Создание одного ФГОС ВО"""
+    return EducationProgram.objects.create(
+        code="07.03.03",
+        name="Дизайн архитектурной среды",
+        education_level="VO",
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def education_program_spo():
+    """Создание одного ФГОС СПО"""
+    return EducationProgram.objects.create(
+        code="12.02.10",
+        name="Монтаж, техническое обслуживание и ремонт биотехнических и медицинских аппаратов и систем",
+        education_level="SPO",
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def education_programs_multiple():
+    """Создание нескольких ФГОС разных уровней"""
+    programs_data = [
+        ("07.03.03", "Дизайн архитектурной среды", "VO"),
+        ("07.04.03", "Дизайн архитектурной среды", "VO"),
+        ("48.04.01", "Теология", "VO"),
+        ("12.02.10", "Монтаж, техническое обслуживание...", "SPO"),
+        ("29.02.01", "Конструирование, моделирование...", "SPO"),
+    ]
+    result = []
+    for code, name, level in programs_data:
+        obj = EducationProgram.objects.create(
+            code=code,
+            name=name,
+            education_level=level,
+            is_active=True,
+        )
+        result.append(obj)
+    return result
+
+
+# ============================================================
+# Связи ПС и ФГОС
+# ============================================================
+
+
+@pytest.fixture
+def ps_program_link(professional_standard, education_program):
+    """Связь ПС (ВО) и ФГОС (ВО)"""
+    return ProfessionalStandardProgram.objects.create(
+        professional_standard=professional_standard,
+        education_program=education_program,
+        order=1,
+    )
+
+
+@pytest.fixture
+def ps_program_link_spo(professional_standard_spo, education_program_spo):
+    """Связь ПС (СПО) и ФГОС (СПО)"""
+    return ProfessionalStandardProgram.objects.create(
+        professional_standard=professional_standard_spo,
+        education_program=education_program_spo,
+        order=1,
     )

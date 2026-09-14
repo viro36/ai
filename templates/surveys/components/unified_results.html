@@ -17,6 +17,9 @@
     </div>
 </div>
 
+{# ============== RIASEC: карьерный код + подбор ФГОС/ПС ============== #}
+{% include "surveys/components/_career_guidance.html" %}
+
 <!-- Профиль (диаграмма) -->
 <div class="card mb-4 shadow">
     <div class="card-header bg-primary text-white">
@@ -101,7 +104,10 @@
 {% if usage_recommendations %}
 <div class="card mb-4 shadow">
     <div class="card-header bg-success text-white">
-        <h5 class="mb-0"><i class="fa-solid fa-lightbulb me-2"></i>{{ usage_recommendations.title|default:"Рекомендации по использованию результатов" }}</h5>
+        <h5 class="mb-0">
+            <i class="fa-solid fa-lightbulb me-2"></i>
+            {{ usage_recommendations.title|default:"Рекомендации по использованию результатов" }}
+        </h5>
     </div>
     <div class="card-body">
         {{ usage_recommendations.recommendations|safe|linebreaks }}
@@ -110,5 +116,4 @@
         {% endif %}
     </div>
 </div>
-
 {% endif %}
