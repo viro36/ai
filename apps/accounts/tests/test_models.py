@@ -636,28 +636,28 @@ class TestIsProfileCompleteUnemployed:
         )
 
     def test_complete_unemployed(self, test_employee_user):
-        """Полный профиль безработного → True"""
+        """Полный профиль безработного - True"""
         profile = self._make_complete_profile(
             test_employee_user, organization=None, is_unemployed=True
         )
         assert profile.is_profile_complete() is True
 
     def test_complete_working(self, test_employee_user, test_organization):
-        """Полный профиль работающего → True"""
+        """Полный профиль работающего - True"""
         profile = self._make_complete_profile(
             test_employee_user, organization=test_organization, is_unemployed=False
         )
         assert profile.is_profile_complete() is True
 
     def test_working_without_organization(self, test_employee_user):
-        """Работающий без организации → False"""
+        """Работающий без организации - False"""
         profile = self._make_complete_profile(
             test_employee_user, organization=None, is_unemployed=False
         )
         assert profile.is_profile_complete() is False
 
     def test_unemployed_without_required_field(self, test_employee_user):
-        """Безработный без обязательного поля → False"""
+        """Безработный без обязательного поля - False"""
         profile = self._make_complete_profile(
             test_employee_user, organization=None, is_unemployed=True
         )
