@@ -401,7 +401,7 @@ class TestEmployeeRegistrationFormSave:
         return data
 
     def test_save_unemployed(self):
-        """save(): безработный → organization=None, position='Безработный'"""
+        """save(): безработный - organization=None, position='Безработный'"""
         form = EmployeeRegistrationForm(
             data=self._base_data(
                 username="save_unemployed",
@@ -436,7 +436,7 @@ class TestEmployeeRegistrationFormSave:
         assert profile.is_svo_participant is True
 
     def test_save_working_svo(self, test_organization):
-        """save(): работающий + СВО → реальная организация + флаг"""
+        """save(): работающий + СВО - реальная организация + флаг"""
         form = EmployeeRegistrationForm(
             data=self._base_data(
                 username="save_working_svo",
@@ -485,7 +485,7 @@ class TestEmployeeProfileFormUnemployed:
         return EmployeeProfile.objects.create(user=test_employee_user, **defaults)
 
     def test_save_unemployed_sets_defaults(self, test_employee_user, test_organization):
-        """save(): безработный → organization=None, position='Безработный'"""
+        """save(): безработный - organization=None, position='Безработный'"""
         profile = self._make_profile(test_employee_user, test_organization)
         form = EmployeeProfileForm(
             data=self._base_data(is_unemployed=True),
@@ -500,7 +500,7 @@ class TestEmployeeProfileFormUnemployed:
         assert saved.is_unemployed is True
 
     def test_save_working_restores_fields(self, test_employee_user, test_organization):
-        """save(): снятие галочки → восстановление position и position_level"""
+        """save(): снятие галочки - восстановление position и position_level"""
         profile = self._make_profile(
             test_employee_user,
             test_organization,
