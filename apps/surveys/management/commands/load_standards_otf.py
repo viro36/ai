@@ -183,7 +183,7 @@ class Command(BaseCommand):
                     ]
                     found = [riasec_cache[c] for c in codes if c in riasec_cache]
                     if found:
-                        ps.riasec_codes.set(found)
+                        ps.riasec_codes.add(*found)
 
                 # --- Связь ПС <-> ФГОС ---
                 _, link_created = ProfessionalStandardProgram.objects.update_or_create(
