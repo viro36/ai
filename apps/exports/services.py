@@ -2,9 +2,8 @@
 Сбор данных для выгрузки.
 
 Формирует «плоский» список строк, готовый к записи в Excel/CSV.
+Выгружаются только пользователи с типом «Работник» (employee).
 """
-
-from collections import defaultdict
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
@@ -12,7 +11,6 @@ from openpyxl.utils import get_column_letter
 
 from apps.surveys.models import (
     ProfessionalStandard,
-    ProfessionalStandardProgram,
     RiasacResult,
 )
 from apps.recommendations.models import CourseRecommendation, SelectedCourse
@@ -115,8 +113,9 @@ def collect_rows(filters=None):
     """
     Возвращает список dict-строк для выгрузки.
 
+    Выборка всегда ограничена пользователями с user_type='employee'.
+
     Фильтры (опционально):
-        - user_type: 'employee' / 'employer' / ...
         - organization_id: int
         - only_with_riasec: bool
     """
@@ -125,12 +124,12 @@ def collect_rows(filters=None):
     User = get_user_model()
     filters = filters or {}
 
-    qs = User.objects.select_related(
-        "organization", "employee_profile"
-    ).prefetch_related("employee_profile__desired_organization_type")
-
-    if filters.get("user_type"):
-        qs = qs.filter(user_type=filters["user_type"])
+    qs = (
+        User.objects.filter(user_type="employee")
+        .select_related("organization", "employee_profile")
+        .prefetch_related("employee_profile__desired_organization_type")
+        .order_by("id")
+    )
 
     if filters.get("organization_id"):
         qs = qs.filter(organization_id=filters["organization_id"])
@@ -138,7 +137,6 @@ def collect_rows(filters=None):
     rows = []
     for user in qs:
         employee_profile = getattr(user, "employee_profile", None)
-        employer_profile = getattr(user, "employer_profile", None)
 
         # --- RIASEC ---
         riasac = (
@@ -156,7 +154,6 @@ def collect_rows(filters=None):
         # --- Направления по RIASEC ---
         directions = _riasec_directions(user) if riasac else {"VO": [], "SPO": []}
 
-        # --- Профиль: работник ---
         row = {
             # Пользователь
             "user_id": user.id,
@@ -166,7 +163,6 @@ def collect_rows(filters=None):
             "first_name": user.first_name,
             "patronymic": user.patronymic,
             "full_name": user.full_name,
-            "user_type": user.get_user_type_display(),
             "is_active": user.is_active,
             "date_joined": (
                 user.date_joined.strftime("%Y-%m-%d %H:%M") if user.date_joined else ""
@@ -200,7 +196,9 @@ def collect_rows(filters=None):
             "work_experience_years": (
                 employee_profile.work_experience_years if employee_profile else ""
             ),
-            "is_unemployed": employee_profile.is_unemployed if employee_profile else "",
+            "is_unemployed": (
+                employee_profile.is_unemployed if employee_profile else ""
+            ),
             "is_svo_participant": (
                 employee_profile.is_svo_participant if employee_profile else ""
             ),
@@ -226,16 +224,6 @@ def collect_rows(filters=None):
             ),
             "desired_position": (
                 employee_profile.desired_position if employee_profile else ""
-            ),
-            # Профиль работодателя (для employer/university)
-            "employer_phone": employer_profile.phone if employer_profile else "",
-            "employer_email": employer_profile.email if employer_profile else "",
-            "employer_website": employer_profile.website if employer_profile else "",
-            "employer_contact_person": (
-                employer_profile.contact_person_full_name if employer_profile else ""
-            ),
-            "employer_contact_position": (
-                employer_profile.contact_person_position if employer_profile else ""
             ),
             # RIASEC результат
             "riasec_career_code": career_code,
@@ -276,7 +264,6 @@ COLUMNS = [
     ("first_name", "Имя"),
     ("patronymic", "Отчество"),
     ("full_name", "ФИО"),
-    ("user_type", "Тип пользователя"),
     ("is_active", "Активен"),
     ("date_joined", "Дата регистрации"),
     ("birthday", "Дата рождения"),
@@ -301,11 +288,6 @@ COLUMNS = [
     ("desired_organization_type", "Желаемая сфера"),
     ("desired_organization", "Желаемая организация"),
     ("desired_position", "Желаемая должность"),
-    ("employer_phone", "Телефон организации"),
-    ("employer_email", "Email организации"),
-    ("employer_website", "Сайт организации"),
-    ("employer_contact_person", "Контактное лицо"),
-    ("employer_contact_position", "Должность контактного лица"),
     ("riasec_career_code", "RIASEC код"),
     ("riasec_r", "R"),
     ("riasec_i", "I"),
@@ -330,7 +312,7 @@ def write_xlsx(rows, path):
     """Записывает строки в Excel-файл."""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Выгрузка"
+    ws.title = "Работники"
 
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="4F46E5")
