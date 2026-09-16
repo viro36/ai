@@ -336,3 +336,11 @@ class EmployeeProfile(models.Model):
         total = questions.count()
         answered = GoalSettingResponse.objects.filter(user=self.user).count()
         return answered == total and total > 0
+
+    def save(self, *args, **kwargs):
+        # Синхронизация: is_unemployed <-> employment_status
+        if self.is_unemployed:
+            self.employment_status = "unemployed"
+        elif self.employment_status == "unemployed":
+            self.employment_status = "employed"
+        super().save(*args, **kwargs)
