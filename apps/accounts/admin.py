@@ -13,9 +13,13 @@ from .admin_views import (
     approve_employer_request,
     reject_employer_request,
     process_approve,
+    employee_full_profile,
 )
 
 
+# ============================================================
+# Заявки на регистрацию работодателей
+# ============================================================
 @admin.register(EmployerRegistrationRequest)
 class EmployerRegistrationRequestAdmin(admin.ModelAdmin):
     list_display = (
@@ -114,6 +118,9 @@ class EmployerRegistrationRequestAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
 
+# ============================================================
+# Профиль работодателя / ВУЗа
+# ============================================================
 class EmployerProfileForm(forms.ModelForm):
     """Форма для профиля организации с ограничением выбора пользователей"""
 
@@ -339,6 +346,8 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
         "is_unemployed",
         "employment_status",
         "education_level",
+        "profile_complete_badge",  # статус анкеты
+        "full_profile_link",  # кнопка «Полный профиль»
         "created_at",
     )
     list_filter = (
@@ -360,6 +369,9 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
     )
     readonly_fields = ("created_at", "updated_at")
 
+    # Шаблон с кнопкой «Полный профиль» на странице редактирования
+    change_form_template = "admin/accounts/employeeprofile/change_form.html"
+
     fieldsets = (
         (
             "Пользователь",
@@ -370,13 +382,18 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
         (
             "Организация и должность",
             {
-                "fields": ("organization", "position_level"),
+                "fields": ("organization", "position", "position_level"),
             },
         ),
         (
             "Трудоустройство",
             {
-                "fields": ("employment_status", "work_experience_years"),
+                "fields": (
+                    "employment_status",
+                    "work_experience_years",
+                    "is_unemployed",
+                    "is_svo_participant",
+                ),
             },
         ),
         (
@@ -407,6 +424,19 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
         ),
     )
 
+    # ---------- URL для «Полный профиль» ----------
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path(
+                "<int:profile_id>/full-profile/",
+                self.admin_site.admin_view(employee_full_profile),
+                name="accounts_employeeprofile_full_profile",
+            ),
+        ]
+        return custom + urls
+
+    # ---------- Проверки прав ----------
     def _is_viewer(self, request):
         """Проверка, является ли пользователь просмотрщиком"""
         return request.user.groups.filter(name="Просмотрщик").exists()
@@ -414,7 +444,7 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
     def get_actions(self, request):
         """Скрываем выпадающий список действий для просмотрщика"""
         if self._is_viewer(request):
-            return {}  # Возвращаем пустой словарь - действий нет
+            return {}
         return super().get_actions(request)
 
     def has_add_permission(self, request):
@@ -432,6 +462,7 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
             return False
         return super().has_delete_permission(request, obj)
 
+    # ---------- Колонки ----------
     def user_link(self, obj):
         """Ссылка на пользователя"""
         url = reverse("admin:users_customuser_change", args=[obj.user.id])
@@ -459,3 +490,23 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
 
     position_level_display.short_description = "Категория должности"
     position_level_display.admin_order_field = "position_level"
+
+    @admin.display(description="Анкета")
+    def profile_complete_badge(self, obj):
+        if obj.is_profile_complete():
+            return mark_safe(
+                '<span style="color:#10b981;font-weight:600;">Заполнена</span>'
+            )
+        return mark_safe(
+            '<span style="color:#ef4444;font-weight:600;">Не заполнена</span>'
+        )
+
+    @admin.display(description="Полный профиль")
+    def full_profile_link(self, obj):
+        url = reverse("admin:accounts_employeeprofile_full_profile", args=[obj.id])
+        return mark_safe(
+            f'<a class="button" href="{url}" '
+            f'style="padding:4px 10px;background:#4F46E5;color:#fff;'
+            f'border-radius:4px;text-decoration:none;font-size:12px;">'
+            f"Открыть</a>"
+        )

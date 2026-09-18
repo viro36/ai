@@ -1,0 +1,434 @@
+{% extends "admin/base.html" %}
+{% load i18n jazzmin %}
+{% get_jazzmin_settings request as jazzmin_settings %}
+{% get_jazzmin_ui_tweaks as jazzmin_ui %}
+
+{% block title %}Полный профиль: {{ u.full_name }}{% endblock %}
+
+{% block content %}
+<style>
+    .fp-wrap { max-width: 1200px; }
+    .fp-card {
+        background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+        padding: 20px; margin-bottom: 20px;
+    }
+    .fp-card h2 {
+        margin-top: 0; font-size: 18px; color: #292966;
+        border-bottom: 2px solid #CCCCFF; padding-bottom: 8px;
+    }
+    .fp-card h2 i { color: #4F46E5; margin-right: 8px; }
+    .fp-grid {
+        display: grid; grid-template-columns: 260px 1fr;
+        gap: 6px 16px; font-size: 14px;
+    }
+    .fp-grid dt { color: #6b7280; font-weight: 500; }
+    .fp-grid dd { margin: 0; color: #111827; }
+    .fp-status {
+        display: inline-block; padding: 4px 10px; border-radius: 4px;
+        font-weight: 600; font-size: 13px;
+    }
+    .fp-status i { margin-right: 4px; }
+    .fp-ok { background: #d1fae5; color: #065f46; }
+    .fp-fail { background: #fee2e2; color: #991b1b; }
+    .fp-warn { background: #fef3c7; color: #92400e; }
+    .fp-actions { margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+    .fp-actions a {
+        padding: 8px 16px; background: #4F46E5; color: #fff;
+        border-radius: 6px; text-decoration: none; font-weight: 500;
+    }
+    .fp-actions a i { margin-right: 6px; }
+    .fp-actions a.secondary { background: #6b7280; }
+    .fp-actions a.success { background: #10b981; }
+    .fp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .fp-table th, .fp-table td {
+        padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: left;
+    }
+    .fp-table th { background: #f9fafb; color: #374151; }
+    .fp-missing { color: #991b1b; font-weight: 500; }
+    .fp-badge {
+        display: inline-block; padding: 2px 8px; border-radius: 10px;
+        font-size: 12px; font-weight: 600;
+    }
+    .fp-badge i { margin-right: 3px; }
+    .fp-badge-green { background: #d1fae5; color: #065f46; }
+    .fp-badge-red { background: #fee2e2; color: #991b1b; }
+    .fp-badge-gray { background: #e5e7eb; color: #374151; }
+    .fp-empty { color: #9ca3af; font-style: italic; }
+</style>
+
+<div class="fp-wrap">
+
+    <!-- Заголовок -->
+    <div class="fp-card" style="
+        background: linear-gradient(135deg, #F8FAFF, #EEF2FF);
+        color: #292966;
+        border: 1px solid #E0E7FF;
+        border-left: 4px solid #6366F1;
+    ">
+        <h1 style="margin: 0; color: #292966; font-size: 24px;">
+            <i class="fa-solid fa-user" style="color: #6366F1;"></i>
+            {{ u.full_name|default:u.username }}
+        </h1>
+        <p style="margin: 8px 0 0; color: #6b7280;">
+            ID пользователя: <strong style="color: #292966;">{{ u.id }}</strong> &nbsp;|&nbsp;
+            Логин: <strong style="color: #292966;">{{ u.username }}</strong> &nbsp;|&nbsp;
+            Email: <strong style="color: #292966;">{{ u.email|default:"—" }}</strong>
+        </p>
+    </div>
+
+    <!-- Действия -->
+    <div class="fp-actions">
+        <a href="{{ user_admin_url }}">
+            <i class="fa-solid fa-gear"></i>Редактировать пользователя
+        </a>
+        <a href="{{ profile_edit_url }}" class="secondary">
+            <i class="fa-solid fa-pen"></i>Редактировать анкету
+        </a>
+        <a href="{% url 'admin:accounts_employeeprofile_changelist' %}" class="secondary">
+            <i class="fa-solid fa-arrow-left"></i>К списку
+        </a>
+    </div>
+
+    <!-- Статусы -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-chart-simple"></i>Статусы готовности</h2>
+        <div class="fp-grid">
+            <dt>Анкета заполнена</dt>
+            <dd>
+                {% if profile_complete %}
+                    <span class="fp-status fp-ok">
+                        <i class="fa-solid fa-circle-check"></i>Заполнена
+                    </span>
+                {% else %}
+                    <span class="fp-status fp-fail">
+                        <i class="fa-solid fa-circle-xmark"></i>Не заполнена ({{ missing_fields|length }} пропусков)
+                    </span>
+                {% endif %}
+            </dd>
+
+            <dt>Целеполагание</dt>
+            <dd>
+                {% if goal_setting_complete %}
+                    <span class="fp-status fp-ok">
+                        <i class="fa-solid fa-circle-check"></i>Заполнено ({{ answered_count }}/{{ total_questions }})
+                    </span>
+                {% else %}
+                    <span class="fp-status fp-fail">
+                        <i class="fa-solid fa-circle-xmark"></i>Не заполнено ({{ answered_count }}/{{ total_questions }})
+                    </span>
+                {% endif %}
+            </dd>
+
+            <dt>Готов к рекомендациям</dt>
+            <dd>
+                {% if ready_for_recommendations %}
+                    <span class="fp-status fp-ok">
+                        <i class="fa-solid fa-circle-check"></i>Да
+                    </span>
+                {% else %}
+                    <span class="fp-status fp-fail">
+                        <i class="fa-solid fa-circle-xmark"></i>Нет
+                    </span>
+                {% endif %}
+            </dd>
+
+            <dt>Опросы</dt>
+            <dd>
+                {% if surveys_completed_count == surveys_total and surveys_total > 0 %}
+                    <span class="fp-status fp-ok">
+                        <i class="fa-solid fa-circle-check"></i>Все пройдены ({{ surveys_completed_count }}/{{ surveys_total }})
+                    </span>
+                {% elif surveys_completed_count > 0 %}
+                    <span class="fp-status fp-warn">
+                        <i class="fa-solid fa-triangle-exclamation"></i>Частично ({{ surveys_completed_count }}/{{ surveys_total }})
+                    </span>
+                {% else %}
+                    <span class="fp-status fp-fail">
+                        <i class="fa-solid fa-circle-xmark"></i>Не пройдены (0/{{ surveys_total }})
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+        {% if missing_fields %}
+        <div style="margin-top: 16px; padding: 12px; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px;">
+            <strong style="color: #991b1b;">
+                <i class="fa-solid fa-circle-xmark"></i>
+                Каких полей не хватает для is_profile_complete():
+            </strong>
+            <ul style="margin: 8px 0 0 20px; color: #7f1d1d;">
+                {% for field_name, label in missing_fields %}
+                    <li><code>{{ field_name }}</code> — {{ label }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Пользователь -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-user"></i>Пользователь (CustomUser)</h2>
+        <dl class="fp-grid">
+            <dt>ID</dt><dd>{{ u.id }}</dd>
+            <dt>Логин</dt><dd>{{ u.username }}</dd>
+            <dt>Email</dt><dd>{{ u.email|default:"—" }}</dd>
+            <dt>Фамилия</dt>
+            <dd>{% if u.last_name %}{{ u.last_name }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Имя</dt>
+            <dd>{% if u.first_name %}{{ u.first_name }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Отчество</dt><dd>{{ u.patronymic|default:"—" }}</dd>
+            <dt>Полное имя</dt><dd>{{ u.full_name|default:"—" }}</dd>
+            <dt>Дата рождения</dt>
+            <dd>{% if u.birthday %}{{ u.birthday|date:"d.m.Y" }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>СНИЛС (в CustomUser)</dt><dd>{{ u.snils|default:"—" }}</dd>
+            <dt>Тип пользователя</dt><dd>{{ u.get_user_type_display }}</dd>
+            <dt>Активен</dt>
+            <dd>
+                {% if u.is_active %}
+                    <span class="fp-badge fp-badge-green"><i class="fa-solid fa-check"></i>Да</span>
+                {% else %}
+                    <span class="fp-badge fp-badge-red"><i class="fa-solid fa-xmark"></i>Нет</span>
+                {% endif %}
+            </dd>
+            <dt>Суперпользователь</dt>
+            <dd>
+                {% if u.is_superuser %}
+                    <span class="fp-badge fp-badge-green"><i class="fa-solid fa-check"></i>Да</span>
+                {% else %}
+                    <span class="fp-badge fp-badge-gray">Нет</span>
+                {% endif %}
+            </dd>
+            <dt>Дата регистрации</dt><dd>{{ u.date_joined|date:"d.m.Y H:i" }}</dd>
+            <dt>Последний вход</dt><dd>{{ u.last_login|date:"d.m.Y H:i"|default:"—" }}</dd>
+            <dt>Организация (в CustomUser)</dt>
+            <dd>{% if u.organization %}{{ u.organization.short_name }} (ИНН {{ u.organization.inn }}){% else %}—{% endif %}</dd>
+        </dl>
+    </div>
+
+    <!-- Профиль работника -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-briefcase"></i>Профиль работника (EmployeeProfile #{{ profile.id }})</h2>
+        <dl class="fp-grid">
+            <dt>СНИЛС</dt>
+            <dd>{% if profile.snils %}{{ profile.snils }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Организация (в профиле)</dt>
+            <dd>{% if profile.organization %}{{ profile.organization.short_name }}{% else %}—{% endif %}</dd>
+            <dt>Должность</dt>
+            <dd>{% if profile.position %}{{ profile.position }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Категория должности</dt>
+            <dd>{% if profile.position_level %}{{ profile.get_position_level_display }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+
+            <dt>Пол</dt>
+            <dd>{% if profile.gender %}{{ profile.get_gender_display }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Гражданство</dt>
+            <dd>{% if profile.citizenship %}{{ profile.citizenship }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Телефон</dt><dd>{{ profile.phone|default:"—" }}</dd>
+
+            <dt>Муниципалитет</dt>
+            <dd>{% if profile.municipality %}{{ profile.municipality }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Населённый пункт</dt>
+            <dd>{% if profile.locality %}{{ profile.locality }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+
+            <dt>Статус занятости</dt>
+            <dd>{{ profile.get_employment_status_display|default:"—" }}</dd>
+            <dt>Стаж (лет)</dt><dd>{{ profile.work_experience_years|default:"—" }}</dd>
+            <dt>Безработный</dt>
+            <dd>
+                {% if profile.is_unemployed %}
+                    <span class="fp-badge fp-badge-red"><i class="fa-solid fa-check"></i>Да</span>
+                {% else %}
+                    <span class="fp-badge fp-badge-green">Нет</span>
+                {% endif %}
+            </dd>
+            <dt>Участник СВО</dt>
+            <dd>
+                {% if profile.is_svo_participant %}
+                    <span class="fp-badge fp-badge-green"><i class="fa-solid fa-check"></i>Да</span>
+                {% else %}
+                    <span class="fp-badge fp-badge-gray">Нет</span>
+                {% endif %}
+            </dd>
+
+            <dt>Уровень образования</dt>
+            <dd>{% if profile.education_level %}{{ profile.get_education_level_display }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Учебное заведение</dt>
+            <dd>{% if profile.education_institution %}{{ profile.education_institution }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Год окончания</dt>
+            <dd>{% if profile.graduation_year %}{{ profile.graduation_year }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+            <dt>Специальность</dt>
+            <dd>{% if profile.specialty %}{{ profile.specialty }}{% else %}<span class="fp-missing">не заполнено</span>{% endif %}</dd>
+
+            <dt>Желаемая сфера</dt><dd>{{ profile.desired_organization_type.name|default:"—" }}</dd>
+            <dt>Желаемая организация</dt><dd>{{ profile.desired_organization|default:"—" }}</dd>
+            <dt>Желаемая должность</dt><dd>{{ profile.desired_position|default:"—" }}</dd>
+
+            <dt>Создан</dt><dd>{{ profile.created_at|date:"d.m.Y H:i" }}</dd>
+            <dt>Обновлён</dt><dd>{{ profile.updated_at|date:"d.m.Y H:i" }}</dd>
+        </dl>
+    </div>
+
+    <!-- Целеполагание -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-bullseye"></i>Целеполагание</h2>
+        <p>
+            Отвечено: <strong>{{ answered_count }}</strong> из <strong>{{ total_questions }}</strong>
+            {% if goal_setting_complete %}
+                <span class="fp-badge fp-badge-green"><i class="fa-solid fa-check"></i>Заполнено</span>
+            {% else %}
+                <span class="fp-badge fp-badge-red"><i class="fa-solid fa-xmark"></i>Не заполнено</span>
+            {% endif %}
+        </p>
+        {% if unanswered %}
+            <p style="color: #991b1b;"><strong>Не отвечено на вопросы:</strong></p>
+            <ul>
+                {% for q in unanswered %}
+                    <li>ID {{ q.id }}: {{ q.text|truncatechars:100 }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+
+    <!-- Опросы -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-clipboard-list"></i>Опросы</h2>
+        {% if surveys_summary %}
+        <table class="fp-table">
+            <thead>
+                <tr>
+                    <th>Опрос</th>
+                    <th>Статус</th>
+                    <th>Попытка</th>
+                    <th>Завершён</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in surveys_summary %}
+                <tr>
+                    <td>{{ s.category.name }}</td>
+                    <td>
+                        {% if s.completed %}
+                            <span class="fp-badge fp-badge-green"><i class="fa-solid fa-check"></i>Пройден</span>
+                        {% else %}
+                            <span class="fp-badge fp-badge-red"><i class="fa-solid fa-xmark"></i>Не пройден</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.attempt|default:"—" }}</td>
+                    <td>{{ s.completed_at|date:"d.m.Y H:i"|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="fp-empty">Нет активных опросов</p>
+        {% endif %}
+    </div>
+
+    <!-- RIASEC -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-compass"></i>RIASEC</h2>
+        {% if riasac %}
+            <p>
+                Карьерный код: <strong style="font-size: 20px;">{{ riasac.career_code }}</strong>
+                &nbsp;|&nbsp; Доминирующие типы: {{ riasac.dominant_types }}
+                &nbsp;|&nbsp; Рассчитан: {{ riasac.created_at|date:"d.m.Y H:i" }}
+            </p>
+            <table class="fp-table">
+                <thead>
+                    <tr>
+                        <th>R</th><th>I</th><th>A</th><th>S</th><th>E</th><th>C</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ riasec_scores.R|default:"—" }}</td>
+                        <td>{{ riasec_scores.I|default:"—" }}</td>
+                        <td>{{ riasec_scores.A|default:"—" }}</td>
+                        <td>{{ riasec_scores.S|default:"—" }}</td>
+                        <td>{{ riasec_scores.E|default:"—" }}</td>
+                        <td>{{ riasec_scores.C|default:"—" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        {% else %}
+            <p class="fp-empty">RIASEC не пройден</p>
+        {% endif %}
+    </div>
+
+    <!-- Рекомендации курсов -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-lightbulb"></i>Рекомендации курсов ({{ recommendations_count }})</h2>
+        {% if recommendations %}
+        <table class="fp-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Курс</th>
+                    <th>Организация</th>
+                    <th>Релевантность</th>
+                    <th>Просмотрено</th>
+                    <th>Дата</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rec in recommendations %}
+                <tr>
+                    <td>{{ rec.order }}</td>
+                    <td>{{ rec.course.title }}</td>
+                    <td>{{ rec.course.organization.short_name }}</td>
+                    <td>{{ rec.get_relevance_percent }}%</td>
+                    <td>{% if rec.is_viewed %}<i class="fa-solid fa-check" style="color:#10b981;"></i>{% else %}—{% endif %}</td>
+                    <td>{{ rec.created_at|date:"d.m.Y H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="fp-empty">Рекомендаций нет</p>
+        {% endif %}
+    </div>
+
+    <!-- Выбранные курсы -->
+    <div class="fp-card">
+        <h2><i class="fa-solid fa-bookmark"></i>Выбранные курсы ({{ selected_courses_count }})</h2>
+        {% if selected_courses %}
+        <table class="fp-table">
+            <thead>
+                <tr>
+                    <th>Курс</th>
+                    <th>Организация</th>
+                    <th>Статус одобрения</th>
+                    <th>Кем одобрен</th>
+                    <th>Дата выбора</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sc in selected_courses %}
+                <tr>
+                    <td>{{ sc.course.title }}</td>
+                    <td>{{ sc.course.organization.short_name }}</td>
+                    <td>
+                        {% if sc.approval %}
+                            {% if sc.approval.status == "approved" %}
+                                <span class="fp-badge fp-badge-green"><i class="fa-solid fa-check"></i>Одобрено</span>
+                            {% elif sc.approval.status == "rejected" %}
+                                <span class="fp-badge fp-badge-red"><i class="fa-solid fa-xmark"></i>Отклонено</span>
+                            {% else %}
+                                <span class="fp-badge fp-badge-gray"><i class="fa-solid fa-clock"></i>На рассмотрении</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="fp-badge fp-badge-gray">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ sc.approval.approved_by|default:"—" }}</td>
+                    <td>{{ sc.created_at|date:"d.m.Y H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="fp-empty">Выбранных курсов нет</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

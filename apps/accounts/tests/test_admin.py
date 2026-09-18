@@ -1,4 +1,5 @@
 import pytest
+from datetime import date
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.hashers import make_password
 from django.urls import reverse
@@ -496,3 +497,222 @@ class TestViewerPermissions:
         content = response.content.decode()
         # Просмотрщик видит безработного
         assert "Безработный" in content or test_employee_user.last_name in content
+
+
+@pytest.mark.django_db
+class TestEmployeeProfileAdminFullProfile:
+    """Тесты для кнопки «Полный профиль» и статуса анкеты"""
+
+    def test_profile_complete_badge_filled(self, test_employee_user, test_organization):
+        """Бейдж 'Анкета заполнена', когда все обязательные поля заполнены"""
+        test_employee_user.birthday = date(1990, 1, 1)
+        test_employee_user.save()
+
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+            gender="M",
+            citizenship="Россия",
+            education_level="higher",
+            graduation_year=2014,
+            education_institution="ВГУ",
+            specialty="Инженер",
+            locality="Воронеж",
+            municipality="Воронеж",
+        )
+
+        site = AdminSite()
+        admin = EmployeeProfileAdmin(EmployeeProfile, site)
+        result = admin.profile_complete_badge(profile)
+
+        assert "Заполнена" in result
+        assert "Не заполнена" not in result
+
+    def test_profile_complete_badge_not_filled(self, test_employee_user):
+        """Бейдж 'Анкета не заполнена', когда не хватает полей"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Безработный",
+            is_unemployed=True,
+        )
+
+        site = AdminSite()
+        admin = EmployeeProfileAdmin(EmployeeProfile, site)
+        result = admin.profile_complete_badge(profile)
+
+        assert "Не заполнена" in result
+
+    def test_full_profile_link_contains_url(self, test_employee_user):
+        """Кнопка 'Полный профиль' содержит правильный URL"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Безработный",
+            is_unemployed=True,
+        )
+
+        site = AdminSite()
+        admin = EmployeeProfileAdmin(EmployeeProfile, site)
+        result = admin.full_profile_link(profile)
+
+        expected_url = reverse(
+            "admin:accounts_employeeprofile_full_profile", args=[profile.id]
+        )
+        assert expected_url in result
+        assert "Открыть" in result
+
+    def test_full_profile_url_registered(self):
+        """URL /full-profile/ зарегистрирован в админке"""
+        site = AdminSite()
+        admin = EmployeeProfileAdmin(EmployeeProfile, site)
+        urls = admin.get_urls()
+        url_patterns = [str(u.pattern) for u in urls]
+        assert any("full-profile" in p for p in url_patterns)
+
+
+@pytest.mark.django_db
+class TestFullProfileView:
+    """Тесты для кастомной страницы полного профиля"""
+
+    def test_full_profile_view_requires_staff(self, client, test_employee_user):
+        """Не-админ не может открыть страницу"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Безработный",
+            is_unemployed=True,
+        )
+        url = reverse("admin:accounts_employeeprofile_full_profile", args=[profile.id])
+        response = client.get(url)
+        assert response.status_code in [302, 403]
+
+    def test_full_profile_view_ok_for_admin(self, admin_client, test_employee_user):
+        """Админ видит страницу с карточкой"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Безработный",
+            is_unemployed=True,
+        )
+        url = reverse("admin:accounts_employeeprofile_full_profile", args=[profile.id])
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Статусы готовности" in content
+        assert "Пользователь (CustomUser)" in content
+        assert "Профиль работника" in content
+        assert test_employee_user.last_name in content
+
+    def test_full_profile_view_shows_missing_fields(
+        self, admin_client, test_employee_user
+    ):
+        """Показывает недостающие поля для is_profile_complete()"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Безработный",
+            is_unemployed=True,
+        )
+        url = reverse("admin:accounts_employeeprofile_full_profile", args=[profile.id])
+        response = admin_client.get(url)
+        content = response.content.decode()
+        assert "не хватает" in content.lower() or "Каких полей не хватает" in content
+        assert "birthday" in content
+
+    def test_full_profile_view_404_for_missing(self, admin_client):
+        """404 для несуществующего профиля"""
+        url = reverse("admin:accounts_employeeprofile_full_profile", args=[999999])
+        response = admin_client.get(url)
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestEmployeeProfileSave:
+    """Тесты синхронизации is_unemployed и employment_status в save()"""
+
+    def test_save_unemployed_sets_status(self, test_employee_user):
+        """is_unemployed=True устанавливает employment_status=unemployed"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Безработный",
+            is_unemployed=True,
+            employment_status=None,
+        )
+        profile.refresh_from_db()
+        assert profile.employment_status == "unemployed"
+
+    def test_save_employed_resets_unemployed_status(
+        self, test_employee_user, test_organization
+    ):
+        """is_unemployed=False и статус unemployed меняется на employed"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+            is_unemployed=False,
+            employment_status="unemployed",
+        )
+        profile.refresh_from_db()
+        assert profile.employment_status == "employed"
+
+    def test_save_preserves_self_employed(self, test_employee_user):
+        """is_unemployed=False и статус self_employed не меняется"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Фрилансер",
+            is_unemployed=False,
+            employment_status="self_employed",
+        )
+        profile.refresh_from_db()
+        assert profile.employment_status == "self_employed"
+
+    def test_save_preserves_entrepreneur(self, test_employee_user):
+        """is_unemployed=False и статус entrepreneur не меняется"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="ИП",
+            is_unemployed=False,
+            employment_status="entrepreneur",
+        )
+        profile.refresh_from_db()
+        assert profile.employment_status == "entrepreneur"
+
+    def test_save_idempotent(self, test_employee_user, test_organization):
+        """Повторное сохранение не меняет статус"""
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            organization=test_organization,
+            position="Инженер",
+            position_level="specialist",
+            is_unemployed=False,
+            employment_status="employed",
+        )
+        profile.save()
+        profile.refresh_from_db()
+        assert profile.employment_status == "employed"
+
+
+@pytest.mark.django_db
+class TestViewerFullProfile:
+    """Просмотрщик может открыть полный профиль (только чтение)"""
+
+    def test_viewer_can_open_full_profile(self, viewer_client, test_employee_user):
+        profile = EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="123-456-789 01",
+            position="Безработный",
+            is_unemployed=True,
+        )
+        url = reverse("admin:accounts_employeeprofile_full_profile", args=[profile.id])
+        response = viewer_client.get(url)
+        assert response.status_code == 200

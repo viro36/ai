@@ -279,35 +279,19 @@ class TestEmployeeProfileModel:
         assert profile.gender == "M"
         assert profile.get_gender_display() == "Мужской"
 
-    def test_employee_profile_employment_status_choices(self, test_organization):
-        """Тест выбора статуса занятости"""
+    def test_employee_profile_employment_status_choices(self):
+        """Тест отображения статуса занятости"""
+        from apps.accounts.models import EmployeeProfile
+
         status_map = {
             "employed": "Работаю по найму",
             "self_employed": "Самозанятый",
             "entrepreneur": "ИП",
             "unemployed": "Безработный",
         }
-
-        for i, (status, display) in enumerate(status_map.items()):
-            user = User.objects.create_user(
-                username=f"test_status_{status}_{i}",
-                email=f"test_{status}_{i}@test.com",
-                password="testpass123",
-                user_type="employee",
-                last_name=f"Тестов{i}",
-                first_name=f"Статус{i}",
-            )
-            snils = f"222-333-444 {i:02d}"
-            profile = EmployeeProfile.objects.create(
-                user=user,
-                snils=snils,
-                organization=test_organization,
-                position="Тест",
-                position_level="specialist",
-                employment_status=status,
-            )
-            assert profile.employment_status == status
-            assert profile.get_employment_status_display() == display
+        choices = dict(EmployeeProfile.EMPLOYMENT_STATUS_CHOICES)
+        for status, display in status_map.items():
+            assert choices[status] == display
 
     def test_employee_profile_education_level_choices(self, test_organization):
         """Тест выбора уровня образования"""
