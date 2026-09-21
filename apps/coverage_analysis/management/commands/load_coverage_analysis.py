@@ -267,6 +267,14 @@ class Command(BaseCommand):
                 coverage = _to_float(row[4]) if len(row) > 4 else None
                 delta = _to_float(row[5]) if len(row) > 5 else None
 
+                # Приводим дельту к знаковому виду:
+                # дефицит — отрицательное, профицит — положительное
+                if delta is not None:
+                    if block_type == CoverageBlock.DEFICIT:
+                        delta = -abs(delta)
+                    elif block_type == CoverageBlock.SURPLUS:
+                        delta = abs(delta)
+
                 position += 1
                 CoverageAnalysisEntry.objects.create(
                     scenario=scenario,
