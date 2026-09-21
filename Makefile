@@ -153,3 +153,12 @@ load_riasec_codes:
 
 load_standards_otf:
 	docker-compose exec ai python manage.py load_standards_otf
+
+load_coverage_analysis:
+	docker-compose exec ai python manage.py load_coverage_analysis
+
+load_coverage_analysis_r:
+	docker-compose exec ai python manage.py load_coverage_analysis --scenario REALISTIC
+
+load_coverage_analysis_o:
+	docker-compose exec ai python manage.py load_coverage_analysis --scenario OPTIMISTIC

@@ -74,6 +74,8 @@ PROGRAM_APPS = [
     "apps.goal_setting",
     "apps.technical_requirements",
     "apps.exports",
+    "apps.mintrud",
+    "apps.coverage_analysis",
 ]
 
 INSTALLED_APPS = BASIC_APPS + THIRD_PARTY_APPS + PROGRAM_APPS
@@ -252,6 +254,8 @@ JAZZMIN_SETTINGS = {
         "surveys.GardnerResult": "fa-solid fa-brain",
         "surveys.UserSurveyResponse": "fa-solid fa-reply-all",
         "surveys.SurveySession": "fa-solid fa-clock",
+        "coverage_analysis.CoverageAnalysisSummary": "fa-solid fa-chart-line",
+        "coverage_analysis.CoverageAnalysisEntry": "fa-solid fa-table-list",
     },
     # Порядок в меню
     "order_with_respect_to": [
@@ -271,6 +275,8 @@ JAZZMIN_SETTINGS = {
         "surveys.GardnerResult",
         "surveys.UserSurveyResponse",
         "surveys.SurveySession",
+        "coverage_analysis.CoverageAnalysisSummary",
+        "coverage_analysis.CoverageAnalysisEntry",
     ],
     # Настройки списка
     "list_filter": ["district", "organization_type", "status"],

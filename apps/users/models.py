@@ -15,6 +15,7 @@ class CustomUser(AbstractUser):
         EMPLOYEE = "employee", "Работник"
         UNIVERSITY = "university", "ВУЗ"
         ADMIN = "admin", "Администратор"
+        MINTUD = "mintrud", "Минтруд"
 
     # Основные поля
     snils = models.CharField(

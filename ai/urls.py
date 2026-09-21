@@ -45,4 +45,6 @@ urlpatterns = [
     path("goal_setting/", include("apps.goal_setting.urls")),
     # Технические задания
     path("technical-requirements/", include("apps.technical_requirements.urls")),
+    # Минтруд
+    path("mintrud/", include("apps.mintrud.urls")),
 ]
