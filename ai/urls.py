@@ -47,4 +47,6 @@ urlpatterns = [
     path("technical-requirements/", include("apps.technical_requirements.urls")),
     # Минтруд
     path("mintrud/", include("apps.mintrud.urls")),
+    # Анализ
+    path("coverage/", include("apps.coverage_analysis.urls")),
 ]

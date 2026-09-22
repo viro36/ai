@@ -8,6 +8,8 @@ from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.html import format_html
 
+from apps.coverage_analysis.constants import get_download_files
+
 from .models import (
     CoverageAnalysisSummary,
     CoverageAnalysisEntry,
@@ -259,6 +261,7 @@ class CoverageAnalysisEntryAdmin(admin.ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context["data_actual_date"] = timezone.localdate().strftime("%d.%m.%Y")
+        extra_context["download_files"] = get_download_files()
         return super().changelist_view(request, extra_context=extra_context)
 
     def okz_name_short(self, obj):

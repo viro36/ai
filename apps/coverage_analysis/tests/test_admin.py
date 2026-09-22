@@ -204,3 +204,30 @@ class TestExportXLSX:
 
         assert ws.freeze_panes == "A2"
         assert ws.auto_filter.ref is not None
+
+
+# ---------- Ссылки на исходные файлы ----------
+class TestDownloadFiles:
+
+    @pytest.fixture(autouse=True)
+    def _login(self, client, admin_user):
+        client.force_login(admin_user)
+
+    def test_download_files_in_context_entry(self, client):
+        url = reverse("admin:coverage_analysis_coverageanalysisentry_changelist")
+        response = client.get(url)
+        assert response.status_code == 200
+        files = response.context["download_files"]
+        assert len(files) == 2
+        assert all("scenario" in f for f in files)
+        assert all("label" in f for f in files)
+        assert all("exists" in f for f in files)
+
+    def test_download_scenarios_are_optimistic_and_realistic(self, client):
+        url = reverse("admin:coverage_analysis_coverageanalysisentry_changelist")
+        response = client.get(url)
+        scenarios = {f["scenario"] for f in response.context["download_files"]}
+        assert scenarios == {
+            CoverageScenario.OPTIMISTIC,
+            CoverageScenario.REALISTIC,
+        }

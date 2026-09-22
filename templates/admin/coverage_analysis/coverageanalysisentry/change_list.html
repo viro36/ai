@@ -2,6 +2,7 @@
 
 {% block content_title %}
     {{ block.super }}
+
     {% if data_actual_date %}
         <p style="
             margin: 8px 0 16px 0;
@@ -14,5 +15,31 @@
             <i class="fas fa-info-circle" style="color:#4472C4;"></i>
             Данные актуальны на <b>{{ data_actual_date }}</b>
         </p>
+    {% endif %}
+
+    {% if download_files %}
+        <div style="
+            margin: 0 0 16px 0;
+            padding: 10px 12px;
+            background: #f7f7f7;
+            border-radius: 4px;
+            font-size: 13px;
+        ">
+            <b>Полная информация:</b>
+            {% for f in download_files %}
+                {% if f.exists %}
+                    <a href="{% url 'coverage_analysis:download_file' scenario=f.scenario %}"
+                       style="margin-left: 12px; text-decoration: none; color: #4472C4;">
+                        <i class="fas fa-file-excel"></i>
+                        {{ f.label }} (xlsx)
+                    </a>
+                {% else %}
+                    <span style="margin-left: 12px; color: #999;">
+                        <i class="fas fa-file-excel"></i>
+                        {{ f.label }} (файл недоступен)
+                    </span>
+                {% endif %}
+            {% endfor %}
+        </div>
     {% endif %}
 {% endblock %}
