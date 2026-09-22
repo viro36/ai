@@ -1,0 +1,18 @@
+{% extends "admin/change_list.html" %}
+
+{% block content_title %}
+    {{ block.super }}
+    {% if data_actual_date %}
+        <p style="
+            margin: 8px 0 16px 0;
+            padding: 8px 12px;
+            background: #eef6ff;
+            border-left: 4px solid #4472C4;
+            color: #333;
+            font-size: 13px;
+        ">
+            <i class="fas fa-info-circle" style="color:#4472C4;"></i>
+            Данные актуальны на <b>{{ data_actual_date }}</b>
+        </p>
+    {% endif %}
+{% endblock %}

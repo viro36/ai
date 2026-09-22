@@ -1,4 +1,11 @@
+import csv
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+
 from django.contrib import admin
+from django.http import HttpResponse
+from django.utils import timezone
 from django.utils.html import format_html
 
 from .models import (
@@ -181,6 +188,11 @@ class CoverageAnalysisSummaryAdmin(admin.ModelAdmin):
         ("Итого", {"fields": ("total_groups_with_need",)}),
     )
 
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["data_actual_date"] = timezone.localdate().strftime("%d.%m.%Y")
+        return super().changelist_view(request, extra_context=extra_context)
+
     def overall_coverage_percent_display(self, obj):
         if obj.overall_coverage_percent is None:
             return "—"
@@ -244,6 +256,11 @@ class CoverageAnalysisEntryAdmin(admin.ModelAdmin):
         ("Показатели", {"fields": ("need", "supply", "coverage_percent", "delta")}),
     )
 
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["data_actual_date"] = timezone.localdate().strftime("%d.%m.%Y")
+        return super().changelist_view(request, extra_context=extra_context)
+
     def okz_name_short(self, obj):
         if not obj.okz_name:
             return "—"
@@ -291,13 +308,9 @@ class CoverageAnalysisEntryAdmin(admin.ModelAdmin):
     delta_display.short_description = "Дефицит/Излишек"
     delta_display.admin_order_field = "delta"
 
-    # Опционально: экшены для быстрого переключения вида
-    actions = ["export_as_csv"]
+    actions = ["export_as_csv", "export_as_xlsx"]
 
     def export_as_csv(self, request, queryset):
-        import csv
-        from django.http import HttpResponse
-
         response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         response["Content-Disposition"] = 'attachment; filename="coverage_entries.csv"'
         writer = csv.writer(response)
@@ -335,3 +348,85 @@ class CoverageAnalysisEntryAdmin(admin.ModelAdmin):
         return response
 
     export_as_csv.short_description = "Экспортировать в CSV"
+
+    def export_as_xlsx(self, request, queryset):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Анализ покрытия"
+
+        headers = [
+            "Год",
+            "Сценарий",
+            "Источник",
+            "Блок",
+            "Позиция",
+            "Код ОКЗ",
+            "Наименование",
+            "Потребность",
+            "Предложение",
+            "Покрытие, %",
+            "Дельта",
+        ]
+        ws.append(headers)
+
+        # Стиль шапки
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill("solid", fgColor="4472C4")
+        header_align = Alignment(horizontal="center", vertical="center")
+        thin = Side(border_style="thin", color="D9D9D9")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        for col_idx, _ in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+            cell.border = border
+
+        # Данные
+        for obj in queryset:
+            ws.append(
+                [
+                    obj.year,
+                    obj.get_scenario_display(),
+                    obj.get_source_display(),
+                    obj.get_block_display(),
+                    obj.position,
+                    obj.okz_code,
+                    obj.okz_name,
+                    obj.need,
+                    obj.supply,
+                    obj.coverage_percent,
+                    obj.delta,
+                ]
+            )
+
+        # Автоширина колонок
+        for col_idx, column_cells in enumerate(ws.columns, start=1):
+            max_len = 0
+            for cell in column_cells:
+                if cell.value is not None:
+                    max_len = max(max_len, len(str(cell.value)))
+            # Ограничим ширину разумным максимумом
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(
+                max_len + 2, 60
+            )
+
+        # Заморозим шапку
+        ws.freeze_panes = "A2"
+
+        # Автофильтр по шапке
+        ws.auto_filter.ref = ws.dimensions
+
+        # Ответ
+        response = HttpResponse(
+            content_type=(
+                "application/vnd.openxmlformats-officedocument" ".spreadsheetml.sheet"
+            )
+        )
+        filename = "coverage_entries.xlsx"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        return response
+
+    export_as_xlsx.short_description = "Экспортировать в XLSX"

@@ -100,6 +100,17 @@ class Command(BaseCommand):
                 continue
 
             scenario = self._detect_scenario(file_path)
+
+            # Если задан фильтр по сценарию — пропускаем несоответствующие файлы
+            if scenario_filter and scenario != scenario_filter:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Пропускаем (сценарий {scenario} != {scenario_filter}): "
+                        f"{file_path}"
+                    )
+                )
+                continue
+
             self.stdout.write(f"Сценарий: {scenario}")
 
             try:
