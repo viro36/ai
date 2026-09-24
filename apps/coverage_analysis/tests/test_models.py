@@ -177,3 +177,54 @@ class TestCoverageAnalysisEntry:
         assert e.supply is None
         assert e.coverage_percent is None
         assert e.delta is None
+
+
+class TestCoverageMethodology:
+
+    def test_create_general_section(self, methodology_general_section):
+        s = methodology_general_section
+        assert s.pk is not None
+        assert s.scenario is None
+        assert "Закрываемая" in s.section_title
+        assert "Общий" in str(s)
+
+    def test_create_scoped_section(self, methodology_optimistic_section):
+        s = methodology_optimistic_section
+        assert s.scenario == CoverageScenario.OPTIMISTIC
+        assert "Оптимистичный" in str(s)
+
+    def test_unique_scenario_order(self, db):
+        from django.db import IntegrityError
+        from apps.coverage_analysis.models import CoverageMethodology
+
+        CoverageMethodology.objects.create(
+            scenario=CoverageScenario.OPTIMISTIC,
+            order=1,
+            section_title="X",
+            text="",
+        )
+        with pytest.raises(IntegrityError):
+            CoverageMethodology.objects.create(
+                scenario=CoverageScenario.OPTIMISTIC,
+                order=1,
+                section_title="Дубль",
+                text="",
+            )
+
+    def test_unique_general_order(self, db):
+        from django.db import IntegrityError
+        from apps.coverage_analysis.models import CoverageMethodology
+
+        CoverageMethodology.objects.create(
+            scenario=None,
+            order=1,
+            section_title="X",
+            text="",
+        )
+        with pytest.raises(IntegrityError):
+            CoverageMethodology.objects.create(
+                scenario=None,
+                order=1,
+                section_title="Дубль",
+                text="",
+            )

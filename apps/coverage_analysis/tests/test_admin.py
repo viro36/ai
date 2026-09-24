@@ -1,16 +1,20 @@
 import csv
 import io
+from django.contrib.admin import AdminSite
+import pytest
 from datetime import date
 from unittest.mock import patch
-
-import pytest
-from django.urls import reverse
 from openpyxl import load_workbook
 
-from apps.coverage_analysis.admin import CoverageYearFilter
+from django.contrib import admin as dj_admin
+from django.urls import reverse
+
+from apps.coverage_analysis import constants, views
+from apps.coverage_analysis.admin import CoverageMethodologyAdmin, CoverageYearFilter
 from apps.coverage_analysis.models import (
     CoverageAnalysisSummary,
     CoverageAnalysisEntry,
+    CoverageMethodology,
     CoverageScenario,
     CoverageSource,
     CoverageBlock,
@@ -23,14 +27,13 @@ pytestmark = pytest.mark.django_db
 class TestRegistration:
 
     def test_summary_registered(self):
-        from django.contrib import admin as dj_admin
-
         assert CoverageAnalysisSummary in dj_admin.site._registry
 
     def test_entry_registered(self):
-        from django.contrib import admin as dj_admin
-
         assert CoverageAnalysisEntry in dj_admin.site._registry
+
+    def test_methodology_registered(self):
+        assert CoverageMethodology in dj_admin.site._registry
 
 
 # ---------- Кастомные фильтры (через реальный client) ----------
@@ -219,9 +222,17 @@ class TestDownloadFiles:
         assert response.status_code == 200
         files = response.context["download_files"]
         assert len(files) == 2
-        assert all("scenario" in f for f in files)
-        assert all("label" in f for f in files)
-        assert all("exists" in f for f in files)
+
+        for f in files:
+            assert "scenario" in f
+            assert "label" in f
+            assert "filename" in f
+            assert "exists" in f
+            assert f["label"]  # непустой
+
+        labels = {f["label"] for f in files}
+        assert "Оптимистичный сценарий" in labels
+        assert "Реалистичный сценарий" in labels
 
     def test_download_scenarios_are_optimistic_and_realistic(self, client):
         url = reverse("admin:coverage_analysis_coverageanalysisentry_changelist")
@@ -231,3 +242,86 @@ class TestDownloadFiles:
             CoverageScenario.OPTIMISTIC,
             CoverageScenario.REALISTIC,
         }
+
+
+class TestDownloadEndpoint:
+
+    @pytest.fixture(autouse=True)
+    def _login(self, client, admin_user):
+        client.force_login(admin_user)
+
+    def test_download_unknown_scenario_404(self, client):
+        url = reverse(
+            "coverage_analysis:download_file",
+            kwargs={"scenario": "UNKNOWN"},
+        )
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_download_existing_file(self, client, tmp_path, monkeypatch):
+        fake_dir = tmp_path / "docs"
+        fake_dir.mkdir()
+        target = (
+            fake_dir / constants.DOWNLOAD_FILES[CoverageScenario.OPTIMISTIC]["filename"]
+        )
+        target.write_bytes(b"fake-xlsx")
+
+        monkeypatch.setattr(constants, "DOCS_DIR", fake_dir)
+        monkeypatch.setattr(views, "DOCS_DIR", fake_dir)
+
+        url = reverse(
+            "coverage_analysis:download_file",
+            kwargs={"scenario": CoverageScenario.OPTIMISTIC},
+        )
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "spreadsheetml" in response["Content-Type"]
+        assert "attachment" in response["Content-Disposition"]
+
+
+class TestDownloadEndpointAnonymous:
+    """Анонимный доступ к эндпоинту скачивания."""
+
+    def test_download_anonymous_redirects(self, client):
+        url = reverse(
+            "coverage_analysis:download_file",
+            kwargs={"scenario": CoverageScenario.OPTIMISTIC},
+        )
+        response = client.get(url)
+        # staff_member_required редиректит на login
+        assert response.status_code in (302, 403)
+
+
+class TestMethodologyAdmin:
+
+    @pytest.fixture(autouse=True)
+    def _login(self, client, admin_user):
+        client.force_login(admin_user)
+
+    def test_methodology_registered(self):
+        assert CoverageMethodology in dj_admin.site._registry
+
+    def test_methodology_changelist_loads(self, client):
+        url = reverse("admin:coverage_analysis_coveragemethodology_changelist")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_text_preview_short(self, methodology_general_section):
+        admin_obj = CoverageMethodologyAdmin(CoverageMethodology, AdminSite())
+        html = admin_obj.text_preview(methodology_general_section)
+        assert "D(ОКЗ" in html
+
+    def test_text_preview_empty(self, db):
+        obj = CoverageMethodology(scenario=None, order=1, section_title="x", text="")
+        admin_obj = CoverageMethodologyAdmin(CoverageMethodology, AdminSite())
+        assert admin_obj.text_preview(obj) == "—"
+
+    def test_section_title_nan_replaced(self, db):
+        obj = CoverageMethodology(scenario=None, order=1, section_title="nan", text="x")
+        admin_obj = CoverageMethodologyAdmin(CoverageMethodology, AdminSite())
+        assert admin_obj.section_title_short(obj) == "—"
+
+    def test_scenario_display_general(self, db):
+        obj = CoverageMethodology(scenario=None, order=1)
+        admin_obj = CoverageMethodologyAdmin(CoverageMethodology, AdminSite())
+        assert admin_obj.scenario_display(obj) == "Общий"

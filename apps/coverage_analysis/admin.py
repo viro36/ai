@@ -13,6 +13,7 @@ from apps.coverage_analysis.constants import get_download_files
 from .models import (
     CoverageAnalysisSummary,
     CoverageAnalysisEntry,
+    CoverageMethodology,
 )
 
 
@@ -433,3 +434,56 @@ class CoverageAnalysisEntryAdmin(admin.ModelAdmin):
         return response
 
     export_as_xlsx.short_description = "Экспортировать в XLSX"
+
+
+@admin.register(CoverageMethodology)
+class CoverageMethodologyAdmin(admin.ModelAdmin):
+    list_display = (
+        "order",
+        "scenario_display",
+        "section_number",
+        "section_title_short",
+        "text_preview",
+    )
+    list_filter = ("scenario",)
+    search_fields = ("section_number", "section_title", "text")
+    ordering = ("order", "scenario")
+    list_per_page = 50
+    list_max_show_all = 500
+
+    fieldsets = (
+        (None, {"fields": ("scenario", "order")}),
+        (
+            "Содержимое",
+            {"fields": ("section_number", "section_title", "text")},
+        ),
+    )
+
+    def scenario_display(self, obj):
+        return obj.get_scenario_display() if obj.scenario else "Общий"
+
+    scenario_display.short_description = "Сценарий"
+    scenario_display.admin_order_field = "scenario"
+
+    def section_title_short(self, obj):
+        title = (obj.section_title or "").strip()
+        if not title or title.lower() == "nan":
+            return "—"
+        return title[:80] + "…" if len(title) > 80 else title
+
+    section_title_short.short_description = "Раздел"
+    section_title_short.admin_order_field = "section_title"
+
+    def text_preview(self, obj):
+        text = (obj.text or "").strip()
+        if not text:
+            return "—"
+        # Заменяем переводы строк на <br>, экранируем HTML
+        safe = format_html(
+            '<div style="max-width: 700px; white-space: pre-wrap; '
+            'font-size: 12px; line-height: 1.4;">{}</div>',
+            text,
+        )
+        return safe
+
+    text_preview.short_description = "Текст"

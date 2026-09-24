@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import UniqueConstraint
 
 
 class CoverageScenario(models.TextChoices):
@@ -118,3 +119,54 @@ class CoverageAnalysisEntry(models.Model):
 
     def __str__(self):
         return f"{self.get_scenario_display()} | {self.year} | {self.source} | {self.block} | {self.okz_code}"
+
+
+class CoverageMethodology(models.Model):
+    """
+    Раздел методики расчёта (лист 'Методика').
+
+    Если `scenario` пусто — раздел общий для всех сценариев
+    (например, 'Закрываемая потребность', 'Выпуск ВО', 'Категории покрытия').
+    Если заполнено — раздел специфичен для сценария
+    (например, 'Шапка методики', 'Справочно').
+    """
+
+    scenario = models.CharField(
+        max_length=20,
+        choices=CoverageScenario.choices,
+        blank=True,
+        null=True,
+        verbose_name="Сценарий",
+        help_text="Пусто для общих разделов",
+    )
+    order = models.PositiveIntegerField(default=0, verbose_name="Порядок")
+
+    section_number = models.CharField(
+        max_length=10,
+        blank=True,
+        verbose_name="Номер",
+        help_text="Например: 1, 2, 3",
+    )
+    section_title = models.CharField(
+        max_length=255, blank=True, verbose_name="Заголовок раздела"
+    )
+    text = models.TextField(blank=True, verbose_name="Текст")
+
+    class Meta:
+        verbose_name = "Раздел методики"
+        verbose_name_plural = "Методика расчёта"
+        ordering = ["order", "scenario"]
+        constraints = [
+            UniqueConstraint(
+                fields=["scenario", "order"],
+                name="unique_methodology_scenario_order",
+                nulls_distinct=False,
+            ),
+        ]
+        indexes = [models.Index(fields=["order"])]
+
+    def __str__(self):
+        prefix = self.get_scenario_display() if self.scenario else "Общий"
+        num = f"{self.section_number}. " if self.section_number else ""
+        title = self.section_title[:50] if self.section_title else "—"
+        return f"{prefix} | #{self.order} | {num}{title}"

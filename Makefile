@@ -165,3 +165,6 @@ load_coverage_analysis_r:
 
 load_coverage_analysis_o:
 	docker-compose exec ai python manage.py load_coverage_analysis --scenario OPTIMISTIC
+
+load_coverage_methodology:
+	docker-compose exec ai python manage.py load_coverage_methodology

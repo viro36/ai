@@ -256,6 +256,7 @@ JAZZMIN_SETTINGS = {
         "surveys.SurveySession": "fa-solid fa-clock",
         "coverage_analysis.CoverageAnalysisSummary": "fa-solid fa-chart-line",
         "coverage_analysis.CoverageAnalysisEntry": "fa-solid fa-table-list",
+        "coverage_analysis.CoverageMethodology": "fa-solid fa-book",
     },
     # Порядок в меню
     "order_with_respect_to": [
@@ -277,6 +278,7 @@ JAZZMIN_SETTINGS = {
         "surveys.SurveySession",
         "coverage_analysis.CoverageAnalysisSummary",
         "coverage_analysis.CoverageAnalysisEntry",
+        "coverage_analysis.CoverageMethodology",
     ],
     # Настройки списка
     "list_filter": ["district", "organization_type", "status"],

@@ -5,6 +5,7 @@ from django.test import RequestFactory
 from apps.coverage_analysis.models import (
     CoverageAnalysisSummary,
     CoverageAnalysisEntry,
+    CoverageMethodology,
     CoverageScenario,
     CoverageSource,
     CoverageBlock,
@@ -151,4 +152,24 @@ def entry_deficit_spo_2026(db):
         supply=20,
         coverage_percent=1.6,
         delta=-1199,
+    )
+
+
+@pytest.fixture
+def methodology_general_section(db):
+    return CoverageMethodology.objects.create(
+        scenario=None,
+        order=1,
+        section_title="1. Закрываемая потребность",
+        text="D(ОКЗ, год) = Замещающая потребность + ...",
+    )
+
+
+@pytest.fixture
+def methodology_optimistic_section(db):
+    return CoverageMethodology.objects.create(
+        scenario=CoverageScenario.OPTIMISTIC,
+        order=1,
+        section_title="СЦЕНАРИЙ: ТРУДОУСТРОЙСТВО ПО СПЕЦИАЛЬНОСТИ",
+        text="Все выпускники устраиваются по специальности.",
     )
