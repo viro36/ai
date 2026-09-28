@@ -1,14 +1,16 @@
 import pytest
+
 from apps.accounts.models import EmployeeProfile
 from apps.recommendations.services import DeepSeekRecommendationService
 
+pytestmark = pytest.mark.django_db
 
-@pytest.mark.django_db
+
 class TestDeepSeekServiceUnemployed:
-    """Тесты для сервиса с безработным"""
+    """Тесты для сервиса с безработным."""
 
     def test_profile_includes_unemployed_flag(self, test_employee_user):
-        """Профиль содержит флаг is_unemployed"""
+        """Профиль содержит флаг is_unemployed."""
         EmployeeProfile.objects.filter(user=test_employee_user).delete()
 
         EmployeeProfile.objects.create(
@@ -28,7 +30,7 @@ class TestDeepSeekServiceUnemployed:
         assert profile["user_info"]["is_svo_participant"] is True
 
     def test_prompt_for_unemployed(self, test_employee_user):
-        """Промпт содержит блок 'Безработный'"""
+        """Промпт содержит блок 'Безработный'."""
         EmployeeProfile.objects.filter(user=test_employee_user).delete()
 
         EmployeeProfile.objects.create(
@@ -47,7 +49,7 @@ class TestDeepSeekServiceUnemployed:
         assert "ОСОБЕННОСТИ ДЛЯ БЕЗРАБОТНЫХ" in prompt
 
     def test_prompt_for_working_svo(self, test_employee_user, organization):
-        """Промпт содержит статус 'Работающий (участник СВО)'"""
+        """Промпт содержит статус 'Работающий (участник СВО)'."""
         EmployeeProfile.objects.filter(user=test_employee_user).delete()
 
         EmployeeProfile.objects.create(
@@ -64,3 +66,27 @@ class TestDeepSeekServiceUnemployed:
 
         assert "Работающий (участник СВО)" in prompt
         assert "ОСОБЕННОСТИ ДЛЯ БЕЗРАБОТНЫХ" not in prompt
+
+    def test_prompt_accepts_explicit_profile_and_goals(self, test_employee_user):
+        """prepare_prompt() принимает готовые user_profile и goal_data."""
+        EmployeeProfile.objects.filter(user=test_employee_user).delete()
+
+        EmployeeProfile.objects.create(
+            user=test_employee_user,
+            snils="111-222-333 44",
+            organization=None,
+            position="Безработный",
+            position_level=None,
+            is_unemployed=True,
+        )
+
+        service = DeepSeekRecommendationService(test_employee_user)
+        user_profile = service.get_user_profile()
+        goal_data = service.get_goal_setting_data()
+
+        prompt = service.prepare_prompt(
+            user_profile=user_profile,
+            goal_data=goal_data,
+        )
+
+        assert "Безработный" in prompt

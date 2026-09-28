@@ -362,7 +362,11 @@ class DeepSeekRecommendationService:
     # ==================================================================
 
     def prepare_prompt(
-        self, user_profile, goal_data, courses_batch=None, batch_info=None
+        self,
+        user_profile=None,
+        goal_data=None,
+        courses_batch=None,
+        batch_info=None,
     ):
         """
         Подготавливает промпт для DeepSeek.
@@ -373,6 +377,10 @@ class DeepSeekRecommendationService:
             courses_batch: список курсов для этой партии (если None — берутся все).
             batch_info: dict с ключами "current" и "total" — номер партии и всего партий.
         """
+        if user_profile is None:
+            user_profile = self.get_user_profile()
+        if goal_data is None:
+            goal_data = self.get_goal_setting_data()
         if courses_batch is None:
             courses_batch = list(self.get_courses_for_ai())
 

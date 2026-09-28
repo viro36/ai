@@ -1,16 +1,16 @@
 import pytest
 from datetime import datetime, timedelta
 
-from django.utils import timezone
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.fallback import FallbackStorage
+from django.test import RequestFactory
+from django.utils import timezone
 
+from apps.accounts.models import EmployeeProfile
 from apps.courses.models import Course, Category
 from apps.organizations.models import Organization
-from apps.surveys.models import SurveyCategory
 from apps.recommendations.models import (
     ApprovedSelectedCourse,
     CourseRecommendation,
@@ -18,14 +18,16 @@ from apps.recommendations.models import (
     RecommendationTask,
     SelectedCourse,
 )
-from apps.accounts.models import EmployeeProfile
+from apps.surveys.models import SurveyCategory
 
 User = get_user_model()
 
 
+# ============================================================
+# Организации
+# ============================================================
 @pytest.fixture
 def organization():
-    """Фикстура организации (ВУЗа)"""
     return Organization.objects.create(
         inn="1234567890",
         short_name="ВГУ",
@@ -36,7 +38,6 @@ def organization():
 
 @pytest.fixture
 def another_organization():
-    """Фикстура другой организации"""
     return Organization.objects.create(
         inn="0987654321",
         short_name="ВГТУ",
@@ -45,35 +46,36 @@ def another_organization():
     )
 
 
+# ============================================================
+# Категории
+# ============================================================
 @pytest.fixture
 def category():
-    """Фикстура категории"""
     return Category.objects.create(name="Искусственный интеллект")
 
 
 @pytest.fixture
 def another_category():
-    """Фикстура другой категории"""
     return Category.objects.create(name="Машинное обучение")
 
 
 @pytest.fixture
 def third_category():
-    """Фикстура третьей категории"""
     return Category.objects.create(name="Информационные технологии")
 
 
 @pytest.fixture
 def category_with_long_name():
-    """Фикстура категории с длинным названием"""
     return Category.objects.create(
         name="Сквозные виды профессиональной деятельности в промышленности"
     )
 
 
+# ============================================================
+# Курсы
+# ============================================================
 @pytest.fixture
 def course(organization, category):
-    """Фикстура курса"""
     course = Course.objects.create(
         title="Python для анализа данных",
         description="Курс по анализу данных на Python",
@@ -98,10 +100,21 @@ def course(organization, category):
 
 
 @pytest.fixture
+def another_course(organization, another_category):
+    course = Course.objects.create(
+        title="Машинное обучение на практике",
+        organization=organization,
+        url="https://example.com/course/2",
+        is_deleted=False,
+    )
+    course.categories.add(another_category)
+    return course
+
+
+@pytest.fixture
 def course_with_multiple_categories(
     organization, category, another_category, third_category
 ):
-    """Фикстура курса с несколькими категориями"""
     course = Course.objects.create(
         title="Курс с несколькими категориями",
         description="Тестовый курс с множеством категорий",
@@ -115,22 +128,13 @@ def course_with_multiple_categories(
 
 @pytest.fixture
 def course_with_many_categories(organization):
-    """Фикстура курса с большим количеством категорий (>5)"""
     course = Course.objects.create(
         title="Курс с многими категориями",
         organization=organization,
         url="https://example.com/course/many",
         is_deleted=False,
     )
-    names = [
-        "Категория 1",
-        "Категория 2",
-        "Категория 3",
-        "Категория 4",
-        "Категория 5",
-        "Категория 6",
-        "Категория 7",
-    ]
+    names = [f"Категория {i}" for i in range(1, 8)]
     for name in names:
         cat, _ = Category.objects.get_or_create(name=name)
         course.categories.add(cat)
@@ -139,7 +143,6 @@ def course_with_many_categories(organization):
 
 @pytest.fixture
 def course_with_start_date_future(organization):
-    """Фикстура курса с датой начала в будущем"""
     future_date = (datetime.now() + timedelta(days=30)).strftime("%d.%m.%Y")
     return Course.objects.create(
         title="Курс с датой в будущем",
@@ -152,7 +155,6 @@ def course_with_start_date_future(organization):
 
 @pytest.fixture
 def course_with_start_date_past(organization):
-    """Фикстура курса с датой начала в прошлом"""
     past_date = (datetime.now() - timedelta(days=30)).strftime("%d.%m.%Y")
     return Course.objects.create(
         title="Курс с датой в прошлом",
@@ -165,7 +167,6 @@ def course_with_start_date_past(organization):
 
 @pytest.fixture
 def course_with_start_date_text(organization):
-    """Фикстура курса с текстовой датой начала"""
     return Course.objects.create(
         title="Курс с текстовой датой",
         organization=organization,
@@ -177,7 +178,6 @@ def course_with_start_date_text(organization):
 
 @pytest.fixture
 def course_without_start_date(organization):
-    """Фикстура курса без даты начала"""
     return Course.objects.create(
         title="Курс без даты начала",
         organization=organization,
@@ -189,7 +189,6 @@ def course_without_start_date(organization):
 
 @pytest.fixture
 def deleted_course(organization):
-    """Фикстура удалённого курса"""
     return Course.objects.create(
         title="Удалённый курс",
         description="Этот курс удалён",
@@ -201,60 +200,20 @@ def deleted_course(organization):
 
 
 @pytest.fixture
-def university_admin_user(organization):
-    """Фикстура пользователя - админ ВУЗа"""
-    user = User.objects.create_user(
-        username="university_admin",
-        email="admin@vsu.ru",
-        password="testpass123",
-        user_type="university",
-    )
-    user.organization = organization
-    user.save()
-    return user
-
-
-@pytest.fixture
-def regular_user():
-    """Фикстура обычного пользователя"""
-    user = User.objects.create_user(
-        username="regular_user",
-        email="user@example.com",
-        password="testpass123",
-        user_type="regular",
-    )
-    return user
-
-
-@pytest.fixture
-def admin_user():
-    """Фикстура суперпользователя"""
-    return User.objects.create_superuser(
-        username="admin",
-        email="admin@example.com",
-        password="adminpass123",
-        user_type="admin",
-    )
-
-
-@pytest.fixture
 def multiple_courses(organization):
-    """Фикстура нескольких курсов для тестирования пагинации и фильтрации"""
-    courses = []
-    for i in range(15):
-        course = Course.objects.create(
+    return [
+        Course.objects.create(
             title=f"Курс {i}",
             organization=organization,
             url=f"https://example.com/course/{i}",
             is_deleted=False,
         )
-        courses.append(course)
-    return courses
+        for i in range(15)
+    ]
 
 
 @pytest.fixture
 def course_with_all_fields(organization):
-    """Фикстура курса со всеми заполненными полями"""
     return Course.objects.create(
         title="Полный курс со всеми полями",
         description="Полное описание курса с деталями",
@@ -278,34 +237,7 @@ def course_with_all_fields(organization):
 
 
 @pytest.fixture
-def request_factory():
-    """Фикстура фабрики запросов"""
-    return RequestFactory()
-
-
-@pytest.fixture
-def mock_request_with_messages(request_factory):
-    """Фикстура запроса с messages"""
-    req = request_factory.get("/")
-    req.user = None
-    setattr(req, "session", "session")
-    messages = FallbackStorage(req)
-    setattr(req, "_messages", messages)
-    return req
-
-
-@pytest.fixture
-def authenticated_university_user(university_admin_user, organization):
-    """Фикстура авторизованного пользователя ВУЗа"""
-    user = university_admin_user
-    user.organization = organization
-    user.save()
-    return user
-
-
-@pytest.fixture
 def course_data(organization):
-    """Фикстура данных для создания курса"""
     return {
         "title": "Новый тестовый курс",
         "description": "Описание тестового курса",
@@ -327,7 +259,6 @@ def course_data(organization):
 
 @pytest.fixture
 def course_update_data():
-    """Фикстура данных для обновления курса"""
     return {
         "title": "Обновлённый курс",
         "description": "Обновлённое описание",
@@ -339,85 +270,176 @@ def course_update_data():
     }
 
 
-# ========== ФИКСТУРЫ ДЛЯ РЕКОМЕНДАЦИЙ ==========
+# ============================================================
+# Пользователи
+# ============================================================
+@pytest.fixture
+def university_admin_user(organization):
+    user = User.objects.create_user(
+        username="university_admin",
+        email="admin@vsu.ru",
+        password="testpass123",
+        user_type="university",
+    )
+    user.organization = organization
+    user.save()
+    return user
 
 
 @pytest.fixture
-def survey_category():
-    """Фикстура категории опроса"""
-    return SurveyCategory.objects.create(
-        name="RIASEC",
-        description="Опросник профессиональных склонностей",
-        is_active=True,
+def regular_user():
+    return User.objects.create_user(
+        username="regular_user",
+        email="user@example.com",
+        password="testpass123",
+        user_type="regular",
     )
 
 
 @pytest.fixture
-def survey_session(regular_user, survey_category):
-    """Фикстура сессии опроса"""
-    from apps.surveys.models import SurveySession as Session
-
-    return Session.objects.create(
-        user=regular_user,
-        category=survey_category,
-        status="completed",
-        completed_at=timezone.now(),
+def admin_user():
+    return User.objects.create_superuser(
+        username="admin",
+        email="admin@example.com",
+        password="adminpass123",
+        user_type="admin",
     )
 
 
 @pytest.fixture
-def course_recommendation(regular_user, course):
-    """Фикстура рекомендации курса"""
-    return CourseRecommendation.objects.create(
-        user=regular_user,
-        course=course,
-        reason="Тестовая рекомендация",
-        relevance_score=0.85,
-        order=1,
+def authenticated_university_user(university_admin_user, organization):
+    user = university_admin_user
+    user.organization = organization
+    user.save()
+    return user
+
+
+@pytest.fixture
+def test_employer_user(organization):
+    return User.objects.create_user(
+        username="test_employer",
+        email="employer@test.com",
+        password="testpass123",
+        user_type="employer",
+        organization=organization,
+        last_name="Иванов",
+        first_name="Иван",
     )
 
 
 @pytest.fixture
-def course_recommendations(regular_user, multiple_courses):
-    """Фикстура нескольких рекомендаций"""
-    recommendations = []
-    for i, course in enumerate(multiple_courses[:5]):
-        rec = CourseRecommendation.objects.create(
-            user=regular_user,
-            course=course,
-            reason=f"Рекомендация {i+1}",
-            relevance_score=0.9 - (i * 0.1),
-            order=i,
-        )
-        recommendations.append(rec)
-    return recommendations
-
-
-@pytest.fixture
-def recommendation_task(regular_user):
-    """Фикстура задачи рекомендаций"""
-    return RecommendationTask.objects.create(
-        user=regular_user,
-        task_id="test-task-123",
-        status="pending",
+def employer_user(organization):
+    return User.objects.create_user(
+        username="employer_user",
+        email="employer_user@test.com",
+        password="testpass123",
+        user_type="employer",
+        organization=organization,
+        last_name="Петров",
+        first_name="Петр",
     )
 
 
+# ============================================================
+# Работники (с профилем)
+# ============================================================
 @pytest.fixture
-def user_with_employee_profile(regular_user, organization):
-    """Фикстура пользователя с профилем работника"""
-    profile = EmployeeProfile.objects.create(
-        user=regular_user,
+def test_employee_user(organization):
+    """Работник с организацией и профилем."""
+    user = User.objects.create_user(
+        username="test_employee",
+        email="employee@test.com",
+        password="testpass123",
+        user_type="employee",
+        organization=organization,
+        last_name="Иванов",
+        first_name="Иван",
+        patronymic="Иванович",
+        snils="123-456-789 01",
+    )
+    EmployeeProfile.objects.create(
+        user=user,
+        snils="123-456-789 01",
+        organization=organization,
         position="Начальник цеха",
         position_level="middle",
-        organization=organization,
     )
-    return regular_user
+    return user
 
 
 @pytest.fixture
+def test_employee_user2(organization):
+    user = User.objects.create_user(
+        username="test_employee2",
+        email="employee2@test.com",
+        password="testpass123",
+        user_type="employee",
+        organization=organization,
+        last_name="Петров",
+        first_name="Петр",
+        patronymic="Петрович",
+        snils="987-654-321 01",
+    )
+    return user
+
+
+@pytest.fixture
+def user_with_employee_profile(test_employee_user):
+    """Алиас для обратной совместимости — тот же работник с профилем."""
+    return test_employee_user
+
+
+@pytest.fixture
+def unemployed_user():
+    """Безработный работник с профилем, без организации."""
+    user = User.objects.create_user(
+        username="unemployed",
+        email="unemployed@test.com",
+        password="unemployed123",
+        user_type="employee",
+        last_name="Сидоров",
+        first_name="Семён",
+        patronymic="Семёнович",
+        snils="555-555-555 55",
+    )
+    EmployeeProfile.objects.create(
+        user=user,
+        snils="555-555-555 55",
+        organization=None,
+        is_unemployed=True,
+        position="",
+    )
+    return user
+
+
+@pytest.fixture
+def svo_user(organization):
+    """Участник СВО с профилем и организацией."""
+    user = User.objects.create_user(
+        username="svo_user",
+        email="svo@test.com",
+        password="svo123",
+        user_type="employee",
+        organization=organization,
+        last_name="Смирнов",
+        first_name="Сергей",
+        snils="777-777-777 77",
+    )
+    EmployeeProfile.objects.create(
+        user=user,
+        snils="777-777-777 77",
+        organization=organization,
+        is_svo_participant=True,
+        position="Специалист",
+    )
+    return user
+
+
+# ============================================================
+# Опросы
+# ============================================================
+@pytest.fixture
 def survey_category():
-    """Фикстура категории опроса"""
     return SurveyCategory.objects.create(
         name="RIASEC",
         description="Опросник профессиональных склонностей",
@@ -427,7 +449,6 @@ def survey_category():
 
 @pytest.fixture
 def survey_session(regular_user, survey_category):
-    """Фикстура сессии опроса"""
     from apps.surveys.models import SurveySession as Session
 
     return Session.objects.create(
@@ -438,9 +459,11 @@ def survey_session(regular_user, survey_category):
     )
 
 
+# ============================================================
+# Рекомендации курсов
+# ============================================================
 @pytest.fixture
 def course_recommendation(regular_user, course):
-    """Фикстура рекомендации курса"""
     return CourseRecommendation.objects.create(
         user=regular_user,
         course=course,
@@ -452,12 +475,11 @@ def course_recommendation(regular_user, course):
 
 @pytest.fixture
 def course_recommendations(regular_user, multiple_courses):
-    """Фикстура нескольких рекомендаций"""
     recommendations = []
-    for i, course in enumerate(multiple_courses[:5]):
+    for i, c in enumerate(multiple_courses[:5]):
         rec = CourseRecommendation.objects.create(
             user=regular_user,
-            course=course,
+            course=c,
             reason=f"Рекомендация {i+1}",
             relevance_score=0.9 - (i * 0.1),
             order=i,
@@ -468,7 +490,6 @@ def course_recommendations(regular_user, multiple_courses):
 
 @pytest.fixture
 def recommendation_task(regular_user):
-    """Фикстура задачи рекомендаций"""
     return RecommendationTask.objects.create(
         user=regular_user,
         task_id="test-task-123",
@@ -476,30 +497,77 @@ def recommendation_task(regular_user):
     )
 
 
+# ============================================================
+# Выбранные курсы
+# ============================================================
 @pytest.fixture
-def selected_course(regular_user, course):
-    """Фикстура выбранного курса"""
+def selected_course(test_employee_user, course):
+    """Выбранный курс работником с профилем и организацией."""
     return SelectedCourse.objects.create(
-        user=regular_user,
+        user=test_employee_user,
         course=course,
     )
 
 
 @pytest.fixture
-def user_with_employee_profile(regular_user, organization):
-    """Фикстура пользователя с профилем работника"""
-    profile = EmployeeProfile.objects.create(
-        user=regular_user,
-        position="Начальник цеха",
-        position_level="middle",
-        organization=organization,
+def selected_course_unemployed(unemployed_user, course):
+    """Выбранный курс безработным."""
+    return SelectedCourse.objects.create(
+        user=unemployed_user,
+        course=course,
     )
-    return regular_user
 
 
+@pytest.fixture
+def selected_course_svo(svo_user, course):
+    """Выбранный курс участником СВО."""
+    return SelectedCourse.objects.create(
+        user=svo_user,
+        course=course,
+    )
+
+
+@pytest.fixture
+def approved_course(selected_course, admin_user):
+    """Одобренный выбранный курс."""
+    return ApprovedSelectedCourse.objects.create(
+        selected_course=selected_course,
+        status="approved",
+        approved_by=admin_user,
+        approved_at=timezone.now(),
+    )
+
+
+@pytest.fixture
+def approved_course_unemployed(selected_course_unemployed, admin_user):
+    """Одобренный выбранный курс безработным."""
+    return ApprovedSelectedCourse.objects.create(
+        selected_course=selected_course_unemployed,
+        status="approved",
+        approved_by=admin_user,
+        approved_at=timezone.now(),
+    )
+
+
+# ============================================================
+# Рекомендации от работодателя
+# ============================================================
+@pytest.fixture
+def employer_recommendation(test_employer_user, test_employee_user, course):
+    return EmployerRecommendation.objects.create(
+        employer=test_employer_user,
+        employee=test_employee_user,
+        course=course,
+        reason="Тестовая рекомендация",
+    )
+
+
+# ============================================================
+# Просмотрщик
+# ============================================================
 @pytest.fixture
 def viewer_user():
-    """Фикстура пользователя-просмотрщика с правами на просмотр в recommendations"""
+    """Пользователь-просмотрщик (is_staff, в группе «Просмотрщик»)."""
     user = User.objects.create_user(
         username="viewer",
         email="viewer@test.com",
@@ -522,33 +590,53 @@ def viewer_user():
         EmployerRecommendation,
     ]:
         ct = ContentType.objects.get_for_model(model)
-        view_perm, _ = Permission.objects.get_or_create(
-            content_type=ct,
-            codename=f"view_{model._meta.model_name}",
-            defaults={"name": f"Can view {model._meta.model_name}"},
-        )
-        group.permissions.add(view_perm)
+        for action in ("view", "change", "add", "delete"):
+            codename = f"{action}_{model._meta.model_name}"
+            perm, _ = Permission.objects.get_or_create(
+                content_type=ct,
+                codename=codename,
+                defaults={"name": f"Can {action} {model._meta.model_name}"},
+            )
+            group.permissions.add(perm)
 
     return user
 
 
 @pytest.fixture
 def viewer_client(client, viewer_user):
-    """Фикстура для клиента просмотрщика"""
-    client.login(username=viewer_user.username, password="viewer123")
+    client.force_login(viewer_user)
     return client
 
 
 @pytest.fixture
 def admin_client(client, admin_user):
-    """Фикстура для клиента администратора"""
-    client.login(username=admin_user.username, password="adminpass123")
+    client.force_login(admin_user)
     return client
 
 
+# ============================================================
+# Request factory и messages
+# ============================================================
+@pytest.fixture
+def request_factory():
+    return RequestFactory()
+
+
+@pytest.fixture
+def mock_request_with_messages(request_factory):
+    req = request_factory.get("/")
+    req.user = None
+    setattr(req, "session", "session")
+    messages = FallbackStorage(req)
+    setattr(req, "_messages", messages)
+    return req
+
+
+# ============================================================
+# Goal setting
+# ============================================================
 @pytest.fixture
 def test_question_choice():
-    """Фикстура вопроса типа choice"""
     from apps.goal_setting.models import Question, QuestionOption
 
     question = Question.objects.create(
@@ -558,23 +646,16 @@ def test_question_choice():
         order=1,
     )
     QuestionOption.objects.create(
-        question=question,
-        value="python",
-        label="Python",
-        order=1,
+        question=question, value="python", label="Python", order=1
     )
     QuestionOption.objects.create(
-        question=question,
-        value="javascript",
-        label="JavaScript",
-        order=2,
+        question=question, value="javascript", label="JavaScript", order=2
     )
     return question
 
 
 @pytest.fixture
 def test_question_text():
-    """Фикстура вопроса типа text"""
     from apps.goal_setting.models import Question
 
     return Question.objects.create(
@@ -588,7 +669,6 @@ def test_question_text():
 
 @pytest.fixture
 def test_question_multiple_choice():
-    """Фикстура вопроса типа multiple_choice"""
     from apps.goal_setting.models import Question, QuestionOption
 
     question = Question.objects.create(
@@ -599,23 +679,16 @@ def test_question_multiple_choice():
         is_multiple=True,
     )
     QuestionOption.objects.create(
-        question=question,
-        value="docker",
-        label="Docker",
-        order=1,
+        question=question, value="docker", label="Docker", order=1
     )
     QuestionOption.objects.create(
-        question=question,
-        value="kubernetes",
-        label="Kubernetes",
-        order=2,
+        question=question, value="kubernetes", label="Kubernetes", order=2
     )
     return question
 
 
 @pytest.fixture
 def test_question_date_range():
-    """Фикстура вопроса типа date_range"""
     from apps.goal_setting.models import Question
 
     return Question.objects.create(
@@ -628,7 +701,6 @@ def test_question_date_range():
 
 @pytest.fixture
 def test_question_inactive():
-    """Фикстура неактивного вопроса"""
     from apps.goal_setting.models import Question
 
     return Question.objects.create(
@@ -639,86 +711,14 @@ def test_question_inactive():
     )
 
 
+# ============================================================
+# Request с messages для тестов actions
+# ============================================================
 @pytest.fixture
-def test_employer_user(organization):
-    """Фикстура для пользователя-работодателя"""
-    user = User.objects.create_user(
-        username="test_employer",
-        email="employer@test.com",
-        password="testpass123",
-        user_type="employer",
-        organization=organization,
-        last_name="Иванов",
-        first_name="Иван",
-    )
-    return user
-
-
-@pytest.fixture
-def employer_user(organization):
-    """Фикстура для пользователя-работодателя (для тестов моделей)"""
-    user = User.objects.create_user(
-        username="employer_user",
-        email="employer_user@test.com",
-        password="testpass123",
-        user_type="employer",
-        organization=organization,
-        last_name="Петров",
-        first_name="Петр",
-    )
-    return user
-
-
-@pytest.fixture
-def test_employee_user(organization):
-    """Фикстура для пользователя-работника"""
-    user = User.objects.create_user(
-        username="test_employee",
-        email="employee@test.com",
-        password="testpass123",
-        user_type="employee",
-        organization=organization,
-        last_name="Иванов",
-        first_name="Иван",
-        patronymic="Иванович",
-        snils="123-456-789 01",
-    )
-    # Создаём профиль работника
-    EmployeeProfile.objects.create(
-        user=user,
-        snils="123-456-789 01",
-        organization=organization,
-        position="Начальник цеха",
-        position_level="middle",
-    )
-    return user
-
-
-@pytest.fixture
-def employer_recommendation(test_employer_user, test_employee_user, course):
-    """Фикстура рекомендации от работодателя"""
-    from apps.recommendations.models import EmployerRecommendation
-
-    return EmployerRecommendation.objects.create(
-        employer=test_employer_user,
-        employee=test_employee_user,
-        course=course,
-        reason="Тестовая рекомендация",
-    )
-
-
-@pytest.fixture
-def test_employee_user2(organization):
-    """Фикстура для второго пользователя-работника"""
-    user = User.objects.create_user(
-        username="test_employee2",
-        email="employee2@test.com",
-        password="testpass123",
-        user_type="employee",
-        organization=organization,
-        last_name="Петров",
-        first_name="Петр",
-        patronymic="Петрович",
-        snils="987-654-321 01",
-    )
-    return user
+def admin_request(rf, admin_user):
+    """GET-запрос с пользователем-админом и рабочим messages-хранилищем."""
+    request = rf.get("/")
+    request.user = admin_user
+    request.session = {}
+    request._messages = FallbackStorage(request)
+    return request
