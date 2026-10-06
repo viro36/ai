@@ -118,6 +118,27 @@
                 </div>
             {% endif %}
 
+            <!-- Карточка Минтруда -->
+            {% if user.user_type == 'mintrud' %}
+                <div class="col-md-4">
+                    <a href="{% url 'mintrud:upload_labor_needs' %}" class="text-decoration-none">
+                        <div class="action-card action-card-admin">
+                            <div class="action-icon">
+                                <i class="fa-solid fa-upload"></i>
+                            </div>
+                            <h3 class="action-title">Загрузка кадровой потребности</h3>
+                            <p class="action-description">
+                                Загрузка Excel-файлов с данными о потребности в кадрах по годам
+                            </p>
+                            <span class="badge">
+                                <i class="fa-solid fa-file-excel me-1"></i>
+                                Общее / Замещение
+                            </span>
+                        </div>
+                    </a>
+                </div>
+            {% endif %}
+
             {% if user.user_type == 'employee' %}
                 <div class="col-md-4">
                     <a href="{% url 'accounts:employee_profile' %}" class="text-decoration-none">

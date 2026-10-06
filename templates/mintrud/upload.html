@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 {% load django_bootstrap5 %}
 
 {% block title %}Загрузка данных о кадровой потребности{% endblock %}
@@ -7,22 +8,34 @@
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-md-8">
+
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Загрузка файла потребностей</h3>
+                    <h3 class="card-title mb-0">Загрузка файла потребностей</h3>
                 </div>
                 <div class="card-body">
-                    <form method="post" enctype="multipart/form-data">
+                    <form method="post" enctype="multipart/form-data" id="upload-form">
                         {% csrf_token %}
                         {% bootstrap_form form %}
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox"
+                                   name="skip_zeros" id="skip_zeros">
+                            <label class="form-check-label" for="skip_zeros">
+                                Не сохранять нулевые значения (быстрее)
+                            </label>
+                        </div>
+
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="submit-btn">
                                 <i class="fa-solid fa-upload me-2"></i>Загрузить файл
                             </button>
                         </div>
                     </form>
                 </div>
             </div>
+
+            {# Флеш-сообщения #}
             {% if messages %}
                 <div class="mt-4">
                     {% for message in messages %}
@@ -33,7 +46,22 @@
                     {% endfor %}
                 </div>
             {% endif %}
+
+            {# Блок статуса задачи — скрыт, пока задача не запущена #}
+            <div id="task-status" class="mt-4" style="display: none;">
+                <div class="alert alert-info d-flex align-items-center" id="task-status-alert">
+                    <div class="spinner-border spinner-border-sm me-3" role="status"
+                         id="task-spinner" aria-hidden="true"></div>
+                    <div id="task-status-text">Обработка файла… Это может занять 1–5 минут.</div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script src="{% static 'js/mintrud/upload_status.js' %}"></script>
 {% endblock %}

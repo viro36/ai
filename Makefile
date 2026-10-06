@@ -112,6 +112,9 @@ pytest-tech:
 pytest-cov:
 	docker-compose exec ai python -m pytest -v apps/coverage_analysis/tests/
 
+pytest-mintrud:
+	docker-compose exec ai python -m pytest -v apps/mintrud/tests/
+
 pytest-all:
 	docker-compose exec ai python -m pytest apps/ -v --cov=apps --cov-report=term-missing
 

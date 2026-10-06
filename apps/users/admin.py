@@ -233,3 +233,44 @@ class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
         )
 
     make_not_verified.short_description = "Снять отметку о подтверждении через ЕСИА"
+
+
+# Порядок приложений в сайдбаре админки (по app_label).
+ADMIN_APP_ORDER = [
+    "users",  # 1. Пользователи
+    "organizations",  # 2. Организации
+    "courses",  # 3. Курсы
+    "accounts",  # 4. Управление аккаунтами
+    "goal_setting",  # 5. Целеполагание развития
+    "surveys",  # 6. Опросы
+    "technical_requirements",  # 7. Технические задания
+    "recommendations",  # 8. Рекомендации
+    "mintrud",  # 9. Потребность
+    "coverage_analysis",  # 10. Анализ покрытия потребности кадрами
+    "exports",  # 11. Выгрузки
+    # Служебные приложения — в конец
+    "auth",
+]
+
+
+_original_get_app_list = admin.AdminSite.get_app_list
+
+
+def _get_app_list(self, request, app_label=None):
+    """
+    Сортирует приложения в админке согласно ADMIN_APP_ORDER.
+    Работает и с дефолтной админкой, и с Jazzmin.
+    """
+    app_list = _original_get_app_list(self, request, app_label)
+
+    def sort_key(app):
+        try:
+            return (0, ADMIN_APP_ORDER.index(app["app_label"]), "")
+        except ValueError:
+            # Незнакомые приложения — в конец, по алфавиту
+            return (1, 0, app.get("name", "") or "")
+
+    return sorted(app_list, key=sort_key)
+
+
+admin.AdminSite.get_app_list = _get_app_list

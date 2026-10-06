@@ -279,6 +279,12 @@ JAZZMIN_SETTINGS = {
         "coverage_analysis.CoverageAnalysisSummary",
         "coverage_analysis.CoverageAnalysisEntry",
         "coverage_analysis.CoverageMethodology",
+        # Потребность
+        "mintrud.Year",
+        "mintrud.NeedType",
+        "mintrud.Occupation",
+        "mintrud.EconomicActivity",
+        "mintrud.LaborNeed",
     ],
     # Настройки списка
     "list_filter": ["district", "organization_type", "status"],
