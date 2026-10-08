@@ -142,6 +142,9 @@ load_districts:
 load_orgs:
 	docker-compose exec ai python manage.py import_orgs apps/organizations/fixtures/orgs.csv
 
+load_schools:
+	docker-compose exec ai python manage.py import_orgs apps/organizations/fixtures/schools.csv
+
 load_init:
 	docker-compose exec ai python apps/surveys/scripts/init_survey_data.py
 
