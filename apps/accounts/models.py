@@ -344,3 +344,37 @@ class EmployeeProfile(models.Model):
         elif self.employment_status == "unemployed":
             self.employment_status = "employed"
         super().save(*args, **kwargs)
+
+
+class Position(models.Model):
+    """Справочник должностей, привязанный к типу организации и категории должности."""
+
+    organization_type = models.ForeignKey(
+        "organizations.OrganizationType",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="positions",
+        verbose_name="Тип организации",
+        help_text="Если не указан — должность универсальная (для любого типа)",
+    )
+    position_level = models.CharField(
+        max_length=20,
+        choices=EmployeeProfile.POSITION_LEVEL_CHOICES,
+        verbose_name="Категория должности",
+    )
+    name = models.CharField(max_length=255, verbose_name="Наименование должности")
+    is_active = models.BooleanField(default=True, verbose_name="Активна")
+    sort_order = models.PositiveIntegerField(
+        default=100, verbose_name="Порядок сортировки"
+    )
+
+    class Meta:
+        verbose_name = "Должность"
+        verbose_name_plural = "Должности"
+        ordering = ["organization_type", "position_level", "sort_order", "name"]
+        unique_together = ("organization_type", "position_level", "name")
+
+    def __str__(self):
+        org = self.organization_type.name if self.organization_type else "Любой тип"
+        return f"{org} | {self.get_position_level_display()} — {self.name}"

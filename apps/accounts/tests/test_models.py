@@ -5,6 +5,7 @@ from apps.accounts.models import (
     EmployerRegistrationRequest,
     EmployerProfile,
     EmployeeProfile,
+    Position,
 )
 from apps.goal_setting.models import Question, GoalSettingResponse
 
@@ -648,3 +649,51 @@ class TestIsProfileCompleteUnemployed:
         profile.gender = ""
         profile.save()
         assert profile.is_profile_complete() is False
+
+
+@pytest.mark.django_db
+class TestPositionModel:
+    """Тесты для справочника должностей"""
+
+    def test_create_position(self, test_organization_type):
+        position = Position.objects.create(
+            organization_type=test_organization_type,
+            position_level="specialist",
+            name="Учитель начальных классов",
+            sort_order=10,
+        )
+        assert position.name == "Учитель начальных классов"
+        assert position.position_level == "specialist"
+        assert position.organization_type == test_organization_type
+        assert position.is_active is True
+        assert "Учитель начальных классов" in str(position)
+
+    def test_position_unique_together(self, test_organization_type):
+        Position.objects.create(
+            organization_type=test_organization_type,
+            position_level="specialist",
+            name="Учитель",
+        )
+        with pytest.raises(IntegrityError):
+            Position.objects.create(
+                organization_type=test_organization_type,
+                position_level="specialist",
+                name="Учитель",
+            )
+
+    def test_position_organization_type_nullable(self):
+        """Универсальная должность без привязки к типу организации"""
+        position = Position.objects.create(
+            organization_type=None,
+            position_level="specialist",
+            name="Инженер",
+        )
+        assert position.organization_type is None
+
+    def test_position_str_with_null_type(self):
+        position = Position.objects.create(
+            organization_type=None,
+            position_level="worker",
+            name="Сварщик",
+        )
+        assert "Любой тип" in str(position)

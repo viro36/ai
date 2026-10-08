@@ -519,3 +519,48 @@ class TestEmployeeProfileFormUnemployed:
         assert saved.position == "Инженер"
         assert saved.position_level == "specialist"
         assert saved.is_unemployed is False
+
+
+@pytest.mark.django_db
+class TestEmployeeRegistrationFormPosition:
+    """Проверка обязательности position для работающих"""
+
+    def _base(self, **overrides):
+        data = {
+            "username": "pos_user",
+            "email": "pos@test.com",
+            "password": "testpass123",
+            "password_confirm": "testpass123",
+            "last_name": "Иванов",
+            "first_name": "Иван",
+            "snils": "123-456-789 01",
+        }
+        data.update(overrides)
+        return data
+
+    def test_position_required_for_employed(self, test_organization):
+        """Работающий без должности → ошибка"""
+        form = EmployeeRegistrationForm(
+            data=self._base(
+                organization=test_organization.id,
+                position="",
+                position_level="specialist",
+            )
+        )
+        assert not form.is_valid()
+        assert "position" in form.errors
+
+    def test_unemployed_sets_default_position(self):
+        """Безработный: position='Безработный'"""
+        form = EmployeeRegistrationForm(
+            data=self._base(
+                is_unemployed=True,
+                position="",
+                position_level="",
+            )
+        )
+        assert form.is_valid(), form.errors
+        profile = form.save(commit=False)
+        assert profile.position == "Безработный"
+        assert profile.position_level is None
+        assert profile.organization is None

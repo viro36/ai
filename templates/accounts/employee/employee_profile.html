@@ -93,8 +93,22 @@
                             </div>
                         </div>
                         <div class="row mt-3">
-                            <div class="col-md-6">{% bootstrap_field form.position %}</div>
-                            <div class="col-md-6">{% bootstrap_field form.position_level %}</div>
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.position_level.label }}</label>
+                                {{ form.position_level }}
+                                {% if form.position_level.errors %}
+                                    <div class="text-danger small">{{ form.position_level.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.position.label }}</label>
+                                <div id="position-wrapper">
+                                    {{ form.position }}
+                                </div>
+                                {% if form.position.errors %}
+                                    <div class="text-danger small">{{ form.position.errors }}</div>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6">{% bootstrap_field form.employment_status %}</div>
@@ -190,5 +204,15 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+    window.EMPLOYEE_PROFILE_CONTEXT = {
+        organizationTypeId: "{{ profile.organization.organization_type_id|default:'' }}",
+        organizationTypeName: "{{ profile.organization.organization_type.name|default:''|escapejs }}",
+        currentPosition: "{{ profile.position|default:''|escapejs }}",
+        urls: {
+            positions: "{% url 'accounts:get_positions_ajax' %}"
+        }
+    };
+</script>
 <script src="{% static 'js/accounts/employee_profile.js' %}"></script>
 {% endblock %}

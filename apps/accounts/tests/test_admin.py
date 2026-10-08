@@ -10,6 +10,7 @@ from apps.accounts.admin import (
     EmployerRegistrationRequestAdmin,
     EmployerProfileAdmin,
     EmployeeProfileAdmin,
+    PositionAdmin,
     UserTypeFilter,
     EmployerProfileForm,
     EmployeeProfileForm,
@@ -18,6 +19,7 @@ from apps.accounts.models import (
     EmployerRegistrationRequest,
     EmployerProfile,
     EmployeeProfile,
+    Position,
 )
 
 
@@ -716,3 +718,24 @@ class TestViewerFullProfile:
         url = reverse("admin:accounts_employeeprofile_full_profile", args=[profile.id])
         response = viewer_client.get(url)
         assert response.status_code == 200
+
+
+@pytest.mark.django_db
+class TestPositionAdmin:
+    """Тесты админки справочника должностей"""
+
+    def test_list_display(self):
+        site = AdminSite()
+        admin = PositionAdmin(Position, site)
+        assert "name" in admin.list_display
+        assert "organization_type" in admin.list_display
+        assert "position_level" in admin.list_display
+        assert "sort_order" in admin.list_display
+        assert "is_active" in admin.list_display
+
+    def test_list_filter(self):
+        site = AdminSite()
+        admin = PositionAdmin(Position, site)
+        assert "organization_type" in admin.list_filter
+        assert "position_level" in admin.list_filter
+        assert "is_active" in admin.list_filter

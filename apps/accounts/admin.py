@@ -8,7 +8,12 @@ from django.urls import reverse
 
 from apps.organizations.models import Organization
 from apps.users.models import CustomUser
-from .models import EmployerProfile, EmployerRegistrationRequest, EmployeeProfile
+from .models import (
+    EmployerProfile,
+    EmployerRegistrationRequest,
+    EmployeeProfile,
+    Position,
+)
 from .admin_views import (
     approve_employer_request,
     reject_employer_request,
@@ -510,3 +515,39 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
             f'border-radius:4px;text-decoration:none;font-size:12px;">'
             f"Открыть</a>"
         )
+
+
+@admin.register(Position)
+class PositionAdmin(admin.ModelAdmin):
+    """Админка для справочника должностей"""
+
+    list_display = (
+        "name",
+        "organization_type",
+        "position_level",
+        "sort_order",
+        "is_active",
+    )
+    list_filter = ("organization_type", "position_level", "is_active")
+    search_fields = ("name",)
+    list_editable = ("sort_order", "is_active")
+    ordering = ("organization_type", "position_level", "sort_order", "name")
+    autocomplete_fields = ("organization_type",)
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("organization_type", "position_level", "name"),
+                "description": "Тип организации можно оставить пустым — тогда должность "
+                "будет доступна для любого типа.",
+            },
+        ),
+        (
+            "Настройки",
+            {
+                "fields": ("sort_order", "is_active"),
+                "classes": ("collapse",),
+            },
+        ),
+    )

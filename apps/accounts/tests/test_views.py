@@ -4,11 +4,12 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from apps.courses.models import Course
-from apps.organizations.models import Organization
+from apps.organizations.models import Organization, OrganizationType
 from apps.accounts.models import (
     EmployerRegistrationRequest,
     EmployerProfile,
     EmployeeProfile,
+    Position,
 )
 from apps.recommendations.models import CourseRecommendation, SelectedCourse
 
@@ -1090,3 +1091,70 @@ class TestOrganizationEmployeeCountUnemployed:
         )
         # Никаких сотрудников в организации
         assert test_organization.employee_count == 0
+
+
+@pytest.fixture
+def general_education_type():
+    return OrganizationType.objects.create(name="Общее образование")
+
+
+@pytest.fixture
+def positions_data(general_education_type):
+    Position.objects.create(
+        organization_type=general_education_type,
+        position_level="specialist",
+        name="Учитель начальных классов",
+    )
+    Position.objects.create(
+        organization_type=general_education_type,
+        position_level="top",
+        name="Директор школы",
+    )
+    Position.objects.create(
+        organization_type=None,
+        position_level="specialist",
+        name="Универсальный специалист",
+    )
+
+
+@pytest.mark.django_db
+class TestGetPositionsAjax:
+    """Тесты AJAX-эндпоинта get_positions_ajax"""
+
+    def test_filter_by_level_and_type(
+        self, client, general_education_type, positions_data
+    ):
+        response = client.get(
+            reverse("accounts:get_positions_ajax"),
+            {
+                "position_level": "specialist",
+                "organization_type_id": general_education_type.id,
+            },
+        )
+        assert response.status_code == 200
+        names = [p["text"] for p in response.json()["positions"]]
+        assert "Учитель начальных классов" in names
+        assert "Универсальный специалист" in names
+        assert "Директор школы" not in names
+
+    def test_only_universal_without_type(self, client, positions_data):
+        response = client.get(
+            reverse("accounts:get_positions_ajax"), {"position_level": "specialist"}
+        )
+        names = [p["text"] for p in response.json()["positions"]]
+        assert "Универсальный специалист" in names
+        assert "Учитель начальных классов" not in names
+
+    def test_excludes_inactive(self, client, general_education_type, positions_data):
+        Position.objects.filter(name="Учитель начальных классов").update(
+            is_active=False
+        )
+        response = client.get(
+            reverse("accounts:get_positions_ajax"),
+            {
+                "position_level": "specialist",
+                "organization_type_id": general_education_type.id,
+            },
+        )
+        names = [p["text"] for p in response.json()["positions"]]
+        assert "Учитель начальных классов" not in names

@@ -45,4 +45,9 @@ urlpatterns = [
         employee_views.EmployeeSelectedCoursesView.as_view(),
         name="employee_selected_courses",
     ),
+    path(
+        "get-positions-ajax/",
+        views.get_positions_ajax,
+        name="get_positions_ajax",
+    ),
 ]

@@ -1,11 +1,12 @@
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
-from django.contrib.admin.views.decorators import staff_member_required
-from django.views.decorators.http import require_POST
 from django.contrib.auth.hashers import make_password
+from django.views.decorators.http import require_POST
 from apps.organizations.models import District, Organization, OrganizationType
 from ..forms import (
     EmployeeProfileForm,
@@ -13,7 +14,12 @@ from ..forms import (
     EmployerProfileForm,
     EmployerRegistrationForm,
 )
-from ..models import EmployeeProfile, EmployerProfile, EmployerRegistrationRequest
+from ..models import (
+    EmployeeProfile,
+    EmployerProfile,
+    EmployerRegistrationRequest,
+    Position,
+)
 
 User = get_user_model()
 
@@ -242,7 +248,9 @@ def get_organizations_ajax(request):
     district_id = request.GET.get("district_id")
     org_type_id = request.GET.get("org_type_id")
 
-    organizations = Organization.objects.all()
+    organizations = Organization.objects.select_related(
+        "district", "organization_type"
+    ).all()
 
     if district_id:
         organizations = organizations.filter(district_id=district_id)
@@ -255,8 +263,15 @@ def get_organizations_ajax(request):
         "organizations": [
             {
                 "id": org.id,
-                "text": f"{org.short_name} ({org.district.short_name if org.district else 'без района'})",
-                "inn": org.inn,  # добавляем ИНН
+                "text": (
+                    f"{org.short_name} "
+                    f"({org.district.short_name if org.district else 'без района'})"
+                ),
+                "inn": org.inn,
+                "organization_type_id": org.organization_type_id or "",
+                "organization_type_name": (
+                    org.organization_type.name if org.organization_type else ""
+                ),
             }
             for org in organizations
         ]
@@ -344,3 +359,33 @@ def employee_profile(request):
         "organization_types": OrganizationType.objects.all(),
     }
     return render(request, "accounts/employee/employee_profile.html", context)
+
+
+def get_positions_ajax(request):
+    """
+    AJAX: возвращает должности по категории и (опционально) типу организации.
+
+    Логика:
+    - Если тип организации передан и у него есть свой справочник — вернуть его + универсальные.
+    - Если тип не передан или у него нет своего справочника — вернуть только универсальные.
+    """
+    position_level = request.GET.get("position_level")
+    org_type_id = request.GET.get("organization_type_id")
+
+    positions = Position.objects.filter(is_active=True)
+
+    if position_level:
+        positions = positions.filter(position_level=position_level)
+
+    if org_type_id:
+        positions = positions.filter(
+            Q(organization_type_id=org_type_id) | Q(organization_type__isnull=True)
+        )
+    else:
+        positions = positions.filter(organization_type__isnull=True)
+
+    positions = positions.order_by("sort_order", "name")
+
+    return JsonResponse(
+        {"positions": [{"id": p.id, "text": p.name} for p in positions]}
+    )

@@ -1,7 +1,13 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from apps.organizations.models import District, Organization, OrganizationType
-from .models import EmployeeProfile, EmployerProfile, EmployerRegistrationRequest
+from .models import (
+    EmployeeProfile,
+    EmployerProfile,
+    EmployerRegistrationRequest,
+    Position,
+)
 
 User = get_user_model()
 
@@ -181,7 +187,7 @@ class EmployerProfileForm(forms.ModelForm):
 class EmployeeRegistrationForm(forms.ModelForm):
     """Форма регистрации работника (сразу создаёт пользователя)"""
 
-    # Личные данные
+    # ========== Личные данные ==========
     last_name = forms.CharField(
         max_length=150,
         label="Фамилия",
@@ -198,7 +204,6 @@ class EmployeeRegistrationForm(forms.ModelForm):
         label="Отчество",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
-
     snils = forms.CharField(
         max_length=14,
         label="СНИЛС",
@@ -207,24 +212,26 @@ class EmployeeRegistrationForm(forms.ModelForm):
         ),
     )
 
-    # Учётные данные
+    # ========== Учётные данные ==========
     username = forms.CharField(
         max_length=150,
         label="Имя пользователя",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     email = forms.EmailField(
-        label="Email", widget=forms.EmailInput(attrs={"class": "form-control"})
+        label="Email",
+        widget=forms.EmailInput(attrs={"class": "form-control"}),
     )
     password = forms.CharField(
-        label="Пароль", widget=forms.PasswordInput(attrs={"class": "form-control"})
+        label="Пароль",
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
     )
     password_confirm = forms.CharField(
         label="Подтверждение пароля",
         widget=forms.PasswordInput(attrs={"class": "form-control"}),
     )
 
-    # Фильтры для организации
+    # ========== Фильтры организации ==========
     district = forms.ModelChoiceField(
         queryset=District.objects.all(),
         required=False,
@@ -245,18 +252,34 @@ class EmployeeRegistrationForm(forms.ModelForm):
         ),
     )
 
-    # Должность
+    # ========== Категория должности ==========
+    position_level = forms.ChoiceField(
+        choices=[("", "— Выберите категорию —")]
+        + list(EmployeeProfile.POSITION_LEVEL_CHOICES),
+        label="Категория должности",
+        required=False,
+        widget=forms.Select(
+            attrs={"class": "form-control", "id": "position-level-select"}
+        ),
+    )
+
+    # ========== Должность ==========
+    # CharField: JS подменит на <select>, если у организации тип
+    # «Общее образование». Для остальных типов — обычный ввод.
     position = forms.CharField(
         max_length=255,
         label="Должность",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    position_level = forms.ChoiceField(
-        choices=EmployeeProfile.POSITION_LEVEL_CHOICES,
-        label="Категория должности",
-        widget=forms.Select(attrs={"class": "form-control"}),
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "id": "position-input",
+                "placeholder": "Введите должность",
+            }
+        ),
     )
 
+    # ========== Статусы ==========
     is_unemployed = forms.BooleanField(
         required=False,
         label="Безработный",
@@ -265,7 +288,6 @@ class EmployeeRegistrationForm(forms.ModelForm):
         ),
         help_text="Отметьте, если вы в данный момент не трудоустроены",
     )
-
     is_svo_participant = forms.BooleanField(
         required=False,
         label="Участник СВО",
@@ -285,24 +307,22 @@ class EmployeeRegistrationForm(forms.ModelForm):
         self.fields["position"].required = False
         self.fields["position_level"].required = False
 
+    # ========== Валидация ==========
+
     def clean_snils(self):
         snils = self.cleaned_data.get("snils")
         snils_clean = snils.replace("-", "").replace(" ", "")
         if not snils_clean.isdigit() or len(snils_clean) != 11:
             raise forms.ValidationError("СНИЛС должен содержать 11 цифр")
 
-        # Проверяем в CustomUser
         if User.objects.filter(snils=snils_clean).exists():
             raise forms.ValidationError(
                 "Пользователь с таким СНИЛС уже зарегистрирован"
             )
-
-        # Проверяем в EmployeeProfile
         if EmployeeProfile.objects.filter(snils=snils_clean).exists():
             raise forms.ValidationError(
                 "Пользователь с таким СНИЛС уже зарегистрирован"
             )
-
         return snils_clean
 
     def clean_username(self):
@@ -340,6 +360,32 @@ class EmployeeRegistrationForm(forms.ModelForm):
             if not cleaned_data.get("position_level"):
                 self.add_error("position_level", "Выберите категорию должности")
 
+            # Если тип организации — «Общее образование»,
+            # должность обязана быть из справочника.
+            org_type = cleaned_data.get("organization_type")
+            position_name = cleaned_data.get("position")
+            if (
+                org_type
+                and getattr(org_type, "name", "").strip() == "Общее образование"
+                and position_name
+            ):
+                if (
+                    not Position.objects.filter(
+                        name=position_name,
+                        is_active=True,
+                        organization_type=org_type,
+                    ).exists()
+                    and not Position.objects.filter(
+                        name=position_name,
+                        is_active=True,
+                        organization_type__isnull=True,
+                    ).exists()
+                ):
+                    self.add_error(
+                        "position",
+                        "Выбранная должность отсутствует в справочнике.",
+                    )
+
         return cleaned_data
 
     def save(self, commit=True):
@@ -368,7 +414,7 @@ class EmployeeRegistrationForm(forms.ModelForm):
 class EmployeeProfileForm(forms.ModelForm):
     """Форма профиля работника"""
 
-    # Поля из CustomUser (для отображения в форме)
+    # ========== Поля из CustomUser ==========
     last_name = forms.CharField(
         max_length=150,
         label="Фамилия",
@@ -399,34 +445,54 @@ class EmployeeProfileForm(forms.ModelForm):
         ),
     )
     email = forms.EmailField(
-        label="Email", widget=forms.EmailInput(attrs={"class": "form-control"})
+        label="Email",
+        widget=forms.EmailInput(attrs={"class": "form-control"}),
     )
+
+    # ========== Категория должности ==========
+    position_level = forms.ChoiceField(
+        choices=[("", "— Выберите категорию —")]
+        + list(EmployeeProfile.POSITION_LEVEL_CHOICES),
+        label="Категория должности",
+        required=False,
+        widget=forms.Select(
+            attrs={"class": "form-control", "id": "position-level-select"}
+        ),
+    )
+
+    # ========== Должность ==========
+    # CharField: JS подменит на <select>, если у организации тип
+    # «Общее образование». Для остальных типов — обычный ввод.
     position = forms.CharField(
         max_length=255,
         label="Должность",
         required=False,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "id": "position-input",
+                "placeholder": "Введите должность",
+            }
+        ),
     )
 
     class Meta:
         model = EmployeeProfile
         fields = [
-            # Анкетные поля (хранятся в EmployeeProfile)
-            "gender",  # Пол
-            "citizenship",  # Гражданство
-            "phone",  # Телефон
-            "municipality",  # Муниципалитет
-            "locality",  # Населенный пункт
-            "position_level",  # Категория должности
-            "employment_status",  # Статус занятости
-            "work_experience_years",  # Стаж работы
-            "education_level",  # Уровень образования
-            "education_institution",  # Учебное заведение
-            "graduation_year",  # Год окончания
-            "specialty",  # Специальность
-            # "organization",  # Организация
-            "is_unemployed",  # Безработный
-            "is_svo_participant",  # Участник СВО
+            "gender",
+            "citizenship",
+            "phone",
+            "municipality",
+            "locality",
+            "position_level",
+            "employment_status",
+            "work_experience_years",
+            "education_level",
+            "education_institution",
+            "graduation_year",
+            "specialty",
+            "is_unemployed",
+            "is_svo_participant",
             "desired_organization_type",
             "desired_organization",
             "desired_position",
@@ -449,10 +515,6 @@ class EmployeeProfileForm(forms.ModelForm):
                 attrs={"class": "form-control", "min": 1950, "max": 2030}
             ),
             "specialty": forms.TextInput(attrs={"class": "form-control"}),
-            "position_level": forms.Select(attrs={"class": "form-control"}),
-            # "organization": forms.Select(
-            #     attrs={"class": "form-control", "id": "organization-select"}
-            # ),
             "is_unemployed": forms.CheckboxInput(
                 attrs={"class": "form-check-input", "id": "id_is_unemployed"}
             ),
@@ -463,18 +525,18 @@ class EmployeeProfileForm(forms.ModelForm):
             "desired_organization": forms.TextInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "Например: ООО Ромашка или любая организация в сфере IT",
+                    "placeholder": "Например: ООО Ромашка",
                 }
             ),
             "desired_position": forms.TextInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "Например: Руководитель отдела, Аналитик данных",
+                    "placeholder": "Например: Аналитик данных",
                 }
             ),
         }
 
-    # Фильтры для организации (не сохраняются в БД)
+    # Фильтры для модалки выбора организации (не сохраняются)
     district = forms.ModelChoiceField(
         queryset=District.objects.all(),
         required=False,
