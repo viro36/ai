@@ -1,6 +1,18 @@
 import pytest
 
 from apps.surveys.models import ScaleLabel, SurveyInterpretation
+from apps.surveys.scripts.add_scale_labels import add_global_scale_labels
+from apps.surveys.scripts.add_survey_descriptions import add_survey_descriptions
+from apps.surveys.scripts.load_survey_data import (
+    BIG5_USAGE,
+    DIGCOMP_DATA,
+    DIGCOMP_USAGE,
+    RIASEC_DATA,
+    load_common,
+    load_levels,
+    load_usage,
+    main,
+)
 
 # ============================================================
 # Тесты для add_scale_labels.py
@@ -13,8 +25,6 @@ class TestAddScaleLabels:
 
     def test_add_scale_labels_creates_labels(self):
         """Тест: скрипт создаёт глобальные формулировки шкалы"""
-        from apps.surveys.scripts.add_scale_labels import add_global_scale_labels
-
         # Запускаем скрипт
         add_global_scale_labels()
 
@@ -31,8 +41,6 @@ class TestAddScaleLabels:
 
     def test_add_scale_labels_idempotent(self):
         """Тест: повторный запуск не создаёт дубликаты"""
-        from apps.surveys.scripts.add_scale_labels import add_global_scale_labels
-
         # Первый запуск
         add_global_scale_labels()
         first_count = ScaleLabel.objects.filter(category__isnull=True).count()
@@ -86,8 +94,6 @@ class TestAddSurveyDescriptions:
 
     def test_add_descriptions_skip_missing_categories(self):
         """Тест: скрипт пропускает отсутствующие категории"""
-        from apps.surveys.scripts.add_survey_descriptions import add_survey_descriptions
-
         # Запускаем скрипт - не должно быть ошибок
         add_survey_descriptions()
 
@@ -103,8 +109,6 @@ class TestLoadSurveyData:
 
     def test_load_levels_creates_interpretations(self):
         """Тест: загрузка уровней создаёт интерпретации"""
-        from apps.surveys.scripts.load_survey_data import load_levels, DIGCOMP_DATA
-
         load_levels("digcomp", DIGCOMP_DATA)
 
         # Проверяем создание уровней для DigComp
@@ -113,8 +117,6 @@ class TestLoadSurveyData:
 
     def test_load_common_creates_important_notes(self):
         """Тест: загрузка важных замечаний"""
-        from apps.surveys.scripts.load_survey_data import load_common, RIASEC_DATA
-
         load_common("riasec", RIASEC_DATA)
 
         # Проверяем создание важных замечаний
@@ -126,8 +128,6 @@ class TestLoadSurveyData:
 
     def test_load_usage_creates_recommendations(self):
         """Тест: загрузка рекомендаций"""
-        from apps.surveys.scripts.load_survey_data import load_usage, BIG5_USAGE
-
         load_usage("big5", BIG5_USAGE)
 
         # Проверяем создание рекомендаций
@@ -138,8 +138,6 @@ class TestLoadSurveyData:
 
     def test_full_load(self):
         """Тест: полная загрузка всех данных"""
-        from apps.surveys.scripts.load_survey_data import main
-
         # Запускаем основную функцию
         main()
 
@@ -251,8 +249,6 @@ class TestIdempotency:
 
     def test_load_levels_idempotent(self):
         """Тест: повторная загрузка уровней не создаёт дубликаты"""
-        from apps.surveys.scripts.load_survey_data import load_levels, DIGCOMP_DATA
-
         # Первая загрузка
         load_levels("digcomp", DIGCOMP_DATA)
         first_count = SurveyInterpretation.objects.filter(survey_type="digcomp").count()
@@ -267,8 +263,6 @@ class TestIdempotency:
 
     def test_load_usage_idempotent(self):
         """Тест: повторная загрузка рекомендаций не создаёт дубликаты"""
-        from apps.surveys.scripts.load_survey_data import load_usage, DIGCOMP_USAGE
-
         load_usage("digcomp", DIGCOMP_USAGE)
         first_count = SurveyInterpretation.objects.filter(
             survey_type="digcomp", code="usage"

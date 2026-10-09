@@ -1,9 +1,14 @@
 import pytest
 from django.db import IntegrityError
+from django.contrib.auth import get_user_model
 
+from apps.accounts.models import EmployeeProfile
+from apps.organizations.models import Organization
 from apps.surveys.models import (
+    DiagnosticKitResult,
     SurveyBlock,
     SurveyQuestion,
+    SurveyQuestionOption,
     SurveySession,
     UserSurveyResponse,
     ScaleLabel,
@@ -252,13 +257,22 @@ class TestUserSurveyResponse:
         assert response.id is not None
         assert response.score == 4
 
-    def test_unique_together(self, user, survey_question, survey_session):
+    def test_unique_together_same_group(self, user, survey_question, survey_session):
+        """В рамках одной группы дубли не допускаются"""
         UserSurveyResponse.objects.create(
-            user=user, question=survey_question, session=survey_session, score=4
+            user=user,
+            question=survey_question,
+            session=survey_session,
+            group="А",
+            score=4,
         )
         with pytest.raises(IntegrityError):
             UserSurveyResponse.objects.create(
-                user=user, question=survey_question, session=survey_session, score=5
+                user=user,
+                question=survey_question,
+                session=survey_session,
+                group="А",
+                score=5,
             )
 
     def test_str_method(self, user, survey_question):
@@ -582,3 +596,399 @@ class TestIntegration:
 
         assert completed.count() == 2
         assert in_progress.count() == 1
+
+
+# ============================================================
+# SurveyQuestionOption
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyQuestionOption:
+    """Тесты для модели SurveyQuestionOption"""
+
+    def test_create_option(self, diagnostic_question):
+        option = SurveyQuestionOption.objects.create(
+            question=diagnostic_question,
+            group="А",
+            text="А1) Что-то",
+            is_correct=False,
+            order=1,
+        )
+        assert option.id is not None
+        assert option.group == "А"
+        assert option.is_correct is False
+
+    def test_str_with_group(self, diagnostic_question):
+        option = SurveyQuestionOption.objects.create(
+            question=diagnostic_question,
+            group="Б",
+            text="Б2) Текст",
+            is_correct=True,
+            order=2,
+        )
+        assert "[Б]" in str(option)
+        assert "Б2" in str(option)
+
+    def test_str_without_group(self, diagnostic_question):
+        option = SurveyQuestionOption.objects.create(
+            question=diagnostic_question,
+            group=None,
+            text="Без группы",
+            order=1,
+        )
+        assert "[None]" not in str(option)
+        assert "Без группы" in str(option)
+
+    def test_ordering(self, diagnostic_question):
+        o3 = SurveyQuestionOption.objects.create(
+            question=diagnostic_question, group="А", text="3", order=3
+        )
+        o1 = SurveyQuestionOption.objects.create(
+            question=diagnostic_question, group="А", text="1", order=1
+        )
+        o2 = SurveyQuestionOption.objects.create(
+            question=diagnostic_question, group="А", text="2", order=2
+        )
+        opts = list(SurveyQuestionOption.objects.filter(question=diagnostic_question))
+        assert opts[0].order == 1
+        assert opts[1].order == 2
+        assert opts[2].order == 3
+
+    def test_cascade_delete(self, diagnostic_question):
+        SurveyQuestionOption.objects.create(
+            question=diagnostic_question, group="А", text="Удалится", order=1
+        )
+        diagnostic_question.delete()
+        assert SurveyQuestionOption.objects.count() == 0
+
+
+# ============================================================
+# UserSurveyResponse.group
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestUserSurveyResponseGroup:
+    """Тесты поля group в UserSurveyResponse"""
+
+    def test_score_optional(self, user, survey_question, survey_session):
+        """score может быть NULL для опросов с опциями"""
+        r = UserSurveyResponse.objects.create(
+            user=user,
+            session=survey_session,
+            question=survey_question,
+            group="А",
+            score=None,
+        )
+        assert r.score is None
+        assert r.group == "А"
+
+    def test_selected_option_optional(self, user, survey_question, survey_session):
+        """selected_option может быть NULL для опросов со шкалой"""
+        r = UserSurveyResponse.objects.create(
+            user=user,
+            session=survey_session,
+            question=survey_question,
+            score=3,
+        )
+        assert r.selected_option is None
+        assert r.group is None
+
+    def test_unique_together_with_group(
+        self, user, diagnostic_question, diagnostic_options, survey_session
+    ):
+        """4 ответа на один вопрос — по одному на группу — допустимы"""
+        for letter in ("А", "Б", "В", "Г"):
+            UserSurveyResponse.objects.create(
+                user=user,
+                session=survey_session,
+                question=diagnostic_question,
+                group=letter,
+                selected_option=diagnostic_options[0],
+                score=1,
+            )
+        assert (
+            UserSurveyResponse.objects.filter(
+                user=user, question=diagnostic_question, session=survey_session
+            ).count()
+            == 4
+        )
+
+    def test_unique_together_same_group_fails(
+        self, user, diagnostic_question, diagnostic_options, survey_session
+    ):
+        """Два ответа с одинаковой группой на один вопрос — ошибка"""
+        UserSurveyResponse.objects.create(
+            user=user,
+            session=survey_session,
+            question=diagnostic_question,
+            group="А",
+            selected_option=diagnostic_options[0],
+            score=1,
+        )
+        with pytest.raises(IntegrityError):
+            UserSurveyResponse.objects.create(
+                user=user,
+                session=survey_session,
+                question=diagnostic_question,
+                group="А",
+                selected_option=diagnostic_options[1],
+                score=1,
+            )
+
+    def test_str_with_group(self, user, diagnostic_question, survey_session):
+        r = UserSurveyResponse.objects.create(
+            user=user,
+            session=survey_session,
+            question=diagnostic_question,
+            group="Б",
+            score=1,
+        )
+        assert "Б" in str(r)
+
+    def test_str_without_group(self, user, survey_question, survey_session):
+        r = UserSurveyResponse.objects.create(
+            user=user,
+            session=survey_session,
+            question=survey_question,
+            score=3,
+        )
+        assert "3" in str(r)
+
+
+# ============================================================
+# SurveyCategory.is_available_for
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyCategoryAvailability:
+    """Тесты метода is_available_for"""
+
+    def test_available_for_employee_in_matching_org(
+        self, diagnostic_category, general_education_type, director_position
+    ):
+        """Работник в организации «Общее образование» с нужной должностью"""
+        User = get_user_model()
+        org = Organization.objects.create(
+            inn="123456789012",
+            full_name="Школа №1",
+            short_name="Школа №1",
+            address_raw="г. Воронеж",
+            organization_type=general_education_type,
+        )
+        user = User.objects.create_user(
+            username="emp",
+            password="x",
+            user_type="employee",
+            organization=org,
+        )
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="123-456-789 01",
+            organization=org,
+            position="Директор школы",
+            position_level="top",
+        )
+        diagnostic_category.target_positions.add(director_position)
+
+        assert diagnostic_category.is_available_for(user) is True
+
+    def test_not_available_for_wrong_org_type(self, diagnostic_category, it_type):
+        """Работник в организации другого типа — опрос недоступен"""
+        from apps.accounts.models import EmployeeProfile
+        from apps.organizations.models import Organization
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        org = Organization.objects.create(
+            inn="999999999999",
+            full_name="ООО Айти",
+            short_name="ООО Айти",
+            address_raw="г. Воронеж",
+            organization_type=it_type,
+        )
+        user = User.objects.create_user(
+            username="emp2",
+            password="x",
+            user_type="employee",
+            organization=org,
+        )
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="987-654-321 01",
+            organization=org,
+            position="Разработчик",
+            position_level="specialist",
+        )
+        assert diagnostic_category.is_available_for(user) is False
+
+    def test_not_available_for_wrong_user_type(
+        self, diagnostic_category, general_education_type
+    ):
+        """Работодатель не видит опрос для работников"""
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="emp3",
+            password="x",
+            user_type="employer",
+        )
+        assert diagnostic_category.is_available_for(user) is False
+
+    def test_available_when_no_restrictions(self, survey_category, user):
+        """Без ограничений — доступен всем"""
+        assert survey_category.is_available_for(user) is True
+
+    def test_not_available_wrong_position(
+        self,
+        diagnostic_category,
+        general_education_type,
+        director_position,
+        teacher_position,
+    ):
+        """У работника другая должность — недоступен"""
+        User = get_user_model()
+        org = Organization.objects.create(
+            inn="555555555555",
+            full_name="Школа №2",
+            short_name="Школа №2",
+            address_raw="г. Воронеж",
+            organization_type=general_education_type,
+        )
+        user = User.objects.create_user(
+            username="emp4",
+            password="x",
+            user_type="employee",
+            organization=org,
+        )
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="111-222-333 44",
+            organization=org,
+            position="Учитель",
+            position_level="specialist",
+        )
+        diagnostic_category.target_positions.add(director_position)
+
+        assert diagnostic_category.is_available_for(user) is False
+
+
+# ============================================================
+# DiagnosticKitResult
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestDiagnosticKitResult:
+    """Тесты модели DiagnosticKitResult"""
+
+    def test_create_result(self, completed_session):
+        r = DiagnosticKitResult.objects.create(
+            session=completed_session,
+            work1_score=8,
+            work2_score=6,
+            work3_score=6,
+            work4_score=8,
+            total_score=28,
+        )
+        assert r.id is not None
+        assert r.total_score == 28
+
+    def test_str_method(self, completed_session):
+        r = DiagnosticKitResult.objects.create(
+            session=completed_session,
+            work1_score=10,
+            work2_score=10,
+            work3_score=10,
+            work4_score=10,
+            total_score=40,
+        )
+        assert "40/40" in str(r)
+
+    # ---------- Шкала по работе ----------
+
+    @pytest.mark.parametrize(
+        "score,expected_code",
+        [
+            (0, "low"),
+            (4, "low"),
+            (5, "medium"),
+            (6, "medium"),
+            (7, "high"),
+            (8, "high"),
+            (9, "expert"),
+            (10, "expert"),
+        ],
+    )
+    def test_level_for_work(self, score, expected_code):
+        assert DiagnosticKitResult.level_for_work(score)["code"] == expected_code
+
+    # ---------- Интегральная шкала ----------
+
+    @pytest.mark.parametrize(
+        "score,expected_code",
+        [
+            (0, "low"),
+            (16, "low"),
+            (17, "medium"),
+            (26, "medium"),
+            (27, "high"),
+            (34, "high"),
+            (35, "expert"),
+            (40, "expert"),
+        ],
+    )
+    def test_level_for_total(self, score, expected_code):
+        assert DiagnosticKitResult.level_for_total(score)["code"] == expected_code
+
+    # ---------- get_works_data ----------
+
+    def test_get_works_data_uses_block_subtitle(
+        self, completed_session, diagnostic_block
+    ):
+        """Название работы берётся из subtitle блока"""
+        completed_session.category = diagnostic_block.category
+        completed_session.save()
+
+        r = DiagnosticKitResult.objects.create(
+            session=completed_session,
+            work1_score=8,
+            work2_score=6,
+            work3_score=6,
+            work4_score=8,
+            total_score=28,
+        )
+        works = r.get_works_data()
+        assert len(works) == 4
+        assert (
+            works[0]["name"] == "Управление образовательной деятельностью и качеством"
+        )
+        assert works[0]["score"] == 8
+        assert works[0]["percent"] == 80
+        assert works[0]["level"]["code"] == "high"
+
+    def test_get_works_data_fallback_to_title(
+        self, completed_session, diagnostic_category
+    ):
+        """Если subtitle пуст — берётся title блока"""
+        completed_session.category = diagnostic_category
+        completed_session.save()
+
+        SurveyBlock.objects.create(
+            category=diagnostic_category,
+            title="Диагностическая работа 1",
+            subtitle=None,
+            order=1,
+        )
+
+        r = DiagnosticKitResult.objects.create(
+            session=completed_session,
+            work1_score=5,
+            work2_score=5,
+            work3_score=5,
+            work4_score=5,
+            total_score=20,
+        )
+        works = r.get_works_data()
+        assert works[0]["name"] == "Диагностическая работа 1"

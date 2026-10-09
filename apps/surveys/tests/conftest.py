@@ -2,7 +2,10 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from apps.accounts.models import Position
+from apps.organizations.models import OrganizationType
 from apps.surveys.models import (
+    DiagnosticKitResult,
     EducationProgram,
     GeneralizedLaborFunction,
     ProfessionalStandard,
@@ -11,6 +14,7 @@ from apps.surveys.models import (
     SurveyCategory,
     SurveyBlock,
     SurveyQuestion,
+    SurveyQuestionOption,
     SurveySession,
     UserSurveyResponse,
     ScaleLabel,
@@ -646,4 +650,114 @@ def ps_program_link_spo(professional_standard_spo, education_program_spo):
         professional_standard=professional_standard_spo,
         education_program=education_program_spo,
         order=1,
+    )
+
+
+# ============================================================
+# Должности и типы организаций
+# ============================================================
+
+
+@pytest.fixture
+def general_education_type():
+    """Тип организации «Общее образование»"""
+    return OrganizationType.objects.create(name="Общее образование")
+
+
+@pytest.fixture
+def it_type():
+    """Тип организации «IT»"""
+    return OrganizationType.objects.create(name="IT")
+
+
+@pytest.fixture
+def director_position(general_education_type):
+    """Должность «Директор школы» для общего образования"""
+    return Position.objects.create(
+        organization_type=general_education_type,
+        position_level="top",
+        name="Директор школы",
+    )
+
+
+@pytest.fixture
+def teacher_position(general_education_type):
+    """Должность «Учитель» для общего образования"""
+    return Position.objects.create(
+        organization_type=general_education_type,
+        position_level="specialist",
+        name="Учитель",
+    )
+
+
+# ============================================================
+# Диагностический комплект
+# ============================================================
+
+
+@pytest.fixture
+def diagnostic_category(general_education_type):
+    """Категория диагностического комплекта с ограничениями аудитории"""
+    return SurveyCategory.objects.create(
+        name="ДИАГНОСТИЧЕСКИЙ КОМПЛЕКТ",
+        description="Диагностический комплект руководителя ОО",
+        is_active=True,
+        target_user_types=["employee"],
+        target_organization_type=general_education_type,
+    )
+
+
+@pytest.fixture
+def diagnostic_block(diagnostic_category):
+    """Один блок диагностического комплекта"""
+    return SurveyBlock.objects.create(
+        category=diagnostic_category,
+        title="Диагностическая работа 1",
+        subtitle="Управление образовательной деятельностью и качеством",
+        order=1,
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def diagnostic_question(diagnostic_block):
+    """Один вопрос диагностического комплекта"""
+    return SurveyQuestion.objects.create(
+        block=diagnostic_block,
+        text="Задание 1.1. Тестовая ситуация",
+        q_number=1,
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def diagnostic_options(diagnostic_question):
+    """
+    Опции вопроса: 4 группы (А/Б/В/Г) по 4 пункта.
+    Правильные — вторые в каждой группе.
+    """
+    options = []
+    for letter in ("А", "Б", "В", "Г"):
+        for num in range(1, 5):
+            option = SurveyQuestionOption.objects.create(
+                question=diagnostic_question,
+                group=letter,
+                text=f"{letter}{num}) Вариант {num} в группе {letter}",
+                is_correct=(num == 2),
+                order=num,
+            )
+            options.append(option)
+    return options
+
+
+@pytest.fixture
+def diagnostic_result(completed_session):
+    """Готовый результат диагностического комплекта"""
+    return DiagnosticKitResult.objects.create(
+        session=completed_session,
+        work1_score=8,
+        work2_score=6,
+        work3_score=6,
+        work4_score=8,
+        total_score=28,
     )

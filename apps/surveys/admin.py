@@ -52,7 +52,7 @@ class SurveyQuestionInline(admin.TabularInline):
 class SurveyBlockInline(admin.TabularInline):
     model = SurveyBlock
     extra = 1
-    fields = ("title", "description", "order", "is_active")
+    fields = ("title", "subtitle", "description", "order", "is_active")
     ordering = ("order",)
     show_change_link = True
 

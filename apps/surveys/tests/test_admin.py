@@ -3,6 +3,7 @@ from django.urls import reverse
 from django.contrib.admin.sites import AdminSite
 
 from apps.surveys.admin import (
+    DiagnosticKitResultAdmin,
     EducationProgramAdmin,
     GeneralizedLaborFunctionAdmin,
     ProfessionalStandardProgramAdmin,
@@ -13,8 +14,11 @@ from apps.surveys.admin import (
     RiasacResultAdmin,
     Big5ResultAdmin,
     GardnerResultAdmin,
+    SurveyQuestionOptionAdmin,
+    UserSurveyResponseAdmin,
 )
 from apps.surveys.models import (
+    DiagnosticKitResult,
     EducationProgram,
     GeneralizedLaborFunction,
     ProfessionalStandardProgram,
@@ -25,6 +29,8 @@ from apps.surveys.models import (
     RiasacResult,
     Big5Result,
     GardnerResult,
+    SurveyQuestionOption,
+    UserSurveyResponse,
 )
 
 # ============================================================
@@ -630,3 +636,200 @@ class TestProfessionalStandardProgramAdmin:
             ProfessionalStandardProgram, AdminSite()
         )
         assert "order" in admin.list_editable
+
+
+# ============================================================
+# SurveyCategoryAdmin — аудитория
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyCategoryAdminAudience:
+    """Админка SurveyCategory: поля аудитории"""
+
+    def test_list_display_contains_audience(self):
+        admin = SurveyCategoryAdmin(SurveyCategory, AdminSite())
+        assert "target_organization_type" in admin.list_display
+        assert "positions_count" in admin.list_display
+
+    def test_list_filter_contains_org_type(self):
+        admin = SurveyCategoryAdmin(SurveyCategory, AdminSite())
+        assert "target_organization_type" in admin.list_filter
+
+    def test_filter_horizontal_positions(self):
+        admin = SurveyCategoryAdmin(SurveyCategory, AdminSite())
+        assert "target_positions" in admin.filter_horizontal
+
+    def test_positions_count(self, diagnostic_category, director_position):
+        diagnostic_category.target_positions.add(director_position)
+        admin = SurveyCategoryAdmin(SurveyCategory, AdminSite())
+        assert admin.positions_count(diagnostic_category) == 1
+
+    def test_fieldsets_contains_audience_block(self):
+        admin = SurveyCategoryAdmin(SurveyCategory, AdminSite())
+        fieldsets = dict(admin.fieldsets)
+        assert "Аудитория" in fieldsets
+        assert "target_positions" in fieldsets["Аудитория"]["fields"]
+
+
+# ============================================================
+# SurveyBlockAdmin — subtitle
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyBlockAdminSubtitle:
+    """Админка SurveyBlock: поле subtitle"""
+
+    def test_subtitle_editable(self, admin_client, diagnostic_block):
+        url = reverse("admin:surveys_surveyblock_change", args=[diagnostic_block.id])
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "subtitle" in content
+        assert "Управление образовательной деятельностью и качеством" in content
+
+    def test_subtitle_in_inline(self):
+        """Проверяем, что subtitle доступно в inline-форме SurveyBlockInline"""
+        from apps.surveys.admin import SurveyBlockInline
+
+        assert "subtitle" in SurveyBlockInline.fields or (
+            "subtitle" in SurveyBlockInline.fieldsets[0][1]["fields"]
+            if getattr(SurveyBlockInline, "fieldsets", None)
+            else False
+        )
+
+
+# ============================================================
+# SurveyQuestionAdmin — options_count и inline
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyQuestionAdminOptions:
+    """Админка SurveyQuestion: опции"""
+
+    def test_options_count_in_list_display(self):
+        admin = SurveyQuestionAdmin(SurveyQuestion, AdminSite())
+        assert "options_count" in admin.list_display
+
+    def test_options_count_value(self, diagnostic_question, diagnostic_options):
+        admin = SurveyQuestionAdmin(SurveyQuestion, AdminSite())
+        assert admin.options_count(diagnostic_question) == 16
+
+    def test_option_inline_present(self):
+        from apps.surveys.admin import SurveyQuestionOptionInline
+
+        admin = SurveyQuestionAdmin(SurveyQuestion, AdminSite())
+        assert SurveyQuestionOptionInline in admin.inlines
+
+
+# ============================================================
+# SurveyQuestionOptionAdmin
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyQuestionOptionAdmin:
+    """Админка SurveyQuestionOption"""
+
+    def test_list_display(self):
+        admin = SurveyQuestionOptionAdmin(SurveyQuestionOption, AdminSite())
+        assert "text_preview" in admin.list_display
+        assert "is_correct" in admin.list_display
+
+    def test_list_filter(self):
+        admin = SurveyQuestionOptionAdmin(SurveyQuestionOption, AdminSite())
+        assert "is_correct" in admin.list_filter
+
+    def test_list_editable(self):
+        admin = SurveyQuestionOptionAdmin(SurveyQuestionOption, AdminSite())
+        assert "order" in admin.list_editable
+        assert "is_correct" in admin.list_editable
+
+    def test_text_preview(self, diagnostic_question):
+        opt = SurveyQuestionOption.objects.create(
+            question=diagnostic_question,
+            group="А",
+            text="А1) Очень длинный текст варианта ответа",
+            order=1,
+        )
+        admin = SurveyQuestionOptionAdmin(SurveyQuestionOption, AdminSite())
+        preview = admin.text_preview(opt)
+        assert preview.startswith("А1)")
+
+    def test_changelist_available(self, admin_client, diagnostic_options):
+        url = reverse("admin:surveys_surveyquestionoption_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_filter_by_is_correct(self, admin_client, diagnostic_options):
+        url = reverse("admin:surveys_surveyquestionoption_changelist")
+        response = admin_client.get(url, {"is_correct": "1"})
+        assert response.status_code == 200
+
+
+# ============================================================
+# UserSurveyResponseAdmin — group и selected_option
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestUserSurveyResponseAdminGroup:
+    """Админка UserSurveyResponse: group и selected_option"""
+
+    def test_selected_option_in_list_display(self):
+        admin = UserSurveyResponseAdmin(UserSurveyResponse, AdminSite())
+        assert "selected_option" in admin.list_display
+
+    def test_autocomplete_selected_option(self):
+        admin = UserSurveyResponseAdmin(UserSurveyResponse, AdminSite())
+        assert "selected_option" in admin.autocomplete_fields
+
+    def test_changelist_available(self, admin_client, diagnostic_options):
+        url = reverse("admin:surveys_usersurveyresponse_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+
+# ============================================================
+# DiagnosticKitResultAdmin
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestDiagnosticKitResultAdmin:
+    """Админка DiagnosticKitResult"""
+
+    def test_list_display(self):
+        admin = DiagnosticKitResultAdmin(DiagnosticKitResult, AdminSite())
+        for field in (
+            "session",
+            "work1_score",
+            "work2_score",
+            "work3_score",
+            "work4_score",
+            "total_score",
+        ):
+            assert field in admin.list_display
+
+    def test_readonly_fields(self):
+        admin = DiagnosticKitResultAdmin(DiagnosticKitResult, AdminSite())
+        assert "total_score" in admin.readonly_fields
+
+    def test_add_forbidden(self):
+        admin = DiagnosticKitResultAdmin(DiagnosticKitResult, AdminSite())
+        assert admin.has_add_permission(None) is False
+
+    def test_changelist_available(self, admin_client, diagnostic_result):
+        url = reverse("admin:surveys_diagnostickitresult_changelist")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+
+    def test_detail_view(self, admin_client, diagnostic_result):
+        url = reverse(
+            "admin:surveys_diagnostickitresult_change",
+            args=[diagnostic_result.id],
+        )
+        response = admin_client.get(url)
+        assert response.status_code == 200

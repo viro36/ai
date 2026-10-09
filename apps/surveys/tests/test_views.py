@@ -3,7 +3,10 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from apps.accounts.models import EmployeeProfile
+from apps.organizations.models import Organization
 from apps.surveys.models import (
+    DiagnosticKitResult,
     SurveyBlock,
     SurveyQuestion,
     SurveySession,
@@ -498,3 +501,330 @@ class TestFullSurveyFlow:
         assert sessions.count() == 2
         assert sessions[0].attempt == 2  # последняя попытка первая
         assert sessions[1].attempt == 1
+
+
+# ============================================================
+# survey_list — фильтрация по аудитории
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyListAvailability:
+    """survey_list: показываются только доступные опросы"""
+
+    def test_available_for_matching_user(
+        self,
+        client,
+        general_education_type,
+        director_position,
+        diagnostic_category,
+    ):
+        """Работник с нужным типом организации и должностью видит опрос"""
+        org = Organization.objects.create(
+            inn="111111111111",
+            full_name="Школа",
+            short_name="Школа",
+            address_raw="г. Воронеж",
+            organization_type=general_education_type,
+        )
+        user = User.objects.create_user(
+            username="emp_ok",
+            password="x",
+            user_type="employee",
+            organization=org,
+        )
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="111-222-333 44",
+            organization=org,
+            position="Директор школы",
+            position_level="top",
+        )
+        diagnostic_category.target_positions.add(director_position)
+
+        client.force_login(user)
+        response = client.get(reverse("surveys:survey_list"))
+
+        assert response.status_code == 200
+        assert diagnostic_category in response.context["categories"]
+
+    def test_not_available_for_wrong_org(
+        self,
+        client,
+        it_type,
+        director_position,
+        diagnostic_category,
+    ):
+        """Работник другой организации не видит опрос"""
+        org = Organization.objects.create(
+            inn="222222222222",
+            full_name="ООО Айти",
+            short_name="ООО Айти",
+            address_raw="г. Воронеж",
+            organization_type=it_type,
+        )
+        user = User.objects.create_user(
+            username="emp_no",
+            password="x",
+            user_type="employee",
+            organization=org,
+        )
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="222-333-444 55",
+            organization=org,
+            position="Разработчик",
+            position_level="specialist",
+        )
+        diagnostic_category.target_positions.add(director_position)
+
+        client.force_login(user)
+        response = client.get(reverse("surveys:survey_list"))
+
+        assert diagnostic_category not in response.context["categories"]
+
+
+# ============================================================
+# survey_question — опции (группы А/Б/В/Г)
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestSurveyQuestionOptions:
+    """survey_question для опросов с опциями"""
+
+    def _make_user_and_session(
+        self, general_education_type, director_position, diagnostic_category
+    ):
+        org = Organization.objects.create(
+            inn="333333333333",
+            full_name="Школа",
+            short_name="Школа",
+            address_raw="г. Воронеж",
+            organization_type=general_education_type,
+        )
+        user = User.objects.create_user(
+            username="emp_opt",
+            password="x",
+            user_type="employee",
+            organization=org,
+        )
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="333-444-555 66",
+            organization=org,
+            position="Директор школы",
+            position_level="top",
+        )
+        diagnostic_category.target_positions.add(director_position)
+        return user
+
+    def test_question_shows_groups(
+        self,
+        client,
+        general_education_type,
+        director_position,
+        diagnostic_category,
+        diagnostic_block,
+        diagnostic_question,
+        diagnostic_options,
+    ):
+        """На странице вопроса — 16 опций и 4 группы"""
+        user = self._make_user_and_session(
+            general_education_type, director_position, diagnostic_category
+        )
+        session = SurveySession.objects.create(
+            user=user,
+            category=diagnostic_category,
+            attempt=1,
+            status="in_progress",
+            current_block=diagnostic_block,
+            current_question=diagnostic_question,
+        )
+        client.force_login(user)
+        url = reverse(
+            "surveys:survey_question",
+            args=[diagnostic_category.id, diagnostic_block.id, diagnostic_question.id],
+        )
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert response.context["has_options"] is True
+        assert response.context["question_groups"] == ["А", "Б", "В", "Г"]
+
+    def test_post_saves_4_responses(
+        self,
+        client,
+        general_education_type,
+        director_position,
+        diagnostic_category,
+        diagnostic_block,
+        diagnostic_question,
+        diagnostic_options,
+    ):
+        """POST с 4 группами сохраняет 4 ответа"""
+        user = self._make_user_and_session(
+            general_education_type, director_position, diagnostic_category
+        )
+        session = SurveySession.objects.create(
+            user=user,
+            category=diagnostic_category,
+            attempt=1,
+            status="in_progress",
+            current_block=diagnostic_block,
+            current_question=diagnostic_question,
+        )
+        client.force_login(user)
+
+        # Собираем по одному id из каждой группы
+        by_group = {}
+        for o in diagnostic_options:
+            by_group.setdefault(o.group, o.id)
+
+        payload = {f"option_{g}": by_group[g] for g in ("А", "Б", "В", "Г")}
+
+        url = reverse(
+            "surveys:survey_question",
+            args=[diagnostic_category.id, diagnostic_block.id, diagnostic_question.id],
+        )
+        client.post(url, payload)
+
+        assert (
+            UserSurveyResponse.objects.filter(
+                user=user, question=diagnostic_question, session=session
+            ).count()
+            == 4
+        )
+
+    def test_post_missing_group_shows_error(
+        self,
+        client,
+        general_education_type,
+        director_position,
+        diagnostic_category,
+        diagnostic_block,
+        diagnostic_question,
+        diagnostic_options,
+    ):
+        """Если не все группы заполнены — ошибка, ответы не сохраняются"""
+        user = self._make_user_and_session(
+            general_education_type, director_position, diagnostic_category
+        )
+        session = SurveySession.objects.create(
+            user=user,
+            category=diagnostic_category,
+            attempt=1,
+            status="in_progress",
+            current_block=diagnostic_block,
+            current_question=diagnostic_question,
+        )
+        client.force_login(user)
+
+        first = diagnostic_options[0]
+        payload = {"option_А": first.id}  # только одна группа
+
+        url = reverse(
+            "surveys:survey_question",
+            args=[diagnostic_category.id, diagnostic_block.id, diagnostic_question.id],
+        )
+        response = client.post(url, payload, follow=True)
+
+        messages = [str(m.message) for m in response.context["messages"]]
+        assert any("Выберите вариант в группе" in m for m in messages)
+        assert (
+            UserSurveyResponse.objects.filter(
+                user=user, question=diagnostic_question, session=session
+            ).count()
+            == 0
+        )
+
+
+# ============================================================
+# survey_results — diagnostic kit
+# ============================================================
+
+
+@pytest.mark.django_db
+class TestDiagnosticKitResults:
+    """survey_results для диагностического комплекта"""
+
+    def test_results_template_and_details(
+        self,
+        client,
+        general_education_type,
+        director_position,
+        diagnostic_category,
+        diagnostic_block,
+        diagnostic_question,
+        diagnostic_options,
+    ):
+        """Результаты рендерятся из diagnostic_kit_results.html, details собираются"""
+        org = Organization.objects.create(
+            inn="444444444444",
+            full_name="Школа",
+            short_name="Школа",
+            address_raw="г. Воронеж",
+            organization_type=general_education_type,
+        )
+        user = User.objects.create_user(
+            username="emp_res",
+            password="x",
+            user_type="employee",
+            organization=org,
+        )
+        EmployeeProfile.objects.create(
+            user=user,
+            snils="444-555-666 77",
+            organization=org,
+            position="Директор школы",
+            position_level="top",
+        )
+        diagnostic_category.target_positions.add(director_position)
+
+        session = SurveySession.objects.create(
+            user=user,
+            category=diagnostic_category,
+            attempt=1,
+            status="completed",
+            completed_at=timezone.now(),
+        )
+
+        # Сохраняем по одному ответу в каждой группе
+        for o in diagnostic_options:
+            if o.group and o.order == 1:
+                UserSurveyResponse.objects.create(
+                    user=user,
+                    session=session,
+                    question=diagnostic_question,
+                    group=o.group,
+                    selected_option=o,
+                    score=1,
+                )
+
+        # Результат
+        DiagnosticKitResult.objects.create(
+            session=session,
+            work1_score=0,
+            work2_score=0,
+            work3_score=0,
+            work4_score=0,
+            total_score=0,
+        )
+
+        client.force_login(user)
+        url = reverse("surveys:survey_results", args=[diagnostic_category.id])
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert any(
+            t.name and t.name.endswith("diagnostic_kit_results.html")
+            for t in response.templates
+        )
+        assert response.context["is_diagnostic_kit"] is True
+        assert len(response.context["works_data"]) == 4
+
+        # details собраны
+        block = response.context["block_responses"][0]
+        details = block["responses"][0]["details"]
+        assert len(details) == 4
+        assert {d["group"] for d in details} == {"А", "Б", "В", "Г"}
