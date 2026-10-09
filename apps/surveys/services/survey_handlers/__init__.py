@@ -1,13 +1,15 @@
 from .default_handler import DefaultSurveyHandler
 from .unified_handler import UnifiedSurveyHandler
+from .diagnostic_kit_handler import DiagnosticKitHandler
 
 
 class SurveyHandlerFactory:
     """Фабрика для получения обработчика опроса"""
 
     _handlers = [
-        UnifiedSurveyHandler,  # Универсальный обработчик для DigComp и RIASEC
-        DefaultSurveyHandler,  # Для всех остальных опросов
+        DiagnosticKitHandler,  # Диагностический комплект руководителя ОО
+        UnifiedSurveyHandler,  # DigComp, RIASEC, Big5, Gardner
+        DefaultSurveyHandler,  # Всё остальное
     ]
 
     @classmethod

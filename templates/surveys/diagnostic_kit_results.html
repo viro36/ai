@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ category.name }} — Результаты{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/surveys/survey_common.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+
+            <!-- Попытка -->
+            <div class="alert alert-info mb-3">
+                <i class="fa-solid fa-chart-simple me-2"></i>
+                <strong>Попытка {{ current_attempt }} из {{ total_attempts }}</strong>
+                <span class="ms-2 small">
+                    <i class="fa-regular fa-calendar me-1"></i>
+                    {{ completed_at|date:"d.m.Y H:i" }}
+                </span>
+            </div>
+
+            <!-- Итоговый балл -->
+            <div class="card mb-4 shadow">
+                <div class="card-body text-center">
+                    <h2 class="mb-3">{{ category.name }}</h2>
+                    <div class="display-4 fw-bold text-primary">
+                        {{ total_score }} <small class="text-muted fs-4">/ {{ max_total_score }}</small>
+                    </div>
+                    <span class="badge bg-{{ total_level.color }} fs-5 mt-2">
+                        {{ total_level.name }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Профиль по работам -->
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fa-solid fa-list-ol me-2"></i>Профиль по работам</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>№</th>
+                                <th>Работа</th>
+                                <th class="text-center">Балл</th>
+                                <th class="text-center">Уровень</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for w in works_data %}
+                            <tr>
+                                <td>{{ w.num }}</td>
+                                <td>{{ w.name }}</td>
+                                <td class="text-center fw-bold">
+                                    {{ w.score }} / 10
+                                    {% if w.percent %}<small class="text-muted">({{ w.percent }} %)</small>{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-{{ w.level.color }}">{{ w.level.name }}</span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Детальные ответы по блокам -->
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fa-solid fa-table-list me-2"></i>Детальные ответы</h5>
+                </div>
+                <div class="card-body">
+                    {% for block_data in block_responses %}
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>{{ block_data.block.title }}</strong>
+                                {% if block_data.block.subtitle %}
+                                    <div class="small text-muted">{{ block_data.block.subtitle }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="card-body">
+                                {% for response in block_data.responses %}
+                                    <div class="mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                        <div class="mb-2">
+                                            <small class="text-muted">{{ forloop.counter }}.</small>
+                                            {{ response.question.text }}
+                                        </div>
+
+                                        {% if response.details %}
+                                            <div class="ms-3 small">
+                                                {% for d in response.details %}
+                                                    <div class="mb-1">
+                                                        <span class="badge bg-light text-dark border me-1">{{ d.group }}</span>
+                                                        {% if d.is_correct %}
+                                                            <i class="fa-solid fa-circle-check text-success me-1"></i>
+                                                        {% else %}
+                                                            <i class="fa-solid fa-circle-xmark text-danger me-1"></i>
+                                                        {% endif %}
+                                                        {{ d.option_text|default:"—" }}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'surveys:survey_list' %}" class="btn btn-outline-secondary">
+                    <i class="fa-solid fa-arrow-left me-1"></i> К списку опросов
+                </a>
+                <button onclick="window.print();" class="btn btn-outline-primary">
+                    <i class="fa-solid fa-print me-1"></i> Распечатать
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

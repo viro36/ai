@@ -8,16 +8,25 @@ from .models import (
     SurveyCategory,
     SurveyBlock,
     SurveyQuestion,
+    SurveyQuestionOption,
     UserSurveyResponse,
     SurveySession,
     ScaleLabel,
 )
 
+# ============================================================
+# СПИСОК ОПРОСОВ
+# ============================================================
+
 
 @login_required
 def survey_list(request):
-    """Список доступных опросов"""
-    categories = SurveyCategory.objects.filter(is_active=True)
+    """Список доступных опросов (с учётом аудитории)."""
+    all_categories = SurveyCategory.objects.filter(is_active=True).prefetch_related(
+        "target_positions"
+    )
+
+    categories = [c for c in all_categories if c.is_available_for(request.user)]
 
     for category in categories:
         category.completed_sessions = SurveySession.objects.filter(
@@ -30,18 +39,24 @@ def survey_list(request):
         ).exists()
         category.attempts_count = category.completed_sessions.count()
 
-    context = {
-        "categories": categories,
-    }
+    context = {"categories": categories}
     return render(request, "surveys/survey_list.html", context)
+
+
+# ============================================================
+# СТАРТ / ПРОДОЛЖЕНИЕ
+# ============================================================
 
 
 @login_required
 def survey_continue(request, category_id):
-    """Продолжить незавершённый опрос"""
+    """Продолжить незавершённый опрос."""
     category = get_object_or_404(SurveyCategory, id=category_id, is_active=True)
 
-    # Находим незавершённую сессию
+    if not category.is_available_for(request.user):
+        messages.error(request, "Этот опрос вам недоступен")
+        return redirect("surveys:survey_list")
+
     session = SurveySession.objects.filter(
         user=request.user, category=category, status="in_progress"
     ).first()
@@ -59,17 +74,17 @@ def survey_continue(request, category_id):
             question_id=session.current_question.id,
         )
 
-    # Если нет текущего вопроса - находим первый неотвеченный
-    # Получаем все вопросы
+    # Ищем первый неотвеченный вопрос
     all_questions = []
     for block in category.blocks.filter(is_active=True).order_by("order"):
         for question in block.questions.filter(is_active=True).order_by("q_number"):
             all_questions.append({"block": block, "question": question})
 
-    # Находим первый неотвеченный вопрос
     for item in all_questions:
         answered = UserSurveyResponse.objects.filter(
-            user=request.user, question=item["question"]
+            user=request.user,
+            question=item["question"],
+            session=session,
         ).exists()
         if not answered:
             session.current_block = item["block"]
@@ -82,7 +97,6 @@ def survey_continue(request, category_id):
                 question_id=item["question"].id,
             )
 
-    # Если все вопросы отвечены - завершаем опрос
     session.status = "completed"
     session.completed_at = timezone.now()
     session.save()
@@ -92,7 +106,7 @@ def survey_continue(request, category_id):
 
 @login_required
 def survey_start(request, category_id):
-    """Начало нового опроса"""
+    """Начало нового опроса."""
     category = get_object_or_404(SurveyCategory, id=category_id)
 
     # Проверка активности опроса
@@ -100,7 +114,10 @@ def survey_start(request, category_id):
         messages.error(request, "Этот опрос в данный момент недоступен")
         return redirect("surveys:survey_list")
 
-    # Проверяем, есть ли незавершённая сессия
+    if not category.is_available_for(request.user):
+        messages.error(request, "Этот опрос вам недоступен")
+        return redirect("surveys:survey_list")
+
     in_progress_session = SurveySession.objects.filter(
         user=request.user, category=category, status="in_progress"
     ).first()
@@ -146,15 +163,25 @@ def survey_start(request, category_id):
             block_id=session.current_block.id,
             question_id=session.current_question.id,
         )
-    else:
-        messages.error(request, "В опросе нет вопросов")
-        return redirect("surveys:survey_list")
+
+    messages.error(request, "В опросе нет вопросов")
+    return redirect("surveys:survey_list")
+
+
+# ============================================================
+# ВОПРОС
+# ============================================================
 
 
 @login_required
 def survey_question(request, category_id, block_id, question_id):
-    """Отображение вопроса опроса"""
+    """Отображение вопроса опроса."""
     category = get_object_or_404(SurveyCategory, id=category_id, is_active=True)
+
+    if not category.is_available_for(request.user):
+        messages.error(request, "Этот опрос вам недоступен")
+        return redirect("surveys:survey_list")
+
     block = get_object_or_404(
         SurveyBlock, id=block_id, category=category, is_active=True
     )
@@ -170,28 +197,37 @@ def survey_question(request, category_id, block_id, question_id):
     if not session:
         return redirect("surveys:survey_start", category_id=category_id)
 
-    # Получаем шкалу оценок
+    # Шкала оценок (для обычных опросов)
     scale_labels = ScaleLabel.objects.filter(category=category).order_by("scale_value")
-
-    # Если для опроса нет своей шкалы, используем глобальную (без category)
     if not scale_labels.exists():
         scale_labels = ScaleLabel.objects.filter(category__isnull=True).order_by(
             "scale_value"
         )
 
-    # Получаем сохранённый ответ пользователя для текущей сессии
-    saved_response = UserSurveyResponse.objects.filter(
-        user=request.user, question=question, session=session
-    ).first()
+    # Есть ли у вопроса опции (диагностический комплект)
+    question_groups = sorted(
+        set(question.options.values_list("group", flat=True)) - {None, ""}
+    )
+    has_options = bool(question_groups)
 
-    # Получаем все блоки и вопросы для навигации
+    # Сохранённые ответы пользователя по текущей сессии
+    saved_responses = UserSurveyResponse.objects.filter(
+        user=request.user, question=question, session=session
+    )
+    saved_response = saved_responses.filter(group__isnull=True).first()
+    selected_options = {
+        r.group: r.selected_option_id
+        for r in saved_responses.exclude(group__isnull=True)
+        if r.group
+    }
+
+    # Навигация: все блоки и вопросы
     blocks = list(category.blocks.filter(is_active=True).order_by("order"))
     all_questions = []
     for b in blocks:
         for q in b.questions.filter(is_active=True).order_by("q_number"):
             all_questions.append({"block": b, "question": q})
 
-    # Находим текущую позицию
     current_index = next(
         (
             i
@@ -207,82 +243,140 @@ def survey_question(request, category_id, block_id, question_id):
         if current_index + 1 < len(all_questions)
         else None
     )
-
     is_last = next_item is None
 
+    # ============================================================
+    # POST
+    # ============================================================
     if request.method == "POST":
-        score = request.POST.get("score")
+        if has_options:
+            # ===== Опрос с опциями (диагностический комплект) =====
+            answers = {}
+            missing = []
 
-        if not score:
-            messages.error(request, "Пожалуйста, выберите вариант ответа")
-        else:
-            # Сохраняем ответ с привязкой к сессии
-            UserSurveyResponse.objects.update_or_create(
-                user=request.user,
-                question=question,
-                session=session,
-                defaults={"score": int(score)},
-            )
+            for letter in question_groups:
+                option_id = request.POST.get(f"option_{letter}")
+                if option_id:
+                    answers[letter] = int(option_id)
+                else:
+                    missing.append(letter)
 
-            # Обновляем текущий вопрос в сессии
-            if next_item:
-                session.current_block = next_item["block"]
-                session.current_question = next_item["question"]
-                session.save()
-                return redirect(
-                    "surveys:survey_question",
-                    category_id=category_id,
-                    block_id=next_item["block"].id,
-                    question_id=next_item["question"].id,
+            if missing:
+                messages.error(
+                    request,
+                    f"Выберите вариант в группе: {', '.join(missing)}",
                 )
             else:
-                # Это последний вопрос
-                # Обновляем текущий вопрос на последний перед завершением
+                for letter, option_id in answers.items():
+                    UserSurveyResponse.objects.update_or_create(
+                        user=request.user,
+                        question=question,
+                        session=session,
+                        group=letter,
+                        defaults={
+                            "selected_option_id": option_id,
+                            "score": 1,  # фиктивное значение, чтобы не нарушать NOT NULL
+                        },
+                    )
+
+                if next_item:
+                    session.current_block = next_item["block"]
+                    session.current_question = next_item["question"]
+                    session.save()
+                    return redirect(
+                        "surveys:survey_question",
+                        category_id=category_id,
+                        block_id=next_item["block"].id,
+                        question_id=next_item["question"].id,
+                    )
+
+                # Последний вопрос — завершаем
                 session.current_block = block
                 session.current_question = question
                 session.save()
 
-                # Завершаем опрос
                 session.status = "completed"
                 session.completed_at = timezone.now()
                 session.save()
 
-                # Получаем обработчик и рассчитываем результаты
                 handler = SurveyHandlerFactory.get_handler(category, session)
-                user_responses = UserSurveyResponse.objects.filter(
+                responses = UserSurveyResponse.objects.filter(
                     user=request.user,
                     question__block__category=category,
                     session=session,
                 )
-
-                # Проверяем, нужно ли рассчитывать результаты (не для custom опросов)
                 if handler.survey_config["type"] != "custom":
-                    handler.calculate_results(user_responses)
-                    messages.success(request, "Спасибо за прохождение опроса!")
-                else:
-                    messages.success(request, "Спасибо за прохождение опроса!")
-
-                # Принудительно перенаправляем на результаты
+                    handler.calculate_results(responses)
+                messages.success(request, "Спасибо за прохождение опроса!")
                 return redirect("surveys:survey_results", category_id=category_id)
 
-    # Прогресс
-    total = len(all_questions)
-    answered = UserSurveyResponse.objects.filter(
-        user=request.user, question__block__category=category, session=session
-    ).count()
+        else:
+            # ===== Обычный опрос со шкалой 1–5 =====
+            score = request.POST.get("score")
 
-    # Ограничиваем прогресс 100%
+            if not score:
+                messages.error(request, "Пожалуйста, выберите вариант ответа")
+            else:
+                UserSurveyResponse.objects.update_or_create(
+                    user=request.user,
+                    question=question,
+                    session=session,
+                    group=None,  # важно: явный None, чтобы не было дублей
+                    defaults={"score": int(score)},
+                )
+
+                if next_item:
+                    session.current_block = next_item["block"]
+                    session.current_question = next_item["question"]
+                    session.save()
+                    return redirect(
+                        "surveys:survey_question",
+                        category_id=category_id,
+                        block_id=next_item["block"].id,
+                        question_id=next_item["question"].id,
+                    )
+
+                # Последний вопрос — завершаем
+                session.current_block = block
+                session.current_question = question
+                session.save()
+
+                session.status = "completed"
+                session.completed_at = timezone.now()
+                session.save()
+
+                handler = SurveyHandlerFactory.get_handler(category, session)
+                responses = UserSurveyResponse.objects.filter(
+                    user=request.user,
+                    question__block__category=category,
+                    session=session,
+                )
+                if handler.survey_config["type"] != "custom":
+                    handler.calculate_results(responses)
+                messages.success(request, "Спасибо за прохождение опроса!")
+                return redirect("surveys:survey_results", category_id=category_id)
+
+    # ============================================================
+    # Контекст для рендера
+    # ============================================================
+    total = len(all_questions)
+    answered = (
+        UserSurveyResponse.objects.filter(
+            user=request.user,
+            question__block__category=category,
+            session=session,
+        )
+        .values("question")
+        .distinct()
+        .count()
+    )
     progress = round(answered / total * 100) if total > 0 else 0
     progress = min(progress, 100)
 
-    # Номер вопроса в блоке
     block_questions = list(block.questions.filter(is_active=True).order_by("q_number"))
     question_in_block = (
         next((i for i, q in enumerate(block_questions) if q.id == question.id), 0) + 1
     )
-
-    # Для уже отвеченного вопроса показываем сохранённую оценку
-    selected_score = saved_response.score if saved_response else None
 
     context = {
         "category": category,
@@ -299,18 +393,32 @@ def survey_question(request, category_id, block_id, question_id):
         "total_questions": total,
         "question_in_block": question_in_block,
         "total_in_block": len(block_questions),
-        "selected_score": selected_score,
+        # для обычной шкалы 1–5
+        "selected_score": saved_response.score if saved_response else None,
+        # для опросов с опциями
+        "has_options": has_options,
+        "question_groups": question_groups,
+        "selected_options": selected_options,
         "blocks": blocks,
     }
     return render(request, "surveys/survey_question.html", context)
 
 
+# ============================================================
+# РЕЗУЛЬТАТЫ
+# ============================================================
+
+
 @login_required
 def survey_results(request, category_id, attempt=None):
-    """Результаты опроса (по умолчанию последняя попытка)"""
+    """Результаты опроса (по умолчанию последняя попытка)."""
     category = get_object_or_404(SurveyCategory, id=category_id)
 
-    # Если указана конкретная попытка, показываем её, иначе последнюю
+    if not category.is_available_for(request.user):
+        messages.error(request, "Этот опрос вам недоступен")
+        return redirect("surveys:survey_list")
+
+    # ---------- Определяем сессию ----------
     if attempt:
         session = get_object_or_404(
             SurveySession,
@@ -328,36 +436,37 @@ def survey_results(request, category_id, attempt=None):
             .first()
         )
 
-    # Если нет завершённой сессии, но есть в процессе - продолжаем её
     if not session:
         in_progress = SurveySession.objects.filter(
             user=request.user, category=category, status="in_progress"
         ).first()
-
         if in_progress:
             return redirect("surveys:survey_continue", category_id=category_id)
-
-        # Действительно нет никакой сессии
         messages.warning(request, "Вы ещё не прошли этот опрос")
         return redirect("surveys:survey_list")
 
-    # Получаем обработчик для этого опроса
+    # ---------- Получаем обработчик ----------
     handler = SurveyHandlerFactory.get_handler(category, session)
 
-    # Получаем результаты
+    # ---------- Пытаемся получить готовый результат, иначе считаем ----------
     results = None
     if hasattr(handler, "get_results"):
         results = handler.get_results()
-    elif hasattr(handler, "calculate_results"):
-        user_responses = UserSurveyResponse.objects.filter(
-            user=request.user, question__block__category=category, session=session
+
+    if results is None and hasattr(handler, "calculate_results"):
+        user_responses_qs = UserSurveyResponse.objects.filter(
+            user=request.user,
+            question__block__category=category,
+            session=session,
         )
-        results = handler.calculate_results(user_responses)
+        results = handler.calculate_results(user_responses_qs)
 
-    # Получаем контекст от обработчика
-    handler_context = handler.get_results_context(results) if results else {}
+    # ---------- Контекст от обработчика ----------
+    handler_context = {}
+    if hasattr(handler, "get_results_context"):
+        handler_context = handler.get_results_context(results) or {}
 
-    # Группируем ответы по блокам (только для текущей сессии)
+    # ---------- Группировка ответов по блокам ----------
     blocks = category.blocks.filter(is_active=True).order_by("order")
     block_responses = []
     all_scores = []
@@ -365,13 +474,55 @@ def survey_results(request, category_id, attempt=None):
     for block in blocks:
         questions = block.questions.filter(is_active=True).order_by("q_number")
         responses = []
+
         for question in questions:
-            response = UserSurveyResponse.objects.filter(
-                user=request.user, question=question, session=session
-            ).first()
-            if response:
-                responses.append({"question": question, "score": response.score})
-                all_scores.append(response.score)
+            user_responses = list(
+                UserSurveyResponse.objects.filter(
+                    user=request.user,
+                    question=question,
+                    session=session,
+                ).order_by("group")
+            )
+            if not user_responses:
+                continue
+
+            # Детали выбранных вариантов (для опросов с опциями)
+            details = []
+            for r in user_responses:
+                option_text = ""
+                is_correct = None
+                if r.selected_option_id:
+                    try:
+                        option = SurveyQuestionOption.objects.get(
+                            id=r.selected_option_id
+                        )
+                        option_text = option.text
+                        is_correct = option.is_correct
+                    except SurveyQuestionOption.DoesNotExist:
+                        pass
+
+                details.append(
+                    {
+                        "group": r.group,
+                        "option_text": option_text,
+                        "is_correct": is_correct,
+                        "score": r.score,
+                    }
+                )
+
+            # Основной балл для агрегатов:
+            # для опросов с опциями — score первой записи,
+            # для шкалы 1–5 — score единственной записи.
+            main_score = user_responses[0].score or 0
+
+            responses.append(
+                {
+                    "question": question,
+                    "score": main_score,
+                    "details": details,
+                }
+            )
+            all_scores.append(main_score)
 
         if responses:
             block_responses.append(
@@ -386,13 +537,13 @@ def survey_results(request, category_id, attempt=None):
                 }
             )
 
-    # Средний балл по опросу
+    # ---------- Средний балл и распределение ----------
     average_score = sum(all_scores) / len(all_scores) if all_scores else 0
 
-    # Распределение ответов по шкале
     distribution = {i: 0 for i in range(1, 6)}
     for score in all_scores:
-        distribution[score] += 1
+        if score in distribution:
+            distribution[score] += 1
 
     scale_labels = ScaleLabel.objects.filter(category=category).order_by("scale_value")
     if not scale_labels.exists():
@@ -401,11 +552,12 @@ def survey_results(request, category_id, attempt=None):
         )
     scale_labels_dict = {sl.scale_value: sl.label for sl in scale_labels}
 
-    # Получаем общее количество попыток
+    # ---------- Общее число попыток ----------
     total_attempts = SurveySession.objects.filter(
         user=request.user, category=category, status="completed"
     ).count()
 
+    # ---------- Контекст ----------
     context = {
         "category": category,
         "session": session,
@@ -427,15 +579,16 @@ def survey_results(request, category_id, attempt=None):
 
 @login_required
 def survey_results_history(request, category_id):
-    """Список всех попыток опроса"""
+    """Список всех попыток опроса."""
     category = get_object_or_404(SurveyCategory, id=category_id)
+
+    if not category.is_available_for(request.user):
+        messages.error(request, "Этот опрос вам недоступен")
+        return redirect("surveys:survey_list")
 
     sessions = SurveySession.objects.filter(
         user=request.user, category=category, status="completed"
     ).order_by("-attempt")
 
-    context = {
-        "category": category,
-        "sessions": sessions,
-    }
+    context = {"category": category, "sessions": sessions}
     return render(request, "surveys/survey_history.html", context)

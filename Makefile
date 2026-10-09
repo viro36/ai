@@ -174,3 +174,9 @@ load_coverage_analysis_o:
 
 load_coverage_methodology:
 	docker-compose exec ai python manage.py load_coverage_methodology
+
+import_school_questions:
+	docker-compose exec ai python manage.py import_diagnostic_kit \
+	apps/surveys/scripts/docs/Diagnosticheskij_komplekt_rukovoditel_OO.xlsx \
+	--organization-type "Общее образование" \
+	--positions "Директор"

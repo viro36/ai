@@ -16,6 +16,7 @@ from .models import (
     SurveyBlock,
     ScaleLabel,
     SurveyQuestion,
+    SurveyQuestionOption,
     UserSurveyResponse,
     SurveySession,
     SurveyInterpretation,
@@ -23,11 +24,21 @@ from .models import (
     RiasacResult,
     Big5Result,
     GardnerResult,
+    DiagnosticKitResult,
 )
 
 # ---------------------------------------------------------------------------
-# Опросы: категории, блоки, вопросы, шкалы
+# Опросы: категории, блоки, вопросы, шкалы, опции
 # ---------------------------------------------------------------------------
+
+
+class SurveyQuestionOptionInline(admin.TabularInline):
+    model = SurveyQuestionOption
+    extra = 0
+    fields = ("order", "text", "is_correct")
+    ordering = ("order",)
+    verbose_name = "Вариант ответа"
+    verbose_name_plural = "Варианты ответа"
 
 
 class SurveyQuestionInline(admin.TabularInline):
@@ -35,6 +46,7 @@ class SurveyQuestionInline(admin.TabularInline):
     extra = 1
     fields = ("text", "q_number", "is_active")
     ordering = ("q_number",)
+    show_change_link = True
 
 
 class SurveyBlockInline(admin.TabularInline):
@@ -53,18 +65,37 @@ class ImportExcelForm(forms.Form):
 class SurveyCategoryAdmin(admin.ModelAdmin):
     list_display = (
         "name",
+        "target_organization_type",
+        "positions_count",
         "blocks_count",
         "questions_count",
         "sessions_count",
         "is_active",
         "created_at",
     )
-    list_filter = ("is_active", "created_at")
+    list_filter = ("is_active", "target_organization_type", "created_at")
     search_fields = ("name", "description", "instruction_text")
     list_editable = ("is_active",)
     readonly_fields = ("created_at",)
+    filter_horizontal = ("target_positions",)
+
     fieldsets = (
         ("Основная информация", {"fields": ("name", "description", "is_active")}),
+        (
+            "Аудитория",
+            {
+                "fields": (
+                    "target_user_types",
+                    "target_organization_type",
+                    "target_positions",
+                ),
+                "description": (
+                    "Пустые поля = опрос доступен всем. "
+                    "target_user_types — JSON-список user_type, "
+                    'например: ["employee"].'
+                ),
+            },
+        ),
         (
             "Отображение",
             {
@@ -79,12 +110,13 @@ class SurveyCategoryAdmin(admin.ModelAdmin):
         ),
         ("Системное", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
+
     inlines = [SurveyBlockInline]
 
     def blocks_count(self, obj):
         return obj.blocks.filter(is_active=True).count()
 
-    blocks_count.short_description = "Количество блоков"
+    blocks_count.short_description = "Блоков"
 
     def questions_count(self, obj):
         total = 0
@@ -92,12 +124,17 @@ class SurveyCategoryAdmin(admin.ModelAdmin):
             total += block.questions.filter(is_active=True).count()
         return total
 
-    questions_count.short_description = "Количество вопросов"
+    questions_count.short_description = "Вопросов"
 
     def sessions_count(self, obj):
         return obj.sessions.count()
 
-    sessions_count.short_description = "Количество прохождений"
+    sessions_count.short_description = "Прохождений"
+
+    def positions_count(self, obj):
+        return obj.target_positions.count()
+
+    positions_count.short_description = "Должностей"
 
     def get_urls(self):
         urls = super().get_urls()
@@ -174,20 +211,47 @@ class ScaleLabelAdmin(admin.ModelAdmin):
 
 @admin.register(SurveyQuestion)
 class SurveyQuestionAdmin(admin.ModelAdmin):
-    list_display = ("text_preview", "block", "q_number", "responses_count", "is_active")
+    list_display = (
+        "text_preview",
+        "block",
+        "q_number",
+        "options_count",
+        "responses_count",
+        "is_active",
+    )
     list_filter = ("block__category", "block", "is_active", "created_at")
     search_fields = ("text",)
     list_editable = ("q_number", "is_active")
+    inlines = (SurveyQuestionOptionInline,)
 
     def text_preview(self, obj):
         return obj.text[:100] + "..." if len(obj.text) > 100 else obj.text
 
     text_preview.short_description = "Вопрос"
 
+    def options_count(self, obj):
+        return obj.options.count()
+
+    options_count.short_description = "Вариантов"
+
     def responses_count(self, obj):
         return obj.responses.count()
 
     responses_count.short_description = "Ответов"
+
+
+@admin.register(SurveyQuestionOption)
+class SurveyQuestionOptionAdmin(admin.ModelAdmin):
+    list_display = ("question", "order", "text_preview", "is_correct")
+    list_filter = ("is_correct", "question__block__category")
+    search_fields = ("text", "question__text")
+    ordering = ("question", "order")
+    list_editable = ("order", "is_correct")
+
+    def text_preview(self, obj):
+        return obj.text[:80] + "..." if len(obj.text) > 80 else obj.text
+
+    text_preview.short_description = "Текст варианта"
 
 
 # ---------------------------------------------------------------------------
@@ -238,10 +302,11 @@ class SurveyInterpretationAdmin(admin.ModelAdmin):
 
 @admin.register(UserSurveyResponse)
 class UserSurveyResponseAdmin(admin.ModelAdmin):
-    list_display = ("user", "question", "score", "created_at")
+    list_display = ("user", "question", "score", "selected_option", "created_at")
     list_filter = ("score", "question__block__category", "created_at")
     search_fields = ("user__username", "user__email", "question__text")
     readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("selected_option",)
 
 
 @admin.register(SurveySession)
@@ -346,6 +411,33 @@ class GardnerResultAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(DiagnosticKitResult)
+class DiagnosticKitResultAdmin(admin.ModelAdmin):
+    list_display = (
+        "session",
+        "work1_score",
+        "work2_score",
+        "work3_score",
+        "work4_score",
+        "total_score",
+        "created_at",
+    )
+    list_filter = ("created_at",)
+    search_fields = ("session__user__username", "session__user__email")
+    readonly_fields = (
+        "session",
+        "work1_score",
+        "work2_score",
+        "work3_score",
+        "work4_score",
+        "total_score",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+
 # ---------------------------------------------------------------------------
 # RIASEC-коды
 # ---------------------------------------------------------------------------
@@ -390,13 +482,7 @@ class ProfessionalStandardProgramInline(admin.TabularInline):
 
 @admin.register(ProfessionalStandard)
 class ProfessionalStandardAdmin(admin.ModelAdmin):
-    list_display = (
-        "code",
-        "name",
-        "education_level",
-        "is_active",
-        "updated_at",
-    )
+    list_display = ("code", "name", "education_level", "is_active", "updated_at")
     list_filter = ("education_level", "is_active")
     search_fields = ("code", "name")
     filter_horizontal = ("riasec_codes",)
@@ -406,14 +492,7 @@ class ProfessionalStandardAdmin(admin.ModelAdmin):
     fieldsets = (
         (
             "Основная информация",
-            {
-                "fields": (
-                    "code",
-                    "name",
-                    "education_level",
-                    "is_active",
-                )
-            },
+            {"fields": ("code", "name", "education_level", "is_active")},
         ),
         (
             "Коды Холланда",
@@ -424,10 +503,7 @@ class ProfessionalStandardAdmin(admin.ModelAdmin):
         ),
         (
             "Системное",
-            {
-                "fields": ("created_at", "updated_at"),
-                "classes": ("collapse",),
-            },
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
 
@@ -442,10 +518,7 @@ class GeneralizedLaborFunctionAdmin(admin.ModelAdmin):
         "order",
         "is_active",
     )
-    list_filter = (
-        "professional_standard__education_level",
-        "is_active",
-    )
+    list_filter = ("professional_standard__education_level", "is_active")
     search_fields = ("code", "name", "professional_standard__code")
     autocomplete_fields = ("professional_standard",)
     ordering = ("professional_standard", "order", "code")

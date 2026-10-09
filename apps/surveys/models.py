@@ -26,6 +26,29 @@ class SurveyCategory(models.Model):
         verbose_name="Описание результатов",
         help_text="Отображается в результатах после графика (поддерживает HTML)",
     )
+    # ========== Ограничения аудитории ==========
+    target_user_types = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Типы пользователей",
+        help_text="Список user_type, которым доступен опрос. " "Пусто — доступен всем.",
+    )
+    target_organization_type = models.ForeignKey(
+        "organizations.OrganizationType",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="survey_categories",
+        verbose_name="Тип организации",
+        help_text="Если указан — опрос видят только работники организаций этого типа.",
+    )
+    target_positions = models.ManyToManyField(
+        "accounts.Position",
+        blank=True,
+        related_name="survey_categories",
+        verbose_name="Должности",
+        help_text="Если указаны — опрос видят только работники с этими должностями.",
+    )
 
     class Meta:
         verbose_name = "Категория опроса"
@@ -40,7 +63,9 @@ class SurveyCategory(models.Model):
         from .models import SurveyQuestion
 
         return SurveyQuestion.objects.filter(
-            block__category=self, is_active=True
+            block__category=self,
+            block__is_active=True,
+            is_active=True,
         ).count()
 
     def get_display_description(self):
@@ -66,6 +91,38 @@ class SurveyCategory(models.Model):
             text = text[:1500] + "..."
         return text
 
+    def is_available_for(self, user):
+        """Проверяет, доступен ли опрос данному пользователю."""
+        # 1. Тип пользователя
+        if self.target_user_types:
+            if user.user_type not in self.target_user_types:
+                return False
+
+        # 2. Тип организации
+        if self.target_organization_type_id:
+            profile = getattr(user, "employee_profile", None)
+            if not profile or not profile.organization:
+                return False
+            if (
+                profile.organization.organization_type_id
+                != self.target_organization_type_id
+            ):
+                return False
+
+        # 3. Должности
+        position_ids = list(self.target_positions.values_list("id", flat=True))
+        if position_ids:
+            profile = getattr(user, "employee_profile", None)
+            if not profile:
+                return False
+            # Сопоставляем по названию должности (у EmployeeProfile.position — CharField)
+            profile_position_name = (profile.position or "").strip()
+            allowed_names = set(self.target_positions.values_list("name", flat=True))
+            if profile_position_name not in allowed_names:
+                return False
+
+        return True
+
 
 class SurveyBlock(models.Model):
     """Блок вопросов (раздел опроса)"""
@@ -77,6 +134,12 @@ class SurveyBlock(models.Model):
         verbose_name="Категория опроса",
     )
     title = models.CharField(max_length=255, verbose_name="Название блока")
+    subtitle = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name="Подзаголовок / расшифровка",
+    )
     description = models.TextField(blank=True, null=True, verbose_name="Описание блока")
     order = models.PositiveIntegerField(default=0, verbose_name="Порядок блока")
     is_active = models.BooleanField(default=True, verbose_name="Активен")
@@ -240,20 +303,53 @@ class UserSurveyResponse(models.Model):
         related_name="responses",
         verbose_name="Вопрос",
     )
+
+    # Группа варианта (А/Б/В/Г) — только для опросов с опциями
+    # (например, диагностический комплект руководителя ОО).
+    # Для обычных опросов со шкалой 1–5 остаётся NULL.
+    group = models.CharField(
+        max_length=1,
+        blank=True,
+        null=True,
+        verbose_name="Группа (А/Б/В/Г)",
+    )
+
+    # Оценка по шкале 1–5 (для опросов DigComp, RIASEC, Big5, Gardner).
+    # Для опросов с опциями может быть NULL — там важен selected_option.
     score = models.PositiveSmallIntegerField(
         choices=[(1, "1"), (2, "2"), (3, "3"), (4, "4"), (5, "5")],
         verbose_name="Оценка",
+        null=True,
+        blank=True,
     )
+
+    # Выбранный вариант для опросов с опциями.
+    selected_option = models.ForeignKey(
+        "SurveyQuestionOption",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="responses",
+        verbose_name="Выбранный вариант",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата ответа")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 
     class Meta:
         verbose_name = "Ответ пользователя"
         verbose_name_plural = "Ответы пользователей"
-        unique_together = ["user", "question", "session"]
+        # Уникальность на уровне (пользователь, вопрос, сессия, группа).
+        # Для опросов со шкалой 1–5 group = NULL, поэтому одна запись
+        # на (user, question, session) сохраняется.
+        # Для опросов с опциями на один вопрос приходится 4 записи —
+        # по одной на каждую группу А/Б/В/Г.
+        unique_together = ("user", "question", "session", "group")
         ordering = ["-created_at"]
 
     def __str__(self):
+        if self.group:
+            return f"{self.user} - {self.question.text[:30]} - {self.group}"
         return f"{self.user} - {self.question.text[:30]} - {self.score}"
 
 
@@ -710,3 +806,106 @@ class ProfessionalStandardProgram(models.Model):
 
     def __str__(self):
         return f"{self.professional_standard.code} - {self.education_program.code} (#{self.order})"
+
+
+class SurveyQuestionOption(models.Model):
+    question = models.ForeignKey(
+        SurveyQuestion,
+        on_delete=models.CASCADE,
+        related_name="options",
+    )
+    group = models.CharField(
+        max_length=1,
+        blank=True,
+        null=True,
+        verbose_name="Группа (А/Б/В/Г)",
+    )
+    text = models.TextField(verbose_name="Текст варианта")
+    is_correct = models.BooleanField(default=False, verbose_name="Правильный")
+    order = models.PositiveIntegerField(default=0, verbose_name="Порядок")
+
+    class Meta:
+        verbose_name = "Вариант ответа"
+        verbose_name_plural = "Варианты ответов"
+        ordering = ["question", "order"]
+
+    def __str__(self):
+        prefix = f"[{self.group}] " if self.group else ""
+        return f"{prefix}{self.question.text[:40]} — {self.text[:40]}"
+
+
+class DiagnosticKitResult(models.Model):
+    session = models.OneToOneField(
+        SurveySession,
+        on_delete=models.CASCADE,
+        related_name="diagnostic_kit_result",
+    )
+    work1_score = models.PositiveSmallIntegerField(default=0)
+    work2_score = models.PositiveSmallIntegerField(default=0)
+    work3_score = models.PositiveSmallIntegerField(default=0)
+    work4_score = models.PositiveSmallIntegerField(default=0)
+    total_score = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Результат диагностического комплекта"
+        verbose_name_plural = "Результаты диагностических комплектов"
+
+    def __str__(self):
+        return f"{self.session.user} — {self.total_score}/40"
+
+    @staticmethod
+    def level_for_work(score):
+        if 0 <= score <= 4:
+            return {"code": "low", "name": "Низкий уровень", "color": "danger"}
+        if 5 <= score <= 6:
+            return {"code": "medium", "name": "Средний уровень", "color": "warning"}
+        if 7 <= score <= 8:
+            return {"code": "high", "name": "Высокий уровень", "color": "info"}
+        if 9 <= score <= 10:
+            return {"code": "expert", "name": "Экспертный уровень", "color": "success"}
+        return {"code": "unknown", "name": "—", "color": "secondary"}
+
+    @staticmethod
+    def level_for_total(score):
+        if 0 <= score <= 16:
+            return {"code": "low", "name": "Низкий уровень", "color": "danger"}
+        if 17 <= score <= 26:
+            return {"code": "medium", "name": "Средний уровень", "color": "warning"}
+        if 27 <= score <= 34:
+            return {"code": "high", "name": "Высокий уровень", "color": "info"}
+        if 35 <= score <= 40:
+            return {"code": "expert", "name": "Экспертный уровень", "color": "success"}
+        return {"code": "unknown", "name": "—", "color": "secondary"}
+
+    def get_works_data(self):
+        scores = [
+            self.work1_score,
+            self.work2_score,
+            self.work3_score,
+            self.work4_score,
+        ]
+        result = []
+        for i, s in enumerate(scores, start=1):
+            # Найти блок с названием «Диагностическая работа i»
+            block = SurveyBlock.objects.filter(
+                category=self.session.category,
+                title__icontains=f"работа {i}",
+            ).first()
+
+            name = (
+                block.subtitle
+                if block and block.subtitle
+                else (block.title if block else f"Работа {i}")
+            )
+
+            result.append(
+                {
+                    "num": i,
+                    "name": name,
+                    "score": s,
+                    "percent": round(s / 10 * 100),
+                    "level": self.level_for_work(s),
+                }
+            )
+        return result

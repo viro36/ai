@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load survey_extras %}
 
 {% block title %}{{ category.name }} - Вопрос {{ question_number }}{% endblock %}
 
@@ -68,23 +69,63 @@
                     <!-- Форма ответа -->
                     <form method="post" id="surveyForm">
                         {% csrf_token %}
-                        <div class="scale-options mb-4">
-                            <label class="form-label fw-bold">Выберите вариант ответа:</label>
-                            {% for scale in scale_labels %}
-                                <div class="scale-option form-check mb-2 p-3 rounded {% if selected_score == scale.scale_value %}selected{% endif %}"
-                                     onclick="this.querySelector('input').click();">
-                                    <input class="form-check-input" type="radio"
-                                           name="score" value="{{ scale.scale_value }}"
-                                           id="scale_{{ scale.scale_value }}"
-                                           {% if selected_score == scale.scale_value %}checked{% endif %}
-                                           required>
-                                    <label class="form-check-label w-100" for="scale_{{ scale.scale_value }}">
-                                        <span class="fw-bold fs-5 me-3">{{ scale.scale_value }}</span>
-                                        <span>{{ scale.label }}</span>
-                                    </label>
-                                </div>
-                            {% endfor %}
-                        </div>
+
+                        {% if question.options.exists %}
+                            <div class="options-list mb-4">
+                                <label class="form-label fw-bold">
+                                    Выберите по одному варианту в каждой группе
+                                    <span class="text-muted small">(оценивается вся цепочка выбора)</span>:
+                                </label>
+
+                                {% regroup question.options.all by group as grouped_options %}
+                                {% for group in grouped_options %}
+                                    <div class="option-group mb-3">
+                                        {% if group.grouper %}
+                                            <div class="text-muted small mb-2">
+                                                <strong>Вариант {{ group.grouper }}</strong>
+                                            </div>
+                                        {% endif %}
+
+                                        {% for option in group.list %}
+                                            <div class="option-item form-check mb-2 p-3 rounded
+                                                        {% if selected_options|get_item:group.grouper == option.id %}selected{% endif %}"
+                                                onclick="this.querySelector('input').click();">
+                                                <input class="form-check-input" type="radio"
+                                                    name="option_{{ group.grouper }}"
+                                                    value="{{ option.id }}"
+                                                    id="option_{{ option.id }}"
+                                                    {% if selected_options|get_item:group.grouper == option.id %}checked{% endif %}
+                                                    required>
+                                                <label class="form-check-label w-100" for="option_{{ option.id }}">
+                                                    {{ option.text }}
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {# ===== Обычная шкала 1–5 ===== #}
+                            <div class="scale-options mb-4">
+                                <label class="form-label fw-bold">Выберите вариант ответа:</label>
+                                {% for scale in scale_labels %}
+                                    <div class="scale-option form-check mb-2 p-3 rounded
+                                                {% if selected_score == scale.scale_value %}selected{% endif %}"
+                                         onclick="this.querySelector('input').click();">
+                                        <input class="form-check-input" type="radio"
+                                               name="score"
+                                               value="{{ scale.scale_value }}"
+                                               id="scale_{{ scale.scale_value }}"
+                                               {% if selected_score == scale.scale_value %}checked{% endif %}
+                                               required>
+                                        <label class="form-check-label w-100" for="scale_{{ scale.scale_value }}">
+                                            <span class="fw-bold fs-5 me-3">{{ scale.scale_value }}</span>
+                                            <span>{{ scale.label }}</span>
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
 
                         <hr>
                         <div class="d-flex justify-content-between">
@@ -109,10 +150,13 @@
                 </div>
             </div>
 
-            <div class="alert alert-info mt-3">
-                <i class="fa-solid fa-info-circle me-2"></i>
-                <strong>Шкала оценок:</strong> 1 — наименьшее соответствие, 5 — наибольшее соответствие
-            </div>
+            {# Подсказка про шкалу — только для обычных опросов #}
+            {% if not question.options.exists %}
+                <div class="alert alert-info mt-3">
+                    <i class="fa-solid fa-info-circle me-2"></i>
+                    <strong>Шкала оценок:</strong> 1 — наименьшее соответствие, 5 — наибольшее соответствие
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
