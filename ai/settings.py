@@ -76,7 +76,7 @@ PROGRAM_APPS = [
     "apps.exports",
     "apps.mintrud",
     "apps.coverage_analysis",
-    "apps.analysis",
+    "apps.analytics",
 ]
 
 INSTALLED_APPS = BASIC_APPS + THIRD_PARTY_APPS + PROGRAM_APPS
